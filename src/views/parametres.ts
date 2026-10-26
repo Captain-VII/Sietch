@@ -282,6 +282,20 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           st.message ? line("État", st.message, false) : null,
         ),
         h("div", { class: "stack", style: "--gap: 8px" },
+          h("span", { class: "label" }, "Alertes du personnage"),
+          h("p", { class: "muted", style: "margin: 0" }, "Notification silencieuse quand une valeur franchit son seuil (0 = désactivée). Elle ne se répète pas tant que la valeur n'est pas revenue de l'autre côté."),
+          h("div", { class: "grid-auto", style: "--min: 160px; gap: 12px" },
+            ([["water", "Eau sous (%)"], ["health", "Vie sous (%)"], ["power", "Power pack sous (%)"], ["volume", "Sac plein au-delà de (%)"]] as const).map(([key, label]) => {
+              const input = h("input", { class: "input", id: `p-al-${key}`, type: "number", min: "0", max: "100", value: String(s.playerAlerts[key]) });
+              input.addEventListener("change", () => {
+                const v = Math.max(0, Math.min(100, Math.round(Number(input.value) || 0)));
+                input.value = String(v);
+                update({ playerAlerts: { ...ctx.settings().playerAlerts, [key]: v } });
+              });
+              return h("div", { class: "field" }, h("label", { class: "label", for: `p-al-${key}` }, label), input);
+            })),
+        ),
+        h("div", { class: "stack", style: "--gap: 8px" },
           h("span", { class: "label" }, "Calibration de la carte"),
           ...regions.map(([id, label]) => {
             const n = (s.calibration[id] ?? []).length;

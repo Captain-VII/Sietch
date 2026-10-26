@@ -34,6 +34,8 @@ export interface Settings {
   liveModules: boolean;
   liveRegion: string;
   calibration: Record<string, CalibrationPoint[]>;
+  /** Seuils des alertes du personnage, en % (0 = désactivée) ; volume : sac rempli au-delà. */
+  playerAlerts: { water: number; health: number; power: number; volume: number };
   /** Dispositions de widgets de l'overlay (au moins une). */
   layouts: Layout[];
   activeLayout: string;

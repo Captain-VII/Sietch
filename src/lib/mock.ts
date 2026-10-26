@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS: Settings = {
   liveModules: false,
   liveRegion: "hagga",
   calibration: {},
+  playerAlerts: { water: 25, health: 30, power: 15, volume: 90 },
   layouts: [{
     id: "exploration",
     name: "Exploration",

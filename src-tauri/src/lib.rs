@@ -1,3 +1,4 @@
+mod alerts;
 mod engine;
 mod live;
 mod settings;

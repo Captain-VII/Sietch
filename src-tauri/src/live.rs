@@ -149,6 +149,7 @@ pub fn spawn(app: AppHandle) {
         let mut tables: Option<ue::Tables> = None;
         let mut player: Option<ue::Player> = None;
         let mut last_state: Option<ue::PlayerState> = None;
+        let mut alerts = crate::alerts::Alerts::default();
         let (mut last_tables_try, mut last_player_try): (Option<Instant>, Option<Instant>) = (None, None);
         loop {
             let state = app.state::<AppState>();
@@ -260,6 +261,13 @@ pub fn spawn(app: AppHandle) {
                                     }
                                     let _ = app.emit("player-state", &s);
                                     *state.player_state.lock().unwrap() = Some(s.clone());
+                                    let settings = state.settings.lock().unwrap().clone();
+                                    for alarm in alerts.check(&s, &settings.player_alerts) {
+                                        if cfg!(debug_assertions) {
+                                            eprintln!("[alerte] {} — {}", alarm.title, alarm.body);
+                                        }
+                                        crate::engine::send_alarm(&app, &settings, alarm);
+                                    }
                                     last_state = Some(s);
                                 }
                             }
