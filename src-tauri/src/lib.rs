@@ -227,6 +227,11 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             app.manage(AppState::load(dir));
+            // Fenêtres créées après manage() (create: false dans la config) : en release, les pages
+            // embarquées appellent les commandes avant la fin de setup sinon.
+            for cfg in app.config().app.windows.clone() {
+                tauri::WebviewWindowBuilder::from_config(app.handle(), &cfg)?.build()?;
+            }
             let handle = app.handle().clone();
             tray::create(&handle)?;
             for e in shortcuts::register_all(&handle) {

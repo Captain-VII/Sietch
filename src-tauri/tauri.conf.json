@@ -15,6 +15,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Sietch",
         "url": "index.html",
         "width": 1440,
@@ -27,6 +28,7 @@
       },
       {
         "label": "overlay",
+        "create": false,
         "title": "Sietch — Overlay",
         "url": "overlay.html",
         "width": 340,
@@ -42,6 +44,7 @@
       },
       {
         "label": "wiki",
+        "create": false,
         "title": "Sietch — Wiki",
         "url": "wiki.html",
         "width": 960,

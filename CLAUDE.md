@@ -58,6 +58,9 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 - **Sécurité des fenêtres** : la fenêtre « web » (sites externes) n'a aucune permission Tauri ; seuls
   awakening.wiki et dune.gaming.tools y sont autorisés (`windows.rs`).
 - Icônes embarquées à la compilation : après un changement d'icône, `npm run icon` (touche `lib.rs`).
+- **Fenêtres** : `"create": false` dans `tauri.conf.json`, créées dans `setup` après `manage(AppState)`. Sinon, en
+  release (pages embarquées), le front appelle les commandes avant `manage()` → « state not managed ». Invisible en dev.
+  Toute nouvelle fenêtre de la config suit la même règle.
 
 ## État au 2026-10-26 (fin de la session sur le Mac)
 
