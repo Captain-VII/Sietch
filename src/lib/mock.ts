@@ -67,7 +67,9 @@ function simPlayer(): PlayerState {
     // Une journée du jeu en 4 minutes.
     timeOfDay: Math.floor(((t / 10) % 24) * 60) / 60,
     volume: 268.5, volumeMax: 1750,
-    x: 0, y: 0, z: 0,
+    x: Math.cos(t * 0.15) * 400000 - 50000, y: Math.sin(t * 0.15) * 400000 - 50000, z: 0,
+    // Tangente au cercle parcouru.
+    yaw: Math.round(((t * 0.15 * 180) / Math.PI + 90) % 360),
   };
 }
 

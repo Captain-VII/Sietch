@@ -30,6 +30,15 @@ const clamp = (v: number) => Math.min(SIZE, Math.max(0, Math.round(v)));
 
 let lastRegion: Region = "hagga";
 const hidden = new Set<MarkerType>();
+/** Catégories de points d'intérêt masquées, gardées d'une session à l'autre. */
+const POI_HIDDEN_KEY = "sietch-carte-poi-masques";
+const hiddenPoi = new Set<string>((() => {
+  try {
+    return JSON.parse(localStorage.getItem(POI_HIDDEN_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+})());
 
 export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
   let all: Marker[] = [];
@@ -41,11 +50,13 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   const mapEl = h("div", { class: "map", role: "application", "aria-label": "Carte, clic droit pour ajouter un marqueur" });
   const panel = h("aside", { class: "card side-panel", "aria-live": "polite" });
   const chipsBox = h("div", { class: "row wrap" });
+  const poiChips = h("div", { class: "row wrap", "aria-label": "Points d'intérêt du jeu" });
+  const poiRow = h("div", { class: "row wrap", style: "--gap: 10px" }, h("span", { class: "label" }, "Lieux du jeu"), poiChips);
   const regionBox = h("div", { class: "segmented", role: "group", "aria-label": "Région" });
   const countEl = h("span");
   const search = h("input", {
     class: "input search", type: "search", id: "recherche-carte",
-    placeholder: "Chercher un marqueur ou un secteur (ex. E5)… puis Entrée",
+    placeholder: "Chercher un marqueur, un lieu (épave, station…) ou un secteur (E5)… puis Entrée",
     style: "flex: 1 1 260px; width: auto",
   });
 
@@ -93,8 +104,32 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     return { x: ((x - b.minX) / (b.maxX - b.minX)) * SIZE, y: ((y - b.minY) / (b.maxY - b.minY)) * SIZE };
   }
 
+  /** Catégories de points d'intérêt à cocher, avec le nombre de points de chacune. */
+  function drawPoiChips() {
+    const counts = new Map<string, number>();
+    if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
+    mount(poiChips, [...counts].sort((a, b) => b[1] - a[1]).map(([kind, n]) => {
+      const k = POI_KINDS[kind] ?? { label: kind, color: "#e9dfc9" };
+      return h("button", {
+        class: "chip", type: "button", "aria-pressed": String(!hiddenPoi.has(kind)),
+        onclick: () => {
+          if (hiddenPoi.has(kind)) hiddenPoi.delete(kind);
+          else hiddenPoi.add(kind);
+          try {
+            localStorage.setItem(POI_HIDDEN_KEY, JSON.stringify([...hiddenPoi]));
+          } catch {
+            // Stockage indisponible : le choix vaut pour cette session.
+          }
+          drawPoiChips();
+          drawGame();
+        },
+      }, h("span", { class: "dot", style: `background: ${k.color}` }), `${k.label} (${n})`);
+    }));
+  }
+
   function drawGame() {
     gameLayer.clearLayers();
+    drawPoiChips();
     if (!mapData || mapRegion(mapData) !== region) return;
     const scale = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
     for (const a of mapData.areas) {
@@ -104,6 +139,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       }
     }
     for (const poi of mapData.pois) {
+      if (hiddenPoi.has(poi.kind)) continue;
       const p = worldToMap(poi.x, poi.y);
       const kind = POI_KINDS[poi.kind] ?? { label: poi.kind, color: "#e9dfc9" };
       L.circleMarker(toLatLng(p.x, p.y), { radius: 5, color: "#11131F", weight: 2, fillColor: kind.color, fillOpacity: 1 })
@@ -178,7 +214,23 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   // ---------- Position en direct (modules sans BattlEye) ----------
   const liveLayer = L.layerGroup().addTo(map);
-  const liveDot = L.circleMarker([0, 0], { radius: 9, color: "#11131F", weight: 3, fillColor: "#4FA3D9", fillOpacity: 1, interactive: false });
+  // Flèche du joueur, tournée selon son orientation (0° = est, la flèche dessinée pointe vers le nord).
+  const liveDot = L.marker([0, 0], {
+    interactive: false,
+    keyboard: false,
+    icon: L.divIcon({
+      className: "player-arrow",
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      html: '<svg viewBox="0 0 28 28" width="28" height="28"><path d="M14 2 L24 25 L14 19 L4 25 Z" fill="#f1d7ff" stroke="#11131F" stroke-width="2" stroke-linejoin="round"/></svg>',
+    }),
+  });
+  let yaw: number | null = null;
+  const stopYaw = on.playerState((s) => {
+    yaw = s.yaw;
+    const el = liveDot.getElement()?.querySelector("svg");
+    if (el) el.style.transform = `rotate(${yaw + 90}deg)`;
+  });
   const liveHalo = L.circleMarker([0, 0], { radius: 18, color: "#4FA3D9", weight: 2, fill: false, className: "live-halo", interactive: false });
   const liveBar = h("div", { class: "live-bar", role: "status", "aria-live": "polite" });
   let follow = true;
@@ -211,6 +263,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       const ll = toLatLng(Math.max(0, Math.min(SIZE, pt.x)), Math.max(0, Math.min(SIZE, pt.y)));
       liveHalo.setLatLng(ll).addTo(liveLayer);
       liveDot.setLatLng(ll).addTo(liveLayer);
+      const arrow = liveDot.getElement()?.querySelector("svg");
+      if (arrow && yaw !== null) arrow.style.transform = `rotate(${yaw + 90}deg)`;
       if (follow && !map.getBounds().pad(-0.25).contains(ll)) map.panTo(ll, { animate: true });
     }
     liveBar.hidden = !st.enabled;
@@ -488,7 +542,24 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     const found = all.find((m) => m.region === region && fold(m.name).includes(fold(q)))
       ?? all.find((m) => fold(m.name).includes(fold(q)));
-    if (!found) return toast("Aucun résultat", `Rien ne correspond à « ${q} ».`);
+    if (!found) {
+      // Points d'intérêt du jeu : par type (« épave ») ou par nom ; le plus proche du joueur d'abord.
+      const pois = (mapData && mapRegion(mapData) === region ? mapData.pois : [])
+        .filter((p) => fold(POI_KINDS[p.kind]?.label ?? p.kind).includes(fold(q)) || fold(p.name).includes(fold(q)));
+      const me = livePoint();
+      const dist = (p: { x: number; y: number }) => {
+        const m = worldToMap(p.x, p.y);
+        return me ? (m.x - me.x) ** 2 + (m.y - me.y) ** 2 : 0;
+      };
+      const poi = pois.sort((a, b) => dist(a) - dist(b))[0];
+      if (!poi) return toast("Aucun résultat", `Rien ne correspond à « ${q} ».`);
+      hiddenPoi.delete(poi.kind);
+      drawGame();
+      const m = worldToMap(poi.x, poi.y);
+      map.flyTo(toLatLng(m.x, m.y), 2);
+      toast(POI_KINDS[poi.kind]?.label ?? poi.kind, `${sectorOf(m.x, m.y)}${pois.length > 1 ? ` · le plus proche sur ${pois.length}` : ""}`);
+      return;
+    }
     if (found.region !== region) {
       region = lastRegion = found.region;
       drawRegions();
@@ -510,7 +581,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         bgBox,
       ),
     ),
-    h("div", { class: "row wrap" }, h("label", { class: "sr-only", for: "recherche-carte" }, "Rechercher sur la carte"), search, chipsBox),
+    h("div", { class: "row wrap" }, h("label", { class: "sr-only", for: "recherche-carte" }, "Rechercher sur la carte"), search, h("span", { class: "label" }, "Mes marqueurs"), chipsBox),
+      poiRow,
     liveBar,
     h("div", { class: "columns" },
       h("div", { class: "map-wrap" },
@@ -550,6 +622,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     dispose: () => {
       stopLive();
       void stopMapData.then((un) => un());
+      void stopYaw.then((un) => un());
       map.remove();
     },
   };

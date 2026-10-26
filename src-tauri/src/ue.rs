@@ -359,6 +359,7 @@ impl<'a> Ue<'a> {
         let mut f = |class: u64, n: &str| self.field(class, n);
         let fields = Fields {
             location: f(root_class, "RelativeLocation")?,
+            rotation: f(root_class, "RelativeRotation")?,
             health: f(stats_class, "CurrentHealth")?,
             health_max: f(stats_class, "MaxHealth")?,
             stamina: f(stats_class, "CurrentStamina")?,
@@ -460,6 +461,7 @@ fn scan_regions<T>(
 #[derive(Clone, Copy, Debug)]
 pub struct Fields {
     location: u64,
+    rotation: u64,
     health: u64,
     health_max: u64,
     stamina: u64,
@@ -534,6 +536,8 @@ pub struct PlayerState {
     pub x: f64,
     pub y: f64,
     pub z: f64,
+    /// Orientation (degrés, 0 = +x soit l'est sur la carte, 90 = +y soit le sud).
+    pub yaw: f64,
 }
 
 impl PlayerState {
@@ -560,6 +564,8 @@ impl PlayerState {
             x: m(self.x),
             y: m(self.y),
             z: m(self.z),
+            // Au degré près.
+            yaw: self.yaw.round(),
         }
     }
 }
@@ -604,6 +610,8 @@ impl Player {
             x: v(0),
             y: v(8),
             z: v(16),
+            // FRotator : Pitch, Yaw, Roll (f64).
+            yaw: read::<24>(m, self.root + f.rotation).map(|b| f64::from_le_bytes(b[8..16].try_into().unwrap()))?,
         })
     }
 }

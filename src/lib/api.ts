@@ -81,6 +81,8 @@ export interface PlayerState {
   x: number;
   y: number;
   z: number;
+  /** Orientation en degrés : 0 = est, 90 = sud (sens de la carte). */
+  yaw: number;
 }
 
 /** Un widget de l'overlay : une petite fenêtre à part. */

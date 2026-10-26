@@ -576,6 +576,13 @@
   animation: live-pulse 1.6s ease-out infinite;
 }
 
+/* Flèche du joueur : tournée selon son orientation, en douceur. */
+.player-arrow svg {
+  display: block;
+  transition: transform 0.25s linear;
+  filter: drop-shadow(0 0 3px rgba(4, 5, 10, 0.9));
+}
+
 @keyframes live-pulse {
   from {
     stroke-opacity: 0.9;
