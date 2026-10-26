@@ -183,8 +183,9 @@ fn reload_live_config(app: AppHandle, state: State<AppState>) -> String {
     live::config_path(&app).display().to_string()
 }
 
+/// `async` obligatoire : une fenêtre créée depuis une commande synchrone reste blanche sous Windows.
 #[tauri::command]
-fn open_site(app: AppHandle, url: String) -> CmdResult<()> {
+async fn open_site(app: AppHandle, url: String) -> CmdResult<()> {
     windows::open_site(&app, &url)
 }
 
