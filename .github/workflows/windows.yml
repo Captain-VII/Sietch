@@ -1,0 +1,53 @@
+# Compile Sietch pour Windows à chaque envoi sur main (ou à la demande).
+# Le résultat se télécharge dans l'onglet Actions, rubrique « Artifacts » :
+# l'installateur (setup.exe et .msi) et l'exécutable seul.
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Compilation
+        run: npx tauri build
+
+      - name: Installateurs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sietch-installateurs-${{ github.sha }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+      - name: Exécutable seul
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sietch-exe-${{ github.sha }}
+          path: src-tauri/target/release/sietch.exe
+          if-no-files-found: error

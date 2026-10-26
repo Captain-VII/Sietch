@@ -27,6 +27,12 @@ npm run tauri dev
 - Wiki : `src/lib/wiki.ts`. Sietch lit le plan du site (sitemap) et les pages `?action=render`, jamais `api.php` ni `index.php`, que le robots.txt du wiki réserve.
 - En mode navigateur (`npm run dev`), les requêtes du wiki passent par le relais de Vite.
 
+## Version Windows
+
+À chaque envoi sur `main`, GitHub Actions compile Sietch pour Windows (`.github/workflows/windows.yml`).
+Le résultat se télécharge dans l'onglet **Actions** du dépôt, rubrique **Artifacts** :
+l'installateur (`setup.exe` ou `.msi`) et l'exécutable seul.
+
 ## Licence
 
 GPL-3.0-or-later. Dune et Dune: Awakening appartiennent à leurs ayants droit ; Sietch n'y est pas affilié.
