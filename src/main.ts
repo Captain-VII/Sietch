@@ -2,7 +2,9 @@ import "leaflet/dist/leaflet.css";
 import "./styles/theme.css";
 import "./styles/components.css";
 import "./styles/app.css";
+import "./styles/window.css";
 
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, on, type Settings, type Timer } from "./lib/api";
 import { h, icon, logo, mount, toast } from "./lib/dom";
 import { startLive } from "./lib/live";
@@ -106,6 +108,20 @@ function sidebar() {
   );
 }
 
+/** Barre de titre maison : remplace celle de Windows (colorée selon le thème du système). */
+function titlebar() {
+  const win = getCurrentWindow();
+  return h("header", { class: "titlebar", "data-tauri-drag-region": "" },
+    h("div", { class: "row", style: "--gap: 10px; pointer-events: none" }, logo(18), h("span", { class: "win-title" }, "SIETCH")),
+    h("div", { class: "row", style: "--gap: 0; height: 100%" },
+      h("button", { class: "win-btn", type: "button", "aria-label": "Réduire", onclick: () => win.minimize() }, icon("minimize", 14)),
+      h("button", { class: "win-btn", type: "button", "aria-label": "Agrandir", onclick: () => win.toggleMaximize() }, icon("maximize", 14)),
+      // close() passe par le moteur : selon les réglages, Sietch se range dans la zone de notification.
+      h("button", { class: "win-btn close", type: "button", "aria-label": "Fermer", onclick: () => win.close() }, icon("close", 14)),
+    ),
+  );
+}
+
 function updateServerLabel() {
   const el = document.getElementById("server-label");
   if (el) el.textContent = settings.serverLabel || "Serveur";
@@ -120,7 +136,7 @@ async function start() {
   const [s, t] = await Promise.all([api.settings(), api.timers(), syncClock()]);
   settings = s;
   timers = t;
-  mount(document.getElementById("app")!, h("div", { class: "app" }, sidebar(), mainEl));
+  mount(document.getElementById("app")!, h("div", { class: "window" }, titlebar(), h("div", { class: "app" }, sidebar(), mainEl)));
   updateServerLabel();
   go("accueil");
   startLiveUpdates(() => timers);

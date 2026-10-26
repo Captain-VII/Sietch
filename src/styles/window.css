@@ -1,4 +1,11 @@
-/* Fenêtre wiki : barre de titre maison, recherche, liste et article. */
+/* Fenêtres sans barre de Windows (principale, wiki) : barre de titre maison.
+   Fenêtre wiki : recherche, liste et article. */
+
+.window > .app {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
 
 .window {
   height: 100vh;
