@@ -42,3 +42,45 @@ body {
   line-height: 1.1;
   color: #fff6e4;
 }
+
+.w-mid {
+  font-size: 18px;
+  line-height: 1.2;
+  color: #f0dca8;
+  white-space: nowrap;
+}
+
+.w-mid.live {
+  color: var(--violet-light);
+}
+
+.w-soft {
+  font-size: 13px;
+  color: #e0d4bc;
+}
+
+/* Minuteurs : nom à gauche, temps restant à droite ; violet quand c'est prêt. */
+.w-timer {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.w-name {
+  font-size: 13px;
+  color: #f3e7cf;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w-timer .w-mid {
+  font-size: 15px;
+}
+
+.w-timer.ready .w-name,
+.w-timer.ready .w-mid {
+  color: var(--violet-light);
+}

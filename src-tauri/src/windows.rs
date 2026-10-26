@@ -82,8 +82,9 @@ pub fn apply_overlay(app: &AppHandle, w: &WebviewWindow) {
 /// Taille de base (logique) de chaque widget, avant l'échelle choisie.
 fn widget_size(kind: &str) -> (f64, f64) {
     match kind {
-        "timers" => (240.0, 200.0),
-        "coriolis" | "sector" => (210.0, 64.0),
+        "timers" => (250.0, 170.0),
+        "sector" => (250.0, 64.0),
+        "coriolis" => (210.0, 64.0),
         _ => (180.0, 64.0),
     }
 }
