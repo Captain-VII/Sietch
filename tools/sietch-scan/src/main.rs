@@ -78,9 +78,184 @@ Structures d'Unreal Engine (noms et objets du jeu) :
   ue                         trouve la table des noms et la table des objets, et en affiche un extrait
   ue-find <texte> [n]        objets dont le nom ou la classe contient le texte (40 par défaut)";
 
-    // Lecture des structures d'Unreal Engine (catégorie « Personnage en direct ») : pas encore écrite.
+    // ---------- Structures d'Unreal Engine ----------
+    //
+    // Table des noms (FNamePool) : blocs de 128 Kio ; une entrée = en-tête u16 (bit 0 : UTF-16,
+    // longueur = en-tête >> 6) puis les caractères, alignée sur 2 octets. Le bloc 0 commence par
+    // « None » puis « ByteProperty ». FName n → bloc n >> 16, décalage (n & 0xFFFF) * 2.
+    // Table des objets (FChunkedFixedUObjectArray) : Objects**, PreAllocated*, Max, Num, MaxChunks,
+    // NumChunks ; 65 536 objets par paquet. UObject : ClassPrivate +0x10, NamePrivate +0x18, Outer +0x20,
+    // InternalIndex +0x0C (sert à vérifier qu'on lit bien la table).
+
+    const OBJ_PER_CHUNK: u64 = 65_536;
+
+    fn u32_at(b: &[u8], i: usize) -> u32 {
+        u32::from_le_bytes(b[i..i + 4].try_into().unwrap())
+    }
+
+    struct Ue {
+        /// Adresse de Blocks[0] dans la table des noms.
+        blocks: u64,
+        /// Adresse de la table des objets (champ Objects).
+        objects: u64,
+        num: u32,
+        stride: u64,
+    }
+
+    impl Ue {
+        fn entry(&self, g: &Game, idx: u32) -> Option<String> {
+            let block = u(&g.read::<8>(self.blocks + (idx >> 16) as u64 * 8)?, 0);
+            if block == 0 {
+                return None;
+            }
+            let at = block + (idx & 0xFFFF) as u64 * 2;
+            let hdr = u16::from_le_bytes(g.read::<2>(at)?);
+            let (len, wide) = ((hdr >> 6) as usize, hdr & 1 == 1);
+            if len == 0 || len > 1024 {
+                return None;
+            }
+            let mut b = vec![0u8; if wide { len * 2 } else { len }];
+            (g.read_into(at + 2, &mut b) == b.len()).then(|| {
+                if wide {
+                    String::from_utf16_lossy(&b.chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>())
+                } else {
+                    b.iter().map(|&c| c as char).collect()
+                }
+            })
+        }
+
+        /// FName (index, numéro) → texte, « Nom_3 » quand le numéro vaut 4.
+        fn fname(&self, g: &Game, at: u64) -> Option<String> {
+            let b = g.read::<8>(at)?;
+            let (idx, number) = (u32_at(&b, 0), u32_at(&b, 4));
+            let base = self.entry(g, idx)?;
+            Some(if number > 0 { format!("{base}_{}", number - 1) } else { base })
+        }
+
+        fn object(&self, g: &Game, i: u32) -> Option<u64> {
+            if i >= self.num {
+                return None;
+            }
+            let chunk = u(&g.read::<8>(self.objects + (i as u64 / OBJ_PER_CHUNK) * 8)?, 0);
+            let obj = u(&g.read::<8>(chunk + (i as u64 % OBJ_PER_CHUNK) * self.stride)?, 0);
+            (obj != 0).then_some(obj)
+        }
+
+        fn name_of(&self, g: &Game, obj: u64) -> String {
+            self.fname(g, obj + 0x18).unwrap_or_else(|| "?".into())
+        }
+
+        fn class_of(&self, g: &Game, obj: u64) -> String {
+            g.read::<8>(obj + 0x10).map(|b| u(&b, 0)).filter(|&c| c != 0).map(|c| self.name_of(g, c)).unwrap_or_else(|| "?".into())
+        }
+    }
+
+    /// Bloc 0 de la table des noms : « None » suivi de « ByteProperty », dans le tas du jeu.
+    fn find_name_block(g: &mut Game) -> Option<u64> {
+        let regions: Vec<Region> = g.regions().into_iter().filter(|r| r.private).collect();
+        let mut found = None;
+        g.each_chunk(&regions, |_, base, buf| {
+            if found.is_some() || buf.len() < 20 {
+                return;
+            }
+            for i in (0..buf.len() - 20).step_by(2) {
+                if &buf[i + 2..i + 6] == b"None"
+                    && &buf[i + 8..i + 20] == b"ByteProperty"
+                    && u16::from_le_bytes([buf[i], buf[i + 1]]) >> 6 == 4
+                {
+                    found = Some(base + i as u64);
+                    return;
+                }
+            }
+        });
+        found
+    }
+
+    /// Lit l'image du jeu (exe) par blocs alignés sur 8 octets : `visit(adresse, octets)`.
+    fn each_module_chunk(g: &mut Game, mut visit: impl FnMut(u64, &[u8]) -> bool) {
+        let regions: Vec<Region> = g.regions().into_iter().filter(|r| !r.private && g.in_module(r.base)).collect();
+        g.each_chunk(&regions, |_, base, buf| {
+            visit(base, buf);
+        });
+    }
+
+    fn find_tables(g: &mut Game) -> Result<Ue, String> {
+        eprintln!("Recherche de la table des noms dans le tas (une à deux minutes)…");
+        let block0 = find_name_block(g).ok_or("bloc « None / ByteProperty » introuvable")?;
+        eprintln!("Bloc 0 des noms : 0x{block0:X}. Recherche des tables dans l'image du jeu…");
+        let mut blocks = None;
+        let mut objects = None;
+        each_module_chunk(g, |base, buf| {
+            for i in (0..buf.len().saturating_sub(32)).step_by(8) {
+                if blocks.is_none() && u(buf, i) == block0 {
+                    blocks = Some(base + i as u64);
+                }
+                if objects.is_none() {
+                    let (max, num) = (u32_at(buf, i + 16), u32_at(buf, i + 20));
+                    let (max_chunks, num_chunks) = (u32_at(buf, i + 24), u32_at(buf, i + 28));
+                    if u(buf, i) != 0
+                        && max >= 65_536
+                        && max % 65_536 == 0
+                        && max_chunks == max / 65_536
+                        && num > 10_000
+                        && num <= max
+                        && num_chunks == num.div_ceil(65_536)
+                    {
+                        objects = Some((base + i as u64, num));
+                    }
+                }
+            }
+            blocks.is_some() && objects.is_some()
+        });
+        let blocks = blocks.ok_or("pointeur vers le bloc 0 des noms introuvable dans l'image du jeu")?;
+        let (objects_at, num) = objects.ok_or("table des objets introuvable dans l'image du jeu")?;
+        let objects = u(&g.read::<8>(objects_at).ok_or("table des objets illisible")?, 0);
+        // Taille d'un FUObjectItem : celle pour laquelle InternalIndex correspond à la position.
+        for stride in [24u64, 16, 32] {
+            let ue = Ue { blocks, objects, num, stride };
+            let ok = (1..200u32)
+                .filter(|&i| ue.object(g, i).and_then(|o| g.read::<4>(o + 0xC)).is_some_and(|b| u32_at(&b, 0) == i))
+                .count();
+            if ok > 150 {
+                return Ok(ue);
+            }
+        }
+        Err("table des objets trouvée mais InternalIndex ne correspond pas (disposition d'UObject différente)".into())
+    }
+
+    fn ue_path() -> Result<PathBuf, String> {
+        Ok(state_dir()?.join("ue.txt"))
+    }
+
     fn ue_find_tables() -> Result<(), String> {
-        Err("commande « ue » pas encore écrite".into())
+        let mut g = Game::open()?;
+        let ue = find_tables(&mut g)?;
+        println!("Table des noms : Blocks[0] à 0x{:X} (image + 0x{:X})", ue.blocks, ue.blocks - g.base);
+        let names: Vec<String> = (0..12u32)
+            .scan(0u32, |idx, _| {
+                let name = ue.entry(&g, *idx)?;
+                *idx += (2 + name.len() as u32).div_ceil(2);
+                Some(name)
+            })
+            .collect();
+        println!("  premiers noms : {}", names.join(", "));
+        println!("Table des objets : {} objets, FUObjectItem de {} octets", ue.num, ue.stride);
+        for i in 0..12 {
+            if let Some(o) = ue.object(&g, i) {
+                println!("  {i:>6}  {:<28} {}", ue.class_of(&g, o), ue.name_of(&g, o));
+            }
+        }
+        let path = ue_path()?;
+        let text = format!(
+            "blocks_rva=0x{:X}\nobjects=0x{:X}\nnum={}\nstride={}\n",
+            ue.blocks - g.base,
+            ue.objects,
+            ue.num,
+            ue.stride
+        );
+        fs::write(&path, text).map_err(|e| e.to_string())?;
+        println!("Enregistré dans {}", path.display());
+        Ok(())
     }
 
     fn ue_find(_text: &str, _n: usize) -> Result<(), String> {
