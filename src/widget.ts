@@ -5,7 +5,7 @@ import "./styles/widget.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, on, type PlayerState, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
 import { markers, sectorOf } from "./lib/data";
-import { h, mount } from "./lib/dom";
+import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
 import { remaining, startLiveUpdates, syncClock } from "./lib/time";
 
@@ -79,6 +79,36 @@ function sectorKey() {
   return sectorOf(m.x, m.y);
 }
 
+// ---------- Heure du jeu (jour ou nuit) ----------
+
+/** Lever et coucher du soleil sur Arrakis, en heures du jeu (le jeu passe au soleil entre 05:31 et 06:15). */
+const SUNRISE = 6;
+const SUNSET = 18;
+let clockMode = "";
+
+/** Heure du jeu quand on la lit (modules sans BattlEye), sinon heure du serveur. */
+function drawClock(s: PlayerState | null) {
+  const t = s?.timeOfDay;
+  if (t == null) {
+    if (clockMode !== "serveur") {
+      clockMode = "serveur";
+      mount(card, ...line("Heure serveur", h("span", { class: "digits w-big", "data-clock": "" }, "--:--")));
+    }
+    return;
+  }
+  const day = t >= SUNRISE && t < SUNSET;
+  const mode = day ? "jour" : "nuit";
+  const hh = Math.floor(t);
+  const text = `${String(hh).padStart(2, "0")}:${String(Math.floor((t - hh) * 60)).padStart(2, "0")}`;
+  if (clockMode !== mode) {
+    clockMode = mode;
+    mount(card,
+      h("span", { class: "w-label" }, day ? "Jour" : "Nuit"),
+      h("span", { class: `w-time ${mode}` }, icon(day ? "sun" : "moon", 20), h("span", { class: "digits w-big" })));
+  }
+  card.querySelector(".w-time .digits")!.textContent = text;
+}
+
 // ---------- Barres du personnage (vie, endurance, eau) ----------
 
 const BARS: Partial<Record<WidgetKind, { label: string; value: (s: PlayerState) => [number, number] }>> = {
@@ -141,7 +171,8 @@ async function start() {
 
   switch (kind) {
     case "clock":
-      mount(card, ...line("Heure serveur", h("span", { class: "digits w-big", "data-clock": "" }, "--:--")));
+      drawClock(await api.playerState());
+      await on.playerState(drawClock);
       break;
     case "coriolis":
       mount(card, ...line("Coriolis", h("span", { class: "digits w-mid", "data-coriolis": "" })));

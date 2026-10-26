@@ -24,7 +24,7 @@ type Tab = (typeof TABS)[number][0];
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const REMINDERS = [1440, 360, 60, 30, 10, 5];
 const WIDGET_LABELS: Record<WidgetKind, string> = {
-  clock: "Heure serveur",
+  clock: "Heure du jeu",
   coriolis: "Coriolis",
   sector: "Secteur",
   timers: "Minuteurs",

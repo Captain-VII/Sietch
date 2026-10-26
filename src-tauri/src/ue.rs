@@ -191,10 +191,19 @@ impl<'a> Ue<'a> {
         let player_class = class_named(self, "BP_DunePlayerCharacter_C")?;
         let stats_class = class_named(self, "DuneCharacterAttributeSet")?;
         let hydration_class = class_named(self, "DuneHydrationAttributeSet")?;
-        // RF_ClassDefaultObject (0x10) : le modèle de la classe, pas un personnage du monde.
-        let &(character, _, _, _, _, index) = all.iter().find(|a| a.2 == player_class && a.1 & 0x10 == 0)?;
+        // Modèles (RF_ClassDefaultObject 0x10, RF_ArchetypeObject 0x20) : pas des objets du monde.
+        const TEMPLATE: u32 = 0x10 | 0x20;
+        let &(character, _, _, _, _, index) = all.iter().find(|a| a.2 == player_class && a.1 & TEMPLATE == 0)?;
         let owned = |class: u64| all.iter().find(|a| a.2 == class && a.4 == character).map(|a| a.0);
         let (stats, hydration) = (owned(stats_class)?, owned(hydration_class)?);
+        // Heure du jeu (en heures, 0 à 24) : TimeOfDayComponent de l'état de la partie. Facultative.
+        let time_of_day = class_named(self, "TimeOfDayComponent").and_then(|c| {
+            let a = all.iter().find(|a| a.2 == c && a.1 & TEMPLATE == 0)?;
+            Some(Watched { obj: a.0, index: a.5, class: c, offset: self.field(c, "m_TimeOfDayServer")? })
+        });
+        if cfg!(debug_assertions) {
+            eprintln!("[personnage] trouvé : 0x{character:X} (n° {index}), heure : {time_of_day:?}");
+        }
         let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
         let root_class = ptr(self.m, root + 0x10);
         let mut f = |class: u64, n: &str| self.field(class, n);
@@ -212,7 +221,7 @@ impl<'a> Ue<'a> {
             heat_max: f(hydration_class, "HeatExhaustionMax")?,
             sun: f(hydration_class, "CurrentSunExposure")?,
         };
-        Some(Player { character, index, class: player_class, stats, hydration, root, fields })
+        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, fields })
     }
 }
 
@@ -266,7 +275,22 @@ pub struct Player {
     stats: u64,
     hydration: u64,
     root: u64,
+    /// TimeOfDayComponent et offset de m_TimeOfDayServer.
+    time_of_day: Option<Watched>,
     fields: Fields,
+}
+
+/// Objet suivi : il est encore valide tant que son emplacement et sa classe n'ont pas changé.
+#[derive(Clone, Copy, Debug)]
+pub struct Watched {
+    obj: u64,
+    index: u32,
+    class: u64,
+    offset: u64,
+}
+
+fn still_there(m: &dyn Mem, obj: u64, index: u32, class: u64) -> bool {
+    read::<12>(m, obj + 0x0C).is_some_and(|b| u32_at(&b, 0) == index && u64_at(&b, 4) == class)
 }
 
 /// État du personnage envoyé aux widgets (`player-state`).
@@ -284,6 +308,8 @@ pub struct PlayerState {
     pub heat: f32,
     pub heat_max: f32,
     pub sun_exposure: f32,
+    /// Heure du jeu, en heures (7.5 = 07:30) ; `None` si elle n'a pas été trouvée.
+    pub time_of_day: Option<f32>,
     pub x: f64,
     pub y: f64,
     pub z: f64,
@@ -306,6 +332,8 @@ impl PlayerState {
             heat: r(self.heat),
             heat_max: r(self.heat_max),
             sun_exposure: r(self.sun_exposure),
+            // À la minute du jeu près.
+            time_of_day: self.time_of_day.map(|t| (t * 60.0).floor() / 60.0),
             x: m(self.x),
             y: m(self.y),
             z: m(self.z),
@@ -314,9 +342,10 @@ impl PlayerState {
 }
 
 impl Player {
-    /// Le personnage est-il toujours là (même emplacement, même classe) ?
+    /// Le personnage (et le composant de l'heure) sont-ils toujours là ? Sinon, tout est à retrouver.
     fn alive(&self, m: &dyn Mem) -> bool {
-        read::<12>(m, self.character + 0x0C).is_some_and(|b| u32_at(&b, 0) == self.index && u64_at(&b, 4) == self.class)
+        still_there(m, self.character, self.index, self.class)
+            && self.time_of_day.is_none_or(|w| still_there(m, w.obj, w.index, w.class))
     }
 
     /// Lit l'instantané ; `None` si le personnage a disparu (mort, changement de carte…).
@@ -343,6 +372,10 @@ impl Player {
             heat: attr(self.hydration, f.heat)?,
             heat_max: attr(self.hydration, f.heat_max)?,
             sun_exposure: attr(self.hydration, f.sun)?,
+            time_of_day: self
+                .time_of_day
+                .and_then(|w| read::<4>(m, w.obj + w.offset).map(f32::from_le_bytes))
+                .filter(|t| (0.0..=24.0).contains(t)),
             x: v(0),
             y: v(8),
             z: v(16),

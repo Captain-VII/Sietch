@@ -62,6 +62,8 @@ function simPlayer(): PlayerState {
     power: 150, powerMax: 150,
     hydration: r(100 - ((t / 3) % 100)), hydrationMax: 100,
     heat: 0, heatMax: 100, sunExposure: 0,
+    // Une journée du jeu en 4 minutes.
+    timeOfDay: Math.floor(((t / 10) % 24) * 60) / 60,
     x: 0, y: 0, z: 0,
   };
 }

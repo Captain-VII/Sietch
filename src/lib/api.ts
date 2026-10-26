@@ -54,6 +54,8 @@ export interface PlayerState {
   heat: number;
   heatMax: number;
   sunExposure: number;
+  /** Heure du jeu en heures (7.5 = 07:30), null si elle n'a pas été trouvée. */
+  timeOfDay: number | null;
   x: number;
   y: number;
   z: number;

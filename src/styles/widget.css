@@ -103,6 +103,21 @@ body {
   font-size: 15px;
 }
 
+/* Heure du jeu : soleil doré le jour, lune bleutée la nuit. */
+.w-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.w-time.jour svg {
+  color: #f0dca8;
+}
+
+.w-time.nuit svg {
+  color: #8fc4e6;
+}
+
 /* Barres du personnage : valeur exacte au-dessus d'une barre fine, couleurs proches du jeu. */
 .w-bar-head {
   width: 100%;
