@@ -1,0 +1,343 @@
+import L from "leaflet";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import type { Ctx, ViewHandle } from "../main";
+import { api } from "../lib/api";
+import {
+  markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
+  type Marker, type MarkerType, type Region,
+} from "../lib/data";
+import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
+
+const SIZE = 900;
+/** Leaflet compte la latitude vers le haut : y (vers le bas) devient -y. */
+const toLatLng = (x: number, y: number) => L.latLng(-y, x);
+const clamp = (v: number) => Math.min(SIZE, Math.max(0, Math.round(v)));
+
+let lastRegion: Region = "hagga";
+const hidden = new Set<MarkerType>();
+
+export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
+  let all: Marker[] = [];
+  let region = lastRegion;
+  let selected: Marker | null = null;
+  /** Marqueur pas encore enregistré (clic droit ou raccourci). */
+  let draft = false;
+
+  const mapEl = h("div", { class: "map", role: "application", "aria-label": "Carte, clic droit pour ajouter un marqueur" });
+  const panel = h("aside", { class: "card side-panel", "aria-live": "polite" });
+  const chipsBox = h("div", { class: "row wrap" });
+  const regionBox = h("div", { class: "segmented", role: "group", "aria-label": "Région" });
+  const countEl = h("span");
+  const search = h("input", {
+    class: "input search", type: "search", id: "recherche-carte",
+    placeholder: "Chercher un marqueur ou un secteur (ex. E5)… puis Entrée",
+    style: "flex: 1 1 260px; width: auto",
+  });
+
+  const map = L.map(mapEl, {
+    crs: L.CRS.Simple,
+    minZoom: -1.5,
+    maxZoom: 3,
+    zoomSnap: 0.25,
+    attributionControl: false,
+    maxBounds: L.latLngBounds(toLatLng(-200, SIZE + 200), toLatLng(SIZE + 200, -200)),
+  });
+  const bounds = L.latLngBounds(toLatLng(0, SIZE), toLatLng(SIZE, 0));
+
+  // Grille des secteurs A1–I9 et quelques lignes de dunes décoratives.
+  const lineStyle = { color: "rgba(217, 182, 122, 0.16)", weight: 1, interactive: false };
+  for (let i = 0; i <= 9; i++) {
+    L.polyline([toLatLng(i * 100, 0), toLatLng(i * 100, SIZE)], lineStyle).addTo(map);
+    L.polyline([toLatLng(0, i * 100), toLatLng(SIZE, i * 100)], lineStyle).addTo(map);
+  }
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      L.marker(toLatLng(c * 100 + 6, r * 100 + 4), {
+        icon: L.divIcon({ className: "sector-label", html: "ABCDEFGHI"[c] + (r + 1), iconSize: [28, 14], iconAnchor: [0, 0] }),
+        interactive: false,
+        keyboard: false,
+      }).addTo(map);
+    }
+  }
+  for (const y of [200, 430, 670]) {
+    const pts = Array.from({ length: 19 }, (_, i) => toLatLng(i * 50, y + Math.sin(i * 0.7 + y) * 18));
+    L.polyline(pts, { color: "#5A4228", weight: 1.2, interactive: false, smoothFactor: 2 }).addTo(map);
+  }
+  const layer = L.layerGroup().addTo(map);
+
+  map.on("contextmenu", (e: L.LeafletMouseEvent) => startDraft(clamp(e.latlng.lng), clamp(-e.latlng.lat)));
+
+  function startDraft(x: number, y: number) {
+    selected = { id: uid("m"), region, type: "autre", name: "", x, y, note: "", updatedAt: Date.now() };
+    draft = true;
+    if (hidden.has("autre")) hidden.delete("autre");
+    drawChips();
+    drawMarkers();
+    drawPanel();
+  }
+
+  function visible() {
+    const list = all.filter((m) => m.region === region && !hidden.has(m.type));
+    if (draft && selected && !list.includes(selected)) list.push(selected);
+    return list;
+  }
+
+  function drawMarkers() {
+    layer.clearLayers();
+    const list = visible();
+    for (const m of list) {
+      const isSel = selected?.id === m.id;
+      const dot = L.circleMarker(toLatLng(m.x, m.y), {
+        radius: isSel ? 10 : 7,
+        color: isSel ? "#F2E6D0" : "#0D0A07",
+        weight: isSel ? 3 : 2,
+        fillColor: MARKER_TYPES[m.type].color,
+        fillOpacity: 1,
+      });
+      dot.bindTooltip(m.name || "Nouveau marqueur", { className: "marker-tip", direction: "top", offset: [0, -8], permanent: isSel });
+      dot.on("click", () => select(m));
+      dot.addTo(layer);
+    }
+    countEl.textContent = `${list.length} marqueur${list.length > 1 ? "s" : ""} affiché${list.length > 1 ? "s" : ""}`;
+  }
+
+  function select(m: Marker | null) {
+    if (draft && selected && m?.id !== selected.id) draft = false;
+    selected = m;
+    drawMarkers();
+    drawPanel();
+  }
+
+  function drawChips() {
+    mount(
+      chipsBox,
+      (Object.keys(MARKER_TYPES) as MarkerType[]).map((t) =>
+        h("button", {
+          class: "chip", type: "button", "aria-pressed": String(!hidden.has(t)),
+          onclick: () => {
+            if (hidden.has(t)) hidden.delete(t);
+            else hidden.add(t);
+            if (selected && hidden.has(selected.type) && !draft) selected = null;
+            drawChips();
+            drawMarkers();
+            drawPanel();
+          },
+        },
+          h("span", { class: "dot", style: `color: ${MARKER_TYPES[t].color}; background: ${hidden.has(t) ? "transparent" : MARKER_TYPES[t].color}` }),
+          MARKER_TYPES[t].label),
+      ),
+    );
+  }
+
+  function drawRegions() {
+    mount(
+      regionBox,
+      (Object.keys(REGIONS) as Region[]).map((r) =>
+        h("button", {
+          type: "button", "aria-pressed": String(r === region),
+          onclick: () => {
+            region = lastRegion = r;
+            draft = false;
+            selected = null;
+            drawRegions();
+            drawMarkers();
+            drawPanel();
+          },
+        }, REGIONS[r]),
+      ),
+    );
+  }
+
+  function drawPanel() {
+    if (!selected) {
+      const counts = (Object.keys(MARKER_TYPES) as MarkerType[])
+        .map((t) => [t, all.filter((m) => m.region === region && m.type === t).length] as const)
+        .filter(([, n]) => n > 0);
+      mount(
+        panel,
+        h("h2", { class: "section-title" }, REGIONS[region]),
+        h("p", { class: "prose soft", style: "margin: 0" }, "Clic droit sur la carte pour poser un marqueur, ou utilisez le raccourci global depuis le jeu."),
+        counts.length
+          ? h("div", { class: "stack", style: "--gap: 8px" },
+              counts.map(([t, n]) => h("div", { class: "row spread" },
+                h("span", { class: "row", style: "--gap: 8px" }, h("span", { class: "dot", style: `color: ${MARKER_TYPES[t].color}; background: ${MARKER_TYPES[t].color}` }), MARKER_TYPES[t].label),
+                h("span", { class: "digits", style: "font-size: 13px" }, String(n)))))
+          : h("p", { class: "muted", style: "margin: 0" }, "Aucun marqueur dans cette région."),
+      );
+      return;
+    }
+    const m = selected;
+    const linked = m.timerId ? ctx.timers().find((t) => t.id === m.timerId) : undefined;
+    const name = h("input", { class: "input", id: "m-nom", type: "text", maxlength: "80", value: m.name, placeholder: "ex. Gisement d'épice" });
+    const type = h("select", { class: "select", id: "m-type" },
+      (Object.keys(MARKER_TYPES) as MarkerType[]).map((t) => h("option", { value: t, selected: t === m.type }, MARKER_TYPES[t].label)));
+    const note = h("textarea", { class: "textarea", id: "m-note", rows: "3", maxlength: "1000" });
+    note.value = m.note;
+    const link = h("input", { type: "checkbox" });
+    const respawn = h("input", { class: "input", id: "m-resp", type: "number", min: "1", max: "10000", value: "45", style: "width: 96px" });
+
+    const saveBtn = h("button", {
+      class: "btn btn-primary grow", type: "button",
+      onclick: async () => {
+        m.name = name.value.trim() || MARKER_TYPES[type.value as MarkerType].label;
+        m.type = type.value as MarkerType;
+        m.note = note.value.trim();
+        if (link.checked) {
+          const mins = Math.max(1, Number(respawn.value) || 45);
+          m.timerId = await api.saveTimer({
+            name: `${m.name} — ${sectorOf(m.x, m.y)}`, place: REGIONS[m.region], group: "ressources",
+            durationSecs: mins * 60, repeat: false, alarm: true, sound: "", inOverlay: true,
+          });
+        }
+        await store.save(m);
+        draft = false;
+        all = await store.all();
+        selected = all.find((x) => x.id === m.id) ?? null;
+        if (hidden.has(m.type)) hidden.delete(m.type);
+        drawChips();
+        drawMarkers();
+        drawPanel();
+        toast("Marqueur enregistré", `${m.name} · ${sectorOf(m.x, m.y)}`);
+      },
+    }, "Enregistrer");
+    const removeBtn = h("button", {
+      class: "btn btn-danger", type: "button",
+      onclick: async () => {
+        if (draft) return select(null);
+        if (!(await confirmDialog(`Supprimer le marqueur « ${m.name} » ?`, "Supprimer"))) return;
+        await store.remove(m.id);
+        all = await store.all();
+        select(null);
+      },
+    }, draft ? "Annuler" : "Supprimer");
+
+    mount(
+      panel,
+      h("div", { class: "stack", style: "--gap: 6px" },
+        h("span", { class: "eyebrow", style: "font-size: 12px" }, `${draft ? "Nouveau marqueur" : "Marqueur"} · ${sectorOf(m.x, m.y)}`),
+        h("h2", { class: "h2", style: "font-size: 17px" }, m.name || "Sans nom"),
+      ),
+      h("div", { class: "field" }, h("label", { class: "label", for: "m-nom" }, "Nom"), name),
+      h("div", { class: "field" }, h("label", { class: "label", for: "m-type" }, "Type"), type),
+      h("div", { class: "field" }, h("label", { class: "label", for: "m-note" }, "Note"), note),
+      linked
+        ? h("div", { class: "stack", style: "--gap: 8px" },
+            h("span", { class: "label" }, "Minuteur lié"),
+            h("div", { class: "row spread" },
+              h("span", { class: "digits", "data-timer": linked.id, "data-part": "left" }),
+              h("button", { class: "btn", type: "button", onclick: () => api.restartTimer(linked.id) }, icon("restart", 16), "Relancer"),
+            ))
+        : h("div", { class: "row wrap" },
+            h("label", { class: "check grow" }, link, "Lier un minuteur de réapparition"),
+            h("label", { class: "sr-only", for: "m-resp" }, "Durée en minutes"),
+            respawn, h("span", { class: "muted" }, "min")),
+      h("div", { class: "row" }, saveBtn, removeBtn),
+    );
+    if (draft) name.focus();
+  }
+
+  async function exportMarkers() {
+    const path = await save({ defaultPath: "sietch-marqueurs.json", filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (!path) return;
+    await writeTextFile(path, JSON.stringify({ format: "sietch-marqueurs", version: 1, markers: all }, null, 2));
+    toast("Export terminé", `${all.length} marqueurs enregistrés.`);
+  }
+
+  async function importMarkers() {
+    const path = await open({ multiple: false, filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (typeof path !== "string") return;
+    try {
+      const raw = JSON.parse(await readTextFile(path));
+      const list: unknown[] = Array.isArray(raw) ? raw : raw.markers;
+      if (!Array.isArray(list)) throw new Error("aucune liste de marqueurs dans ce fichier");
+      const incoming: Marker[] = list.flatMap((x) => {
+        const o = x as Partial<Marker>;
+        if (typeof o.x !== "number" || typeof o.y !== "number") return [];
+        return [{
+          id: typeof o.id === "string" ? o.id : uid("m"),
+          region: o.region === "profond" ? "profond" : "hagga",
+          type: o.type && o.type in MARKER_TYPES ? o.type : "autre",
+          name: String(o.name ?? "").slice(0, 80),
+          x: clamp(o.x), y: clamp(o.y),
+          note: String(o.note ?? "").slice(0, 1000),
+          updatedAt: Date.now(),
+        } satisfies Marker];
+      });
+      const byId = new Map(all.map((m) => [m.id, m]));
+      for (const m of incoming) byId.set(m.id, m);
+      await store.replaceAll([...byId.values()]);
+      all = await store.all();
+      drawMarkers();
+      drawPanel();
+      toast("Import terminé", `${incoming.length} marqueurs ajoutés ou mis à jour.`);
+    } catch (e) {
+      toast("Import impossible", String(e instanceof Error ? e.message : e));
+    }
+  }
+
+  search.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const q = search.value.trim();
+    if (!q) return;
+    const sector = parseSector(q);
+    if (sector) {
+      map.flyTo(toLatLng(sector.x, sector.y), 1.5);
+      return;
+    }
+    const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const found = all.find((m) => m.region === region && fold(m.name).includes(fold(q)))
+      ?? all.find((m) => fold(m.name).includes(fold(q)));
+    if (!found) return toast("Aucun résultat", `Rien ne correspond à « ${q} ».`);
+    if (found.region !== region) {
+      region = lastRegion = found.region;
+      drawRegions();
+    }
+    hidden.delete(found.type);
+    drawChips();
+    select(found);
+    map.flyTo(toLatLng(found.x, found.y), 1.5);
+  });
+
+  mount(
+    root,
+    h("header", { class: "page-head" },
+      h("div", { class: "titles" }, h("span", { class: "eyebrow" }, "Secteurs A1 — I9"), h("h1", { class: "h1" }, "Carte")),
+      h("div", { class: "row wrap" },
+        regionBox,
+        h("button", { class: "btn", type: "button", onclick: importMarkers }, "Importer"),
+        h("button", { class: "btn", type: "button", onclick: exportMarkers }, "Exporter"),
+      ),
+    ),
+    h("div", { class: "row wrap" }, h("label", { class: "sr-only", for: "recherche-carte" }, "Rechercher sur la carte"), search, chipsBox),
+    h("div", { class: "columns" },
+      h("div", { class: "map-wrap" },
+        mapEl,
+        h("div", { class: "row spread muted", style: "font-size: 13px" }, h("span", {}, "Molette : zoom · Clic droit : nouveau marqueur"), countEl),
+      ),
+      panel,
+    ),
+  );
+
+  drawRegions();
+  drawChips();
+  requestAnimationFrame(() => {
+    map.invalidateSize();
+    map.fitBounds(bounds, { padding: [8, 8] });
+  });
+  void store.all().then((list) => {
+    all = list;
+    drawMarkers();
+    if (action === "new-marker") {
+      const c = map.getCenter();
+      startDraft(clamp(c.lng), clamp(-c.lat));
+    } else {
+      drawPanel();
+    }
+  });
+  drawPanel();
+
+  // Le décompte du minuteur lié se met à jour tout seul (data-timer) :
+  // pas besoin de redessiner le panneau, ce qui effacerait une saisie en cours.
+  return { dispose: () => map.remove() };
+}

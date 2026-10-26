@@ -1,0 +1,100 @@
+/* Fenêtre wiki : barre de titre maison, recherche, liste et article. */
+
+.window {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-hot);
+  overflow: hidden;
+}
+
+.titlebar {
+  height: 40px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 14px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+}
+
+.win-title {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  color: var(--text-soft);
+}
+
+.win-btn {
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.win-btn:hover {
+  background: var(--panel-2);
+  color: var(--text-strong);
+}
+
+.win-btn[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--spice-light);
+}
+
+.win-btn.close:hover {
+  background: #8a2a1e;
+  color: #fff;
+}
+
+.toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--selected);
+}
+
+.split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.results {
+  flex: 0 0 260px;
+  border-right: 1px solid var(--selected);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.pick.compact {
+  padding: 10px 12px;
+  gap: 3px;
+  background: transparent;
+  border-color: transparent;
+}
+
+.pick.compact[aria-pressed="true"] {
+  background: var(--selected);
+  border-color: #8a6a42;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 28px;
+  overflow-y: auto;
+}

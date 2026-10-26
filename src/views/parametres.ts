@@ -1,0 +1,326 @@
+import { getVersion } from "@tauri-apps/api/app";
+import { appDataDir } from "@tauri-apps/api/path";
+import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import type { Ctx, ViewHandle } from "../main";
+import { api, prettyKeys, SHORTCUT_LABELS, SOUNDS, type Settings } from "../lib/api";
+import { builds, getNotes, markers, setNotes, type Build, type Marker } from "../lib/data";
+import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
+import { playAlarm } from "../lib/sound";
+import { durationLabel, pad } from "../lib/time";
+
+const TABS = [
+  ["general", "Général"],
+  ["raccourcis", "Raccourcis"],
+  ["notifications", "Notifications"],
+  ["overlay", "Overlay"],
+  ["donnees", "Données"],
+  ["apropos", "À propos"],
+] as const;
+type Tab = (typeof TABS)[number][0];
+
+const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+const REMINDERS = [1440, 360, 60, 30, 10, 5];
+const POSITIONS: Record<string, string> = {
+  "top-right": "En haut à droite",
+  "top-left": "En haut à gauche",
+  "bottom-right": "En bas à droite",
+  "bottom-left": "En bas à gauche",
+  free: "Libre (là où je la place)",
+};
+
+let lastTab: Tab = "general";
+
+/** Transforme une touche pressée en combinaison "Ctrl+Shift+M", ou null si elle n'est pas utilisable. */
+function accelFromEvent(e: KeyboardEvent): string | null {
+  let key: string | null = null;
+  if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3);
+  else if (/^Digit[0-9]$/.test(e.code)) key = e.code.slice(5);
+  else if (/^F([1-9]|1[0-2])$/.test(e.code)) key = e.code;
+  else if (/^Numpad[0-9]$/.test(e.code)) key = e.code;
+  if (!key) return null;
+  const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
+  if (!mods.length && !key.startsWith("F")) return null;
+  return [...mods, key].join("+");
+}
+
+export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
+  let tab: Tab = (TABS.find(([id]) => id === action)?.[0]) ?? lastTab;
+  const content = h("div", { class: "stack", style: "--gap: 20px; flex: 4 1 520px; min-width: 0" });
+  const tabsBox = h("div", { class: "tabs", role: "tablist", "aria-label": "Rubriques" });
+  let stopListening: (() => void) | null = null;
+  /** Réglages envoyés depuis cet écran dont on attend encore l'écho. */
+  let pendingEchoes = 0;
+
+  async function update(patch: Partial<Settings>) {
+    const next = { ...ctx.settings(), ...patch };
+    pendingEchoes++;
+    const errors = await ctx.saveSettings(next);
+    if (errors.length) toast("Raccourci refusé", errors.join(" — "));
+  }
+
+  function sw(label: string, hint: string, value: boolean, onChange: (v: boolean) => void) {
+    const btn = h("button", {
+      class: "switch", type: "button", role: "switch", "aria-checked": String(value), "aria-label": label,
+      onclick: () => {
+        const v = btn.getAttribute("aria-checked") !== "true";
+        btn.setAttribute("aria-checked", String(v));
+        onChange(v);
+      },
+    });
+    return h("div", { class: "setting-row" },
+      h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, label), h("span", { class: "muted", style: "font-size: 13px" }, hint)),
+      btn);
+  }
+
+  function select(id: string, label: string, options: [string, string][], value: string, onChange: (v: string) => void) {
+    const el = h("select", { class: "select", id }, options.map(([v, l]) => h("option", { value: v, selected: v === value }, l)));
+    el.addEventListener("change", () => onChange(el.value));
+    return h("div", { class: "field" }, h("label", { class: "label", for: id }, label), el);
+  }
+
+  function card(title: string, ...children: Child[]) {
+    return h("section", { class: "card", style: "padding: 28px" }, h("h2", { class: "section-title" }, title), ...children);
+  }
+
+  const panels: Record<Tab, () => HTMLElement | Promise<HTMLElement>> = {
+    general: async () => {
+      const s = ctx.settings();
+      const offsets: [string, string][] = [];
+      for (let m = -12 * 60; m <= 14 * 60; m += 30) {
+        const sign = m < 0 ? "−" : "+";
+        offsets.push([String(m), `UTC${sign}${Math.floor(Math.abs(m) / 60)}${Math.abs(m) % 60 ? ":30" : ""}`]);
+      }
+      const label = h("input", { class: "input", id: "p-serveur", type: "text", maxlength: "40", value: s.serverLabel });
+      label.addEventListener("change", () => update({ serverLabel: label.value.trim() }));
+      const hour = h("input", { class: "input", id: "p-cor-h", type: "time", value: `${pad(s.coriolisHour)}:${pad(s.coriolisMinute)}` });
+      hour.addEventListener("change", () => {
+        const [hh, mm] = hour.value.split(":").map(Number);
+        if (Number.isFinite(hh) && Number.isFinite(mm)) update({ coriolisHour: hh, coriolisMinute: mm });
+      });
+      const auto = await autostartEnabled().catch(() => false);
+      return card("Général",
+        h("div", { class: "grid-auto", style: "--min: 220px; gap: 16px" },
+          h("div", { class: "field" }, h("label", { class: "label", for: "p-serveur" }, "Nom du serveur"), label),
+          select("p-offset", "Fuseau de l'heure serveur", offsets, String(s.serverOffsetMin), (v) => update({ serverOffsetMin: Number(v) })),
+          select("p-cor-j", "Jour de la tempête de Coriolis", DAYS.map((d, i) => [String(i), d]), String(s.coriolisWeekday), (v) => update({ coriolisWeekday: Number(v) })),
+          h("div", { class: "field" }, h("label", { class: "label", for: "p-cor-h" }, "Heure de la tempête (serveur)"), hour),
+        ),
+        h("p", { class: "muted", style: "margin: 0" }, "Vérifiez le jour et l'heure de la tempête sur votre serveur : ils servent au compte à rebours et aux rappels."),
+        h("div", {},
+          sw("Lancer au démarrage de l'ordinateur", "Sietch démarre réduit dans la zone de notification", auto, async (v) => {
+            try {
+              await (v ? enableAutostart() : disableAutostart());
+            } catch (e) {
+              toast("Réglage impossible", String(e));
+            }
+          }),
+          sw("Garder dans la zone de notification", "Fermer la fenêtre ne quitte pas Sietch : les alarmes continuent", s.closeToTray, (v) => update({ closeToTray: v })),
+          sw("Démarrer réduit", "N'ouvre pas la fenêtre principale au lancement", s.startMinimized, (v) => update({ startMinimized: v })),
+        ),
+      );
+    },
+
+    raccourcis: () => {
+      const s = ctx.settings();
+      const rows = Object.entries(SHORTCUT_LABELS).map(([action, label]) => {
+        const btn = h("button", { class: "key-btn", type: "button", "aria-label": `${label} : ${prettyKeys(s.shortcuts[action] ?? "")}, cliquer pour changer` }, prettyKeys(s.shortcuts[action] ?? ""));
+        btn.addEventListener("click", () => {
+          stopListening?.();
+          btn.classList.add("listening");
+          btn.textContent = "Appuyez sur la combinaison…";
+          const onKey = (e: KeyboardEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.key === "Escape") return finish(null);
+            if (e.key === "Backspace" || e.key === "Delete") return finish("");
+            const accel = accelFromEvent(e);
+            if (accel) finish(accel);
+          };
+          const finish = (accel: string | null) => {
+            window.removeEventListener("keydown", onKey, true);
+            stopListening = null;
+            btn.classList.remove("listening");
+            const shortcuts = { ...ctx.settings().shortcuts };
+            if (accel !== null) {
+              for (const [a, k] of Object.entries(shortcuts)) if (k === accel && a !== action) shortcuts[a] = "";
+              shortcuts[action] = accel;
+              void update({ shortcuts }).then(() => draw());
+            }
+            btn.textContent = prettyKeys(ctx.settings().shortcuts[action] ?? "");
+          };
+          window.addEventListener("keydown", onKey, true);
+          stopListening = () => finish(null);
+        });
+        return h("div", { class: "setting-row" }, h("span", {}, label), btn);
+      });
+      return card("Raccourcis globaux",
+        h("p", { class: "muted", style: "margin: 0" }, "Ils fonctionnent même quand le jeu est au premier plan. Cliquez sur une combinaison puis appuyez sur la nouvelle ; Échap annule, Retour arrière désactive."),
+        h("div", {}, rows),
+      );
+    },
+
+    notifications: () => {
+      const s = ctx.settings();
+      const vol = h("input", { id: "p-vol", type: "range", min: "0", max: "100", value: String(s.volume) });
+      vol.addEventListener("change", () => update({ volume: Number(vol.value) }));
+      const reminders = REMINDERS.map((m) => {
+        const box = h("input", { type: "checkbox", checked: s.coriolisReminders.includes(m) });
+        box.addEventListener("change", () => {
+          const set = new Set(ctx.settings().coriolisReminders);
+          if (box.checked) set.add(m);
+          else set.delete(m);
+          update({ coriolisReminders: [...set].sort((a, b) => b - a) });
+        });
+        return h("label", { class: "chip", style: "border-style: solid" }, box, durationLabel(m * 60));
+      });
+      return card("Notifications et sons",
+        h("div", { class: "grid-auto", style: "--min: 220px; gap: 16px" },
+          h("div", { class: "row", style: "align-items: flex-end" },
+            h("div", { class: "grow" }, select("p-son", "Son par défaut", Object.entries(SOUNDS), s.defaultSound, (v) => update({ defaultSound: v }))),
+            h("button", { class: "btn", type: "button", onclick: () => playAlarm(ctx.settings().defaultSound, ctx.settings().volume) }, "Écouter"),
+          ),
+          h("div", { class: "field" }, h("label", { class: "label", for: "p-vol" }, "Volume"), vol),
+        ),
+        h("div", { class: "stack", style: "--gap: 8px" }, h("span", { class: "label" }, "Rappels avant la tempête de Coriolis"), h("div", { class: "row wrap", style: "--gap: 8px" }, reminders)),
+        h("div", {},
+          sw("Ne pas déranger", "Aucune notification ni aucun son jusqu'à nouvel ordre", s.dnd, (v) => api.setDnd(v)),
+        ),
+        h("div", { class: "row" },
+          h("button", { class: "btn btn-accent", type: "button", onclick: () => api.testAlarm() }, "Envoyer une notification de test"),
+        ),
+      );
+    },
+
+    overlay: () => {
+      const s = ctx.settings();
+      const op = h("input", { id: "p-op", type: "range", min: "30", max: "100", value: String(s.overlayOpacity) });
+      op.addEventListener("input", () => update({ overlayOpacity: Number(op.value) }));
+      return card("Overlay",
+        h("div", { class: "grid-auto", style: "--min: 220px; gap: 16px" },
+          select("p-pos", "Position", Object.entries(POSITIONS), s.overlayPosition, (v) => update({ overlayPosition: v })),
+          h("div", { class: "field" }, h("label", { class: "label", for: "p-op" }, "Opacité du fond"), op),
+        ),
+        h("div", {},
+          sw("Clic traversant", `Les clics passent à travers l'overlay vers le jeu. Pour le déplacer à nouveau, désactivez ce réglage ici (${prettyKeys(s.shortcuts.overlay ?? "")} le masque).`, s.overlayClickThrough, (v) => update({ overlayClickThrough: v })),
+        ),
+        h("div", { class: "row" }, h("button", { class: "btn btn-accent", type: "button", onclick: () => api.toggleOverlay() }, "Afficher / masquer l'overlay")),
+        h("p", { class: "muted", style: "margin: 0" }, "Choisissez dans l'écran Minuteurs quels minuteurs apparaissent dans l'overlay."),
+      );
+    },
+
+    donnees: async () => {
+      const dir = await appDataDir().catch(() => "");
+      return card("Données",
+        h("p", { class: "prose soft", style: "margin: 0" }, "Marqueurs, builds, notes et minuteurs restent sur cet ordinateur. Exportez-les pour les sauvegarder ou les transférer sur un autre PC."),
+        dir ? h("p", { class: "muted", style: "margin: 0; word-break: break-all" }, `Dossier : ${dir}`) : null,
+        h("div", { class: "row wrap" },
+          h("button", { class: "btn btn-primary", type: "button", onclick: exportAll }, "Tout exporter"),
+          h("button", { class: "btn", type: "button", onclick: importAll }, "Importer une sauvegarde"),
+        ),
+        h("div", {},
+          h("button", { class: "btn btn-danger", type: "button", onclick: resetAll }, "Effacer toutes mes données"),
+        ),
+      );
+    },
+
+    apropos: async () => {
+      const version = await getVersion().catch(() => "?");
+      return card("À propos",
+        h("div", { class: "row", style: "align-items: baseline; --gap: 12px" },
+          h("span", { class: "h2" }, "SIETCH"), h("span", { class: "muted" }, `version ${version}`)),
+        h("p", { class: "prose soft", style: "margin: 0" }, "Compagnon de bureau non officiel pour Dune: Awakening. Sietch ne lit ni ne modifie la mémoire du jeu : il reste compatible avec BattlEye."),
+        h("p", { class: "muted", style: "margin: 0" }, "Logiciel libre sous licence GPL-3.0-or-later. Dune et Dune: Awakening appartiennent à leurs ayants droit ; Sietch n'y est pas affilié."),
+      );
+    },
+  };
+
+  async function exportAll() {
+    const path = await save({ defaultPath: "sietch-sauvegarde.json", filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (!path) return;
+    const data = {
+      format: "sietch-sauvegarde",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      markers: await markers.all(),
+      builds: await builds.all(),
+      notes: await getNotes(),
+      timers: ctx.timers(),
+    };
+    await writeTextFile(path, JSON.stringify(data, null, 2));
+    toast("Sauvegarde enregistrée", path);
+  }
+
+  async function importAll() {
+    const path = await open({ multiple: false, filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (typeof path !== "string") return;
+    try {
+      const data = JSON.parse(await readTextFile(path));
+      if (data?.format !== "sietch-sauvegarde") throw new Error("ce fichier n'est pas une sauvegarde Sietch");
+      if (!(await confirmDialog("Remplacer vos marqueurs, builds et notes par ceux de la sauvegarde ? Les minuteurs de la sauvegarde seront ajoutés aux vôtres.", "Remplacer"))) return;
+      if (Array.isArray(data.markers)) await markers.replaceAll(data.markers as Marker[]);
+      if (Array.isArray(data.builds)) await builds.replaceAll(data.builds as Build[]);
+      if (typeof data.notes === "string") await setNotes(data.notes);
+      let n = 0;
+      for (const t of Array.isArray(data.timers) ? data.timers : []) {
+        if (typeof t?.name !== "string" || typeof t?.durationSecs !== "number") continue;
+        await api.saveTimer({
+          name: t.name, place: String(t.place ?? ""), group: ["ressources", "evenements", "personnels"].includes(t.group) ? t.group : "personnels",
+          durationSecs: t.durationSecs, repeat: !!t.repeat, alarm: t.alarm !== false, sound: String(t.sound ?? ""), inOverlay: t.inOverlay !== false,
+        });
+        n++;
+      }
+      toast("Sauvegarde importée", `${n} minuteur${n > 1 ? "s" : ""} relancé${n > 1 ? "s" : ""}.`);
+    } catch (e) {
+      toast("Import impossible", String(e instanceof Error ? e.message : e));
+    }
+  }
+
+  async function resetAll() {
+    if (!(await confirmDialog("Effacer tous vos marqueurs, builds, notes et minuteurs ? Cette action est définitive : exportez d'abord si vous voulez garder une copie.", "Tout effacer"))) return;
+    await markers.replaceAll([]);
+    await builds.replaceAll([]);
+    await setNotes("");
+    for (const t of ctx.timers()) await api.deleteTimer(t.id);
+    toast("Données effacées");
+  }
+
+  async function draw() {
+    lastTab = tab;
+    mount(tabsBox, TABS.map(([id, label]) =>
+      h("button", {
+        class: "tab", type: "button", role: "tab", "aria-selected": String(id === tab),
+        onclick: () => {
+          stopListening?.();
+          tab = id;
+          void draw();
+        },
+      }, label)));
+    const panel = await panels[tab]();
+    mount(content, panel);
+  }
+
+  mount(
+    root,
+    h("header", { class: "page-head" },
+      h("div", { class: "titles" }, h("span", { class: "eyebrow" }, "Préférences de l'application"), h("h1", { class: "h1" }, "Paramètres")),
+      h("span", { class: "muted" }, "Enregistré automatiquement"),
+    ),
+    h("div", { class: "columns" }, tabsBox, content),
+  );
+  void draw();
+
+  return {
+    // Un autre écran (ou la zone de notification) a changé un réglage : on rafraîchit,
+    // sauf pendant la saisie d'un raccourci.
+    onSettings: () => {
+      if (pendingEchoes > 0) {
+        pendingEchoes--;
+        return;
+      }
+      if (!stopListening) void draw();
+    },
+    dispose: () => stopListening?.(),
+  };
+}
