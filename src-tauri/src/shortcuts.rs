@@ -48,6 +48,7 @@ pub fn run_action(app: &AppHandle, action: &str) {
     match action {
         "overlay" => windows::toggle_overlay(app),
         "overlay-edit" => windows::toggle_widgets_edit(app),
+        "timer-last" => crate::restart_last_fired(app),
         "overlay-next" => windows::next_layout(app),
         "wiki" => windows::show_wiki(app),
         "marker" => windows::show_main(app, Some("carte"), Some("new-marker")),

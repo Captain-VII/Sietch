@@ -1,5 +1,6 @@
 import type { Ctx, ViewHandle } from "../main";
-import { api, GROUPS, type Timer, type TimerGroup, type TimerInput } from "../lib/api";
+import { api, GROUPS, prettyKeys, type Timer, type TimerGroup, type TimerInput } from "../lib/api";
+import { timerTemplates, uid } from "../lib/data";
 import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
 import { durationLabel, timerStatus } from "../lib/time";
 
@@ -98,8 +99,56 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     ),
     error,
     h("div", { class: "row" }, h("div", { class: "grow", style: "display: flex" }, submit), cancel),
+    h("button", { class: "btn", type: "button", onclick: () => void saveTemplate() }, "Enregistrer comme modèle"),
   );
   submit.style.flex = "1";
+
+  // ---------- Modèles : les minuteurs qu'on relance souvent, en un clic ----------
+  const templatesBox = h("div", { class: "stack", style: "--gap: 6px" });
+
+  function formInput(): TimerInput {
+    return {
+      name: f.name.value.trim(),
+      place: f.place.value.trim(),
+      group: f.group.value as TimerGroup,
+      durationSecs: (Number(f.hours.value) || 0) * 3600 + (Number(f.minutes.value) || 0) * 60,
+      repeat: f.repeat.checked,
+      alarm: f.alarm.checked,
+      inOverlay: f.inOverlay.checked,
+    };
+  }
+
+  async function saveTemplate() {
+    const t = formInput();
+    if (!t.name || t.durationSecs <= 0) {
+      error.textContent = "Donnez un nom et une durée au modèle.";
+      return;
+    }
+    const existing = (await timerTemplates.all()).find((x) => x.name === t.name);
+    await timerTemplates.save({ ...t, id: existing?.id ?? uid("mod") });
+    toast("Modèle enregistré", `${t.name} · ${durationLabel(t.durationSecs)}`);
+    await drawTemplates();
+  }
+
+  async function drawTemplates() {
+    const list = await timerTemplates.all();
+    mount(templatesBox, list.length
+      ? list.map((t) => h("div", { class: "setting-row", style: "padding: 6px 0" },
+        h("div", { class: "stack grow", style: "--gap: 2px; min-width: 0" },
+          h("span", {}, t.name),
+          h("span", { class: "muted", style: "font-size: 13px" }, [durationLabel(t.durationSecs), t.place].filter(Boolean).join(" · "))),
+        h("button", { class: "btn btn-accent", type: "button", onclick: async () => {
+          const { id: _id, ...input } = t;
+          await api.saveTimer(input);
+          toast("Minuteur démarré", t.name);
+        } }, "Démarrer"),
+        h("button", { class: "icon-btn", type: "button", "aria-label": `Supprimer le modèle ${t.name}`, title: "Supprimer le modèle", onclick: async () => {
+          await timerTemplates.remove(t.id);
+          await drawTemplates();
+        } }, icon("trash", 16))))
+      : h("p", { class: "muted", style: "margin: 0" }, "Remplissez le formulaire puis « Enregistrer comme modèle » : le minuteur se relance ensuite en un clic."));
+  }
+  void drawTemplates();
 
   // ---------- Liste ----------
   function row(t: Timer) {
@@ -212,6 +261,11 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           h("span", { class: "muted" }, `Chaque semaine · rappels à ${ctx.settings().coriolisReminders.map((m) => durationLabel(m * 60)).join(", ") || "aucun"}`),
         ),
         form,
+        h("section", { class: "card tight", "aria-labelledby": "mod-titre" },
+          h("h2", { class: "section-title", id: "mod-titre" }, "Modèles"),
+          templatesBox,
+          h("p", { class: "muted", style: "margin: 0; font-size: 13px" },
+            `En jeu, ${prettyKeys(ctx.settings().shortcuts["timer-last"] ?? "")} relance le dernier minuteur terminé sans ouvrir Sietch.`)),
       ),
     ),
   );

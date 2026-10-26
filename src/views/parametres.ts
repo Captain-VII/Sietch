@@ -5,7 +5,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api, prettyKeys, SHORTCUT_LABELS, type Layout, type Settings, type WidgetKind } from "../lib/api";
-import { builds, getNotes, markers, setNotes, type Build, type Marker } from "../lib/data";
+import { builds, getNotes, markers, setNotes, timerTemplates, type Build, type Marker, type TimerTemplate } from "../lib/data";
 import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
 import { durationLabel, pad } from "../lib/time";
 import { live, solveAffine } from "../lib/live";
@@ -320,7 +320,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     donnees: async () => {
       const dir = await appDataDir().catch(() => "");
       return card("Données",
-        h("p", { class: "prose soft", style: "margin: 0" }, "Marqueurs, builds, notes et minuteurs restent sur cet ordinateur. Exportez-les pour les sauvegarder ou les transférer sur un autre PC."),
+        h("p", { class: "prose soft", style: "margin: 0" }, "Marqueurs, builds, notes, minuteurs et modèles de minuteurs restent sur cet ordinateur. Exportez-les pour les sauvegarder ou les transférer sur un autre PC."),
         dir ? h("p", { class: "muted", style: "margin: 0; word-break: break-all" }, `Dossier : ${dir}`) : null,
         h("div", { class: "row wrap" },
           h("button", { class: "btn btn-primary", type: "button", onclick: exportAll }, "Tout exporter"),
@@ -353,6 +353,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       markers: await markers.all(),
       builds: await builds.all(),
       notes: await getNotes(),
+      timerTemplates: await timerTemplates.all(),
       timers: ctx.timers(),
     };
     await writeTextFile(path, JSON.stringify(data, null, 2));
@@ -369,6 +370,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       if (Array.isArray(data.markers)) await markers.replaceAll(data.markers as Marker[]);
       if (Array.isArray(data.builds)) await builds.replaceAll(data.builds as Build[]);
       if (typeof data.notes === "string") await setNotes(data.notes);
+      if (Array.isArray(data.timerTemplates)) await timerTemplates.replaceAll(data.timerTemplates as TimerTemplate[]);
       let n = 0;
       for (const t of Array.isArray(data.timers) ? data.timers : []) {
         if (typeof t?.name !== "string" || typeof t?.durationSecs !== "number") continue;
@@ -389,6 +391,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     await markers.replaceAll([]);
     await builds.replaceAll([]);
     await setNotes("");
+    await timerTemplates.replaceAll([]);
     for (const t of ctx.timers()) await api.deleteTimer(t.id);
     toast("Données effacées");
   }

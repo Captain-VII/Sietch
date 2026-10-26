@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: Settings = {
   shortcuts: {
     marker: "Ctrl+Shift+M",
     timer: "Ctrl+Shift+T",
+    "timer-last": "Ctrl+Shift+R",
     overlay: "Ctrl+Shift+O",
     "overlay-edit": "Ctrl+Shift+L",
     "overlay-next": "Ctrl+Shift+N",

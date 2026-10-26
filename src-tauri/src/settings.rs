@@ -137,9 +137,10 @@ impl Settings {
 }
 
 /// Raccourcis globaux par défaut : action → combinaison.
-pub const DEFAULT_SHORTCUTS: [(&str, &str); 7] = [
+pub const DEFAULT_SHORTCUTS: [(&str, &str); 8] = [
     ("marker", "Ctrl+Shift+M"),
     ("timer", "Ctrl+Shift+T"),
+    ("timer-last", "Ctrl+Shift+R"),
     ("overlay", "Ctrl+Shift+O"),
     ("overlay-edit", "Ctrl+Shift+L"),
     ("overlay-next", "Ctrl+Shift+N"),

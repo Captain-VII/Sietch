@@ -1,6 +1,7 @@
 // Données gardées côté interface : marqueurs, builds et notes, dans des fichiers JSON locaux.
 
 import { load, type Store } from "@tauri-apps/plugin-store";
+import type { TimerGroup } from "./api";
 
 export type Region = "hagga" | "profond";
 export type MarkerType = "epice" | "minerai" | "eau" | "epave" | "grotte" | "base" | "autre";
@@ -108,6 +109,28 @@ export const builds = {
   },
   remove: async (id: string) => setList("builds", (await builds.all()).filter((b) => b.id !== id)),
   replaceAll: (list: Build[]) => setList("builds", list),
+};
+
+/** Modèle de minuteur : un minuteur qu'on démarre souvent, en un clic. */
+export interface TimerTemplate {
+  id: string;
+  name: string;
+  place: string;
+  group: TimerGroup;
+  durationSecs: number;
+  repeat: boolean;
+  alarm: boolean;
+  inOverlay: boolean;
+}
+
+export const timerTemplates = {
+  all: () => getList<TimerTemplate>("timerTemplates"),
+  save: async (t: TimerTemplate) => {
+    const list = (await timerTemplates.all()).filter((x) => x.id !== t.id);
+    await setList("timerTemplates", [...list, t].sort((a, b) => a.name.localeCompare(b.name, "fr")));
+  },
+  remove: async (id: string) => setList("timerTemplates", (await timerTemplates.all()).filter((t) => t.id !== id)),
+  replaceAll: (list: TimerTemplate[]) => setList("timerTemplates", list),
 };
 
 export async function getNotes(): Promise<string> {

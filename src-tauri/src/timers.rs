@@ -37,6 +37,9 @@ pub struct Timer {
     pub in_overlay: bool,
     #[serde(default)]
     pub fired: bool,
+    /// Moment où le minuteur a sonné (non répété), pour « relancer le dernier terminé ».
+    #[serde(default)]
+    pub fired_at: Option<i64>,
 }
 
 /// Ce que l'interface envoie pour créer ou modifier un minuteur.
@@ -72,6 +75,7 @@ impl Timer {
             alarm: input.alarm,
             in_overlay: input.in_overlay,
             fired: false,
+            fired_at: None,
         }
     }
 
@@ -106,6 +110,7 @@ impl Timer {
 
     pub fn restart(&mut self) {
         self.fired = false;
+        self.fired_at = None;
         self.remaining_ms = 0;
         self.ends_at = Some(now_ms() + self.duration_secs * 1000);
     }
@@ -129,9 +134,20 @@ impl Timer {
             self.ends_at = None;
             self.remaining_ms = 0;
             self.fired = true;
+            self.fired_at = Some(now);
         }
         true
     }
+}
+
+/// Le minuteur terminé le plus récemment (celui qu'on veut relancer après une récolte).
+pub fn last_fired(timers: &[Timer]) -> Option<usize> {
+    timers
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| t.fired)
+        .max_by_key(|(_, t)| t.fired_at.unwrap_or(0))
+        .map(|(i, _)| i)
 }
 
 #[cfg(test)]
@@ -160,6 +176,18 @@ mod tests {
         assert!(t.tick(end));
         assert!(t.fired);
         assert!(!t.tick(end + 10_000));
+    }
+
+    #[test]
+    fn finds_the_last_finished_timer() {
+        let (mut a, mut b, c) = (sample(false), sample(false), sample(false));
+        let end = a.ends_at.unwrap();
+        a.tick(end);
+        b.tick(end + 5_000);
+        assert_eq!(last_fired(&[a.clone(), b.clone(), c.clone()]), Some(1), "le plus récent");
+        b.restart();
+        assert_eq!(last_fired(&[a, b, c.clone()]), Some(0));
+        assert_eq!(last_fired(&[c]), None, "rien de terminé");
     }
 
     #[test]

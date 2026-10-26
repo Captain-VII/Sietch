@@ -15,9 +15,11 @@ export interface Timer {
   alarm: boolean;
   inOverlay: boolean;
   fired: boolean;
+  /** Moment où il a sonné (ms), null s'il n'est pas terminé. */
+  firedAt?: number | null;
 }
 
-export type TimerInput = Omit<Timer, "id" | "endsAt" | "remainingMs" | "fired"> & { id?: string };
+export type TimerInput = Omit<Timer, "id" | "endsAt" | "remainingMs" | "fired" | "firedAt"> & { id?: string };
 
 export interface Settings {
   serverOffsetMin: number;
@@ -191,6 +193,7 @@ export const GROUPS: Record<TimerGroup, string> = {
 export const SHORTCUT_LABELS: Record<string, string> = {
   marker: "Ajouter un marqueur",
   timer: "Démarrer un minuteur",
+  "timer-last": "Relancer le dernier minuteur terminé",
   overlay: "Afficher / masquer l'overlay",
   "overlay-edit": "Placer les widgets",
   "overlay-next": "Disposition suivante",

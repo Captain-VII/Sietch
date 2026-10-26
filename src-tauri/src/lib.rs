@@ -89,6 +89,29 @@ fn restart_timer(app: AppHandle, id: String) -> CmdResult<()> {
     with_timer(&app, &id, Timer::restart)
 }
 
+/// Raccourci : relance le dernier minuteur terminé, sans ouvrir Sietch (après une récolte, par exemple).
+pub(crate) fn restart_last_fired(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let name = {
+        let mut timers = state.timers.lock().unwrap();
+        timers::last_fired(&timers).map(|i| {
+            timers[i].restart();
+            let name = timers[i].name.clone();
+            state.save_timers(&timers);
+            name
+        })
+    };
+    let settings = state.settings.lock().unwrap().clone();
+    let alarm = match name {
+        Some(name) => {
+            let _ = app.emit("timers-changed", ());
+            engine::Alarm { title: format!("{name} relancé"), body: "Le minuteur repart de zéro.".into() }
+        }
+        None => engine::Alarm { title: "Aucun minuteur terminé".into(), body: "Rien à relancer pour l'instant.".into() },
+    };
+    engine::send_alarm(app, &settings, alarm);
+}
+
 /// Remet les minuteurs dans l'ordre donné ; les identifiants inconnus sont ignorés.
 #[tauri::command]
 fn reorder_timers(app: AppHandle, state: State<AppState>, ids: Vec<String>) {
