@@ -34,6 +34,8 @@ export interface Settings {
   liveModules: boolean;
   liveRegion: string;
   calibration: Record<string, CalibrationPoint[]>;
+  /** Capture de la carte du jeu par région : [x0, y0, x1, y1] sur la carte (0 à 900). */
+  mapImages: Record<string, [number, number, number, number]>;
   /** Seuils des alertes du personnage, en % (0 = désactivée) ; volume : sac rempli au-delà. */
   playerAlerts: { water: number; health: number; power: number; volume: number };
   /** Dispositions de widgets de l'overlay (au moins une). */
@@ -158,6 +160,9 @@ export const api = {
   /** Demande une relecture de tous les attributs du personnage ; renvoie la dernière lecture. */
   requestRawStats: () => invoke<RawStat[]>("request_raw_stats"),
   mapData: () => invoke<MapData | null>("get_map_data"),
+  importMapImage: (region: string, path: string) => invoke<string>("import_map_image", { region, path }),
+  mapImage: (region: string) => invoke<string | null>("get_map_image", { region }),
+  removeMapImage: (region: string) => invoke<void>("remove_map_image", { region }),
   /** Relit position.json ; renvoie son chemin. */
   reloadLiveConfig: () => invoke<string>("reload_live_config"),
 };

@@ -190,6 +190,63 @@ fn get_player_state(state: State<AppState>) -> Option<ue::PlayerState> {
     state.player_state.lock().unwrap().clone()
 }
 
+// ---------- Fond de carte : capture de la carte du jeu par l'utilisateur ----------
+
+/// Type d'image d'après ses premiers octets (PNG, JPEG, WebP), sinon `None`.
+fn image_mime(b: &[u8]) -> Option<&'static str> {
+    if b.starts_with(&[0x89, b'P', b'N', b'G']) {
+        Some("image/png")
+    } else if b.starts_with(&[0xFF, 0xD8]) {
+        Some("image/jpeg")
+    } else if b.len() > 12 && &b[0..4] == b"RIFF" && &b[8..12] == b"WEBP" {
+        Some("image/webp")
+    } else {
+        None
+    }
+}
+
+fn base64(b: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(b.len().div_ceil(3) * 4);
+    for c in b.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        for (i, shift) in [18, 12, 6, 0].into_iter().enumerate() {
+            out.push(if i <= c.len() { T[(n >> shift & 63) as usize] as char } else { '=' });
+        }
+    }
+    out
+}
+
+fn map_image_path(state: &AppState, region: &str) -> Result<std::path::PathBuf, String> {
+    if region.is_empty() || !region.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err("région invalide".into());
+    }
+    Ok(state.dir.join("cartes").join(region))
+}
+
+/// Copie la capture choisie dans le dossier de Sietch ; renvoie l'image en data URL.
+#[tauri::command]
+fn import_map_image(state: State<AppState>, region: String, path: String) -> Result<String, String> {
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let mime = image_mime(&bytes).ok_or("image PNG, JPEG ou WebP attendue")?;
+    let dest = map_image_path(&state, &region)?;
+    std::fs::create_dir_all(dest.parent().unwrap()).map_err(|e| e.to_string())?;
+    std::fs::write(&dest, &bytes).map_err(|e| e.to_string())?;
+    Ok(format!("data:{mime};base64,{}", base64(&bytes)))
+}
+
+#[tauri::command]
+fn get_map_image(state: State<AppState>, region: String) -> Option<String> {
+    let bytes = std::fs::read(map_image_path(&state, &region).ok()?).ok()?;
+    Some(format!("data:{};base64,{}", image_mime(&bytes)?, base64(&bytes)))
+}
+
+#[tauri::command]
+fn remove_map_image(state: State<AppState>, region: String) -> Result<(), String> {
+    let _ = std::fs::remove_file(map_image_path(&state, &region)?);
+    Ok(())
+}
+
 #[tauri::command]
 fn get_map_data(state: State<AppState>) -> Option<ue::MapData> {
     state.map_data.lock().unwrap().clone()
@@ -317,6 +374,9 @@ pub fn run() {
             get_player_state,
             request_raw_stats,
             get_map_data,
+            import_map_image,
+            get_map_image,
+            remove_map_image,
             show_wiki,
             show_main,
             open_site,
@@ -326,4 +386,18 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("erreur au lancement de Sietch");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encodes_map_images() {
+        assert_eq!(base64(b"Man"), "TWFu");
+        assert_eq!(base64(b"Ma"), "TWE=");
+        assert_eq!(base64(b"M"), "TQ==");
+        assert_eq!(image_mime(&[0x89, b'P', b'N', b'G', 0]), Some("image/png"));
+        assert_eq!(image_mime(b"pas une image"), None);
+    }
 }

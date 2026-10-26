@@ -112,6 +112,63 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     }
   }
 
+  // ---------- Fond : capture de la carte du jeu (facultative), alignée en 2 clics ----------
+  let bg: L.ImageOverlay | null = null;
+  /** Alignement en cours : null, puis le premier coin cliqué. */
+  let aligning: false | "first" | { x: number; y: number } = false;
+  const bgBox = h("div", { class: "row", style: "--gap: 8px" });
+
+  async function drawBackground() {
+    bg?.remove();
+    bg = null;
+    const url = await api.mapImage(region).catch(() => null);
+    if (url) {
+      const [x0, y0, x1, y1] = ctx.settings().mapImages[region] ?? [0, 0, SIZE, SIZE];
+      bg = L.imageOverlay(url, L.latLngBounds(toLatLng(x0, y1), toLatLng(x1, y0)), { opacity: 0.85, interactive: false }).addTo(map);
+      bg.bringToBack();
+    }
+    const btn = (label: string, onclick: () => void) => h("button", { class: "btn", type: "button", onclick }, label);
+    mount(bgBox,
+      btn(url ? "Changer le fond" : "Fond : ma capture…", () => void importBackground()),
+      url ? btn(aligning ? "Cliquez les coins…" : "Aligner", () => { aligning = "first"; toast("Alignement du fond", "Cliquez le coin haut gauche du secteur A1 sur votre capture, puis le coin bas droit du secteur I9."); void drawBackground(); }) : null,
+      url ? btn("Retirer", () => void api.removeMapImage(region).then(drawBackground)) : null,
+    );
+  }
+
+  async function importBackground() {
+    const path = await open({ multiple: false, filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp"] }] });
+    if (typeof path !== "string") return;
+    try {
+      await api.importMapImage(region, path);
+      await drawBackground();
+      toast("Fond importé", "Alignez-le avec « Aligner » : deux clics sur les coins de la grille de votre capture.");
+    } catch (e) {
+      toast("Import impossible", String(e));
+    }
+  }
+
+  map.on("click", (e: L.LeafletMouseEvent) => {
+    if (!aligning || !bg) return;
+    const p = { x: e.latlng.lng, y: -e.latlng.lat };
+    if (aligning === "first") {
+      aligning = p;
+      return;
+    }
+    // Les deux points cliqués (A1 haut gauche, I9 bas droit) doivent tomber sur (0, 0) et (900, 900).
+    const a = aligning;
+    aligning = false;
+    const [x0, y0, x1, y1] = ctx.settings().mapImages[region] ?? [0, 0, SIZE, SIZE];
+    const sx = SIZE / (p.x - a.x), sy = SIZE / (p.y - a.y);
+    if (!(sx > 0 && sy > 0)) {
+      toast("Alignement annulé", "Cliquez d'abord le coin haut gauche, puis le coin bas droit.");
+      void drawBackground();
+      return;
+    }
+    const fit: [number, number, number, number] = [(x0 - a.x) * sx, (y0 - a.y) * sy, (x1 - a.x) * sx, (y1 - a.y) * sy];
+    const s = ctx.settings();
+    void ctx.saveSettings({ ...s, mapImages: { ...s.mapImages, [region]: fit } }).then(drawBackground);
+  });
+
   void api.mapData().then((m) => { mapData = m; drawGame(); drawLive(); });
   const stopMapData = on.mapData((m) => { mapData = m; drawGame(); drawLive(); });
 
@@ -167,7 +224,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       text = st.message ?? (st.gameRunning ? "Position en direct en attente." : "Position en direct : jeu non détecté.");
     } else if (mapData && mapRegion(mapData) !== region) {
       text = `Position en direct : vous êtes dans ${REGIONS[mapRegion(mapData)]}.`;
-      actions.push(btn("Y aller", () => { region = lastRegion = mapRegion(mapData!); drawRegions(); drawMarkers(); drawPanel(); drawGame(); drawLive(); }));
+      actions.push(btn("Y aller", () => { region = lastRegion = mapRegion(mapData!); drawRegions(); drawMarkers(); drawPanel(); drawGame(); void drawBackground(); drawLive(); }));
     } else if (!mapData && s.liveRegion !== region) {
       text = `Position en direct : vous êtes dans ${REGIONS[s.liveRegion as Region] ?? s.liveRegion}.`;
       actions.push(btn("Je suis dans cette région", () => void ctx.saveSettings({ ...s, liveRegion: region }).then(drawLive)));
@@ -284,7 +341,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
             drawRegions();
             drawMarkers();
             drawPanel();
-            drawGame();
+            drawGame(); void drawBackground();
             drawLive();
           },
         }, REGIONS[r]),
@@ -450,6 +507,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         regionBox,
         h("button", { class: "btn", type: "button", onclick: importMarkers }, "Importer"),
         h("button", { class: "btn", type: "button", onclick: exportMarkers }, "Exporter"),
+        bgBox,
       ),
     ),
     h("div", { class: "row wrap" }, h("label", { class: "sr-only", for: "recherche-carte" }, "Rechercher sur la carte"), search, chipsBox),
@@ -486,6 +544,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   // Le décompte du minuteur lié se met à jour tout seul (data-timer) :
   // pas besoin de redessiner le panneau, ce qui effacerait une saisie en cours.
   drawLive();
+  void drawBackground();
   return {
     onSettings: drawLive,
     dispose: () => {

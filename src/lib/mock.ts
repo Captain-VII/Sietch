@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   liveRegion: "hagga",
   calibration: {},
   playerAlerts: { water: 25, health: 30, power: 15, volume: 90 },
+  mapImages: {},
   layouts: [{
     id: "exploration",
     name: "Exploration",
@@ -187,6 +188,10 @@ function handle(cmd: string, args: Record<string, any>): unknown {
         ? [["DuneCharacterAttributeSet", "CurrentHealth", p.health], ["DuneCharacterAttributeSet", "MaxHealth", p.healthMax], ["DuneCharacterAttributeSet", "CurrentStamina", p.stamina], ["DuneHydrationAttributeSet", "CurrentHydration", p.hydration]].map(([set, name, value]) => ({ set, name, value }))
         : [];
     }
+    case "get_map_image":
+    case "import_map_image":
+    case "remove_map_image":
+      return null;
     case "get_map_data":
       return state.settings.liveModules ? simMap() : null;
     case "get_player_state":

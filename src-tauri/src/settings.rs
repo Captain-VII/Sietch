@@ -27,6 +27,8 @@ pub struct Settings {
     pub live_region: String,
     /// Points de calibration par région : coordonnées du jeu ↔ position sur la carte.
     pub calibration: BTreeMap<String, Vec<CalibrationPoint>>,
+    /// Capture de la carte du jeu par région : position sur la carte [x0, y0, x1, y1] (0 à 900).
+    pub map_images: BTreeMap<String, [f64; 4]>,
     /// Seuils des alertes du personnage (modules sans BattlEye).
     pub player_alerts: crate::alerts::AlertSettings,
     /// Dispositions de widgets de l'overlay ; il en reste toujours au moins une.
@@ -176,6 +178,7 @@ impl Default for Settings {
             live_region: "hagga".into(),
             calibration: BTreeMap::new(),
             player_alerts: Default::default(),
+            map_images: BTreeMap::new(),
             layouts: vec![Layout::default()],
             active_layout: "exploration".into(),
         }
