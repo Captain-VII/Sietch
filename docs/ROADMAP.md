@@ -12,7 +12,8 @@ Légende : 🟢 prêt à faire · 🟡 dépend d'une info ou d'un choix · 🔴 
 
 Objectif : que la version actuelle marche vraiment à côté du jeu, avant d'ajouter quoi que ce soit.
 
-- 🟢 Installer depuis l'artefact de la CI (et non en mode dev) : installateur, SmartScreen, lancement au démarrage.
+- ✅ Installer depuis l'artefact de la CI (et non en mode dev) : installé et lancé le 2026-10-26 (commit `6e3d7bb`,
+  après correction du démarrage en release). SmartScreen et le lancement au démarrage de Windows restent à voir à l'usage.
 - ✅ Passer la liste « Pas encore vérifié » de `CLAUDE.md` : wiki dans l'app, notifications Windows, zone de
   notification, raccourcis globaux **pendant que le jeu a le focus**, overlay par-dessus le jeu en plein écran fenêtré
   (validé le 2026-10-26, en mode dev).
