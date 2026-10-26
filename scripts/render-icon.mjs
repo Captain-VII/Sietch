@@ -1,6 +1,6 @@
 // Rend un SVG en PNG 1024 × 1024 en gardant la transparence (coins arrondis).
 // Usage : node scripts/render-icon.mjs entree.svg sortie.png
-// Pour regénérer toutes les icônes de Sietch : npm run icon
+// (Les icônes de Sietch viennent de assets/icon.png et assets/icon-plate.png : npm run icon)
 import { Resvg } from "@resvg/resvg-js";
 import { readFileSync, writeFileSync } from "node:fs";
 

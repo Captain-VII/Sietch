@@ -2,6 +2,7 @@ use crate::state::AppState;
 use crate::{set_dnd_inner, shortcuts, windows};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::image::Image;
 use tauri::{AppHandle, Manager};
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
@@ -56,8 +57,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                 windows::show_main(tray.app_handle(), None, None);
             }
         });
-    if let Some(icon) = app.default_window_icon() {
-        builder = builder.icon(icon.clone());
+    // Version plate du logo : plus lisible en tout petit que l'icône peinte.
+    match Image::from_bytes(include_bytes!("../icons/tray.png")) {
+        Ok(icon) => builder = builder.icon(icon),
+        Err(_) => {
+            if let Some(icon) = app.default_window_icon() {
+                builder = builder.icon(icon.clone());
+            }
+        }
     }
     builder.build(app)?;
     Ok(())

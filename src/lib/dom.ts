@@ -1,4 +1,5 @@
 import logoUrl from "../assets/logo.png";
+import logoSmallUrl from "../assets/logo-small.png";
 
 export type Child = Node | string | number | null | undefined | false | Child[];
 type Props = Record<string, unknown>;
@@ -83,9 +84,10 @@ export function icon(name: keyof typeof ICONS | string, size = 18): SVGSVGElemen
   return svg;
 }
 
-/** Le logo de Sietch : un ver des sables qui jaillit devant le soleil. Décoratif. */
+/** Le logo de Sietch : un ver des sables qui jaillit devant la lune. Décoratif.
+ *  En dessous de 28 px, la version plate, plus lisible que l'illustration. */
 export function logo(size = 34): HTMLImageElement {
-  return h("img", { src: logoUrl, width: String(size), height: String(size), alt: "", "aria-hidden": "true", style: "display: block; flex: 0 0 auto" });
+  return h("img", { src: size < 28 ? logoSmallUrl : logoUrl, width: String(size), height: String(size), alt: "", "aria-hidden": "true", style: "display: block; flex: 0 0 auto" });
 }
 
 /** Petite notification dans la fenêtre (erreurs, confirmations). */
