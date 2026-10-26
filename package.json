@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "icon": "node scripts/render-icon.mjs assets/icon.svg assets/icon.png && tauri icon assets/icon.png && rm -rf src-tauri/icons/android src-tauri/icons/ios && cp src-tauri/icons/128x128@2x.png src/assets/logo.png && touch src-tauri/src/lib.rs"
   },
   "dependencies": {
     "@fontsource/barlow": "^5.3.0",
