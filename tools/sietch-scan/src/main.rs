@@ -78,7 +78,8 @@ Structures d'Unreal Engine (noms et objets du jeu) :
   ue                         trouve la table des noms et la table des objets, et en affiche un extrait
   ue-find <texte> [n]        objets dont le nom ou la classe contient le texte (40 par défaut)
   ue-fields <Classe>         champs d'une classe ou structure (offset, type, nom), parents compris
-  ue-dump <n|adresse>        valeurs des champs d'un objet (numéro de ue-find ou adresse)";
+  ue-dump <n|adresse>        valeurs des champs d'un objet (numéro de ue-find ou adresse)
+  raw <adresse> [octets]     contenu brut (hexadécimal, flottants, doubles), 128 octets par défaut";
 
     // ---------- Structures d'Unreal Engine ----------
     //
@@ -382,14 +383,10 @@ Structures d'Unreal Engine (noms et objets du jeu) :
                     let s = self.name_of(g, self.ptr(g, fld.at + 0x78));
                     let size = g.read::<4>(fld.at + 0x3C).map(|b| u32_at(&b, 0)).unwrap_or(0);
                     if s.ends_with("GameplayAttributeData") && size > 16 {
-                        // Variante plus grande : on montre tous ses flottants pour repérer la bonne valeur.
-                        let mut b = vec![0u8; size.min(64) as usize];
-                        g.read_into(at, &mut b);
-                        let floats: Vec<String> = (8..b.len() - 3)
-                            .step_by(4)
-                            .map(|i| format!("+{i}:{:.2}", f32::from_le_bytes(b[i..i + 4].try_into().unwrap())))
-                            .collect();
-                        format!("[{s}, {size} octets] {}", floats.join(" "))
+                        // FglGameplayAttributeData (vie) : la valeur à jour n'est pas dans la structure, mais
+                        // dans un petit bloc pointé à +0x10 (premier flottant). CurrentValue (+0xC) reste figée.
+                        let cur = g.read::<4>(self.ptr(g, at + 0x10)).map(f32::from_le_bytes)?;
+                        format!("{cur:.2} (bloc pointé, {s})")
                     } else if s.ends_with("GameplayAttributeData") {
                         // FGameplayAttributeData (et ses dérivées, comme FglGameplayAttributeData) : vtable, BaseValue, CurrentValue.
                         let b = g.read::<16>(at)?;
@@ -417,6 +414,23 @@ Structures d'Unreal Engine (noms et objets du jeu) :
                 };
                 println!("  +0x{:04X}  {:<20} {} {detail}", f.offset, f.kind, f.name);
             }
+        }
+        Ok(())
+    }
+
+    /// Octets bruts à une adresse, par mots de 4 : hexadécimal, flottant, et pointeur sur 8 octets.
+    fn raw(addr: u64, len: usize) -> Result<(), String> {
+        let g = Game::open()?;
+        let mut b = vec![0u8; len.div_ceil(8) * 8];
+        let n = g.read_into(addr, &mut b);
+        for i in (0..n.saturating_sub(7)).step_by(8) {
+            let (lo, hi) = (u32_at(&b, i), u32_at(&b, i + 4));
+            println!(
+                "+0x{i:03X}  {lo:08X} {hi:08X}   {:>12.3} {:>12.3}   {:.3}",
+                f32::from_bits(lo),
+                f32::from_bits(hi),
+                f(&b, i)
+            );
         }
         Ok(())
     }
@@ -479,6 +493,7 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             "ue-find" => ue_find(arg(1).ok_or("texte manquant")?, arg(2).map(parse_num).transpose()?.unwrap_or(40) as usize),
             "ue-fields" => ue_fields(arg(1).ok_or("nom de classe manquant")?),
             "ue-dump" => ue_dump(arg(1).ok_or("numéro ou adresse manquant")?),
+            "raw" => raw(parse_num(arg(1).ok_or("adresse manquante")?)?, arg(2).map(parse_num).transpose()?.unwrap_or(128) as usize),
             _ => {
                 println!("{USAGE}");
                 Ok(())
