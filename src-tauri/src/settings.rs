@@ -69,7 +69,7 @@ pub struct Widget {
     pub pos: Option<[i32; 2]>,
     /// Échelle, de 0.5 à 2.
     pub scale: f64,
-    /// Opacité du fond, de 20 à 100.
+    /// Opacité du widget, de 20 à 100.
     pub opacity: u8,
 }
 
@@ -81,7 +81,7 @@ impl Widget {
 
 impl Default for Widget {
     fn default() -> Self {
-        Self { kind: String::new(), shown: true, pos: None, scale: 1.0, opacity: 70 }
+        Self { kind: String::new(), shown: true, pos: None, scale: 1.0, opacity: 100 }
     }
 }
 

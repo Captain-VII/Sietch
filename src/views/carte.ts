@@ -63,7 +63,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   }
   for (const y of [200, 430, 670]) {
     const pts = Array.from({ length: 19 }, (_, i) => toLatLng(i * 50, y + Math.sin(i * 0.7 + y) * 18));
-    L.polyline(pts, { color: "#5A4228", weight: 1.2, interactive: false, smoothFactor: 2 }).addTo(map);
+    L.polyline(pts, { color: "#5B4D2E", weight: 1.2, interactive: false, smoothFactor: 2 }).addTo(map);
   }
   const layer = L.layerGroup().addTo(map);
 
@@ -71,7 +71,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   // ---------- Position en direct (modules sans BattlEye) ----------
   const liveLayer = L.layerGroup().addTo(map);
-  const liveDot = L.circleMarker([0, 0], { radius: 9, color: "#0D0A07", weight: 3, fillColor: "#4FA3D9", fillOpacity: 1, interactive: false });
+  const liveDot = L.circleMarker([0, 0], { radius: 9, color: "#11131F", weight: 3, fillColor: "#4FA3D9", fillOpacity: 1, interactive: false });
   const liveHalo = L.circleMarker([0, 0], { radius: 18, color: "#4FA3D9", weight: 2, fill: false, className: "live-halo", interactive: false });
   const liveBar = h("div", { class: "live-bar", role: "status", "aria-live": "polite" });
   let follow = true;
@@ -175,7 +175,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       const isSel = selected?.id === m.id;
       const dot = L.circleMarker(toLatLng(m.x, m.y), {
         radius: isSel ? 10 : 7,
-        color: isSel ? "#F2E6D0" : "#0D0A07",
+        color: isSel ? "#F2E6D0" : "#11131F",
         weight: isSel ? 3 : 2,
         fillColor: MARKER_TYPES[m.type].color,
         fillOpacity: 1,

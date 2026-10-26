@@ -250,7 +250,9 @@ pub fn run() {
                     .lock()
                     .unwrap()
                     .start_minimized;
-            if !minimized {
+            // En développement, l'appli redémarre à chaque modification du Rust : la fenêtre principale
+            // reste cachée pour ne pas prendre le focus au jeu (zone de notification pour l'ouvrir).
+            if !minimized && !cfg!(debug_assertions) {
                 windows::show_main(&handle, None, None);
             }
             Ok(())

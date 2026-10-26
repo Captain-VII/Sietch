@@ -10,6 +10,8 @@ https://github.com/Captain-VII/Sietch (licence GPL-3.0-or-later).
 
 - Parle français : interface, commentaires, commits et réponses en français.
 - Veut aller vite : **pas de tags ni de releases**. Un push sur `main` suffit, la CI produit le `.exe`.
+- Les **overlays et widgets** se testent par-dessus le jeu, sur l'écran principal (sans jamais voler son focus) ;
+  le reste de Sietch s'ouvre sur l'écran secondaire.
 - Ne veut **aucun son** : les alertes passent par la notification système (silencieuse) et un toast dans l'app.
 - A fourni l'illustration du logo (`assets/icon.png`, ver peint) et sa version plate (`assets/icon-plate.png`).
 - La maquette de design est l'artefact claude.ai « Dune Compagnon » (canevas Design).

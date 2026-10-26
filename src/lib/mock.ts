@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
   layouts: [{
     id: "exploration",
     name: "Exploration",
-    widgets: (["clock", "coriolis", "sector", "timers"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 70 })),
+    widgets: (["clock", "coriolis", "sector", "timers"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 100 })),
   }],
   activeLayout: "exploration",
 };

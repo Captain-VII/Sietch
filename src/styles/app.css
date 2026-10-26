@@ -71,8 +71,9 @@
 }
 
 .nav-link[aria-current="page"] {
-  background: var(--selected);
-  color: var(--spice-light);
+  background: linear-gradient(90deg, rgba(150, 80, 200, 0.35), rgba(150, 80, 200, 0));
+  box-shadow: inset 2px 0 0 var(--violet);
+  color: var(--violet-light);
 }
 
 .nav-sep {
@@ -205,7 +206,7 @@
 
 .timer-row .grip {
   cursor: grab;
-  color: #6b5a42;
+  color: #5c5a6e;
   display: flex;
 }
 
@@ -235,13 +236,13 @@
   aspect-ratio: 1 / 1;
   max-height: calc(100vh - 260px);
   min-height: 420px;
-  background: #241b11;
+  background: #151726;
   border: 1px solid var(--line-hot);
   border-radius: var(--radius-lg);
 }
 
 .leaflet-container {
-  background: #241b11;
+  background: #151726;
   font-family: var(--font-body);
 }
 
@@ -365,7 +366,7 @@
 }
 
 .wiki-content {
-  color: #dccfb8;
+  color: #ddd3bd;
   line-height: 1.65;
   overflow-wrap: anywhere;
 }
@@ -409,7 +410,7 @@
 .wiki-content a {
   color: var(--spice-light);
   text-decoration: none;
-  border-bottom: 1px solid rgba(240, 182, 118, 0.35);
+  border-bottom: 1px solid rgba(230, 207, 149, 0.35);
 }
 
 .wiki-content a:hover {
@@ -510,9 +511,9 @@
 }
 
 .tab[aria-selected="true"] {
-  background: var(--selected);
-  border-color: var(--line-selected);
-  color: var(--spice-light);
+  background: var(--pick);
+  border-color: var(--violet);
+  color: var(--violet-light);
 }
 
 .setting-row {

@@ -53,8 +53,8 @@
 }
 
 .win-btn[aria-pressed="true"] {
-  background: var(--selected);
-  color: var(--spice-light);
+  background: var(--pick);
+  color: var(--violet-light);
 }
 
 .win-btn.close:hover {
@@ -95,8 +95,8 @@
 }
 
 .pick.compact[aria-pressed="true"] {
-  background: var(--selected);
-  border-color: #8a6a42;
+  background: var(--pick);
+  border-color: var(--violet);
 }
 
 .content {

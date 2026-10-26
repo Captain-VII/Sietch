@@ -51,7 +51,7 @@ export interface Widget {
   pos: [number, number] | null;
   /** De 0.5 à 2. */
   scale: number;
-  /** Opacité du fond, de 20 à 100. */
+  /** Opacité du widget, de 20 à 100. */
   opacity: number;
 }
 

@@ -41,16 +41,11 @@ pub fn show_wiki(app: &AppHandle) {
 }
 
 pub fn toggle_overlay(app: &AppHandle) {
-    let on = !app.state::<AppState>().widgets_on.fetch_xor(true, Ordering::SeqCst);
+    app.state::<AppState>().widgets_on.fetch_xor(true, Ordering::SeqCst);
     refresh_widgets(app);
-    let Some(w) = app.get_webview_window("overlay") else {
-        return;
-    };
-    if !on {
+    // L'ancien overlay d'un seul bloc n'est plus affiché : il prenait le focus au jeu.
+    if let Some(w) = app.get_webview_window("overlay") {
         let _ = w.hide();
-    } else {
-        apply_overlay(app, &w);
-        let _ = w.show();
     }
 }
 

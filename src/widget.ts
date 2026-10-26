@@ -17,7 +17,7 @@ function config(s: Settings): Widget | undefined {
 function apply(s: Settings) {
   const w = config(s);
   if (!w) return;
-  card.style.setProperty("--alpha", String(w.opacity / 100));
+  card.style.opacity = String(w.opacity / 100);
   document.documentElement.style.setProperty("--scale", String(w.scale));
 }
 
