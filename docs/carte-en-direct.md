@@ -37,3 +37,16 @@ Comme le personnage : `RootComponent` → `RelativeLocation` (3 × f64, en cm).
 
 - `MapMarkerSubsystem`, `ServerMapMarkerComponent` : données internes, rien d'exploitable par les noms.
 - `BP_MapMarkerZone_C` : simples boîtes de découverte, sans type ni icône.
+
+## Fond de carte à partir de captures
+
+La carte du jeu ne se dézoome pas assez pour tenir sur un écran : on la capture en plusieurs morceaux (même
+zoom, un peu de chevauchement), puis `tools/assembler-carte.py` les assemble (corrélation de phase, puis vote
+pour relier les groupes qui ne se recouvrent que sur une bande étroite). Le cadre hachuré rouge de la carte
+correspond aux limites lues en mémoire : on recadre l'image dessus et elle se cale sans alignement manuel.
+
+```bash
+python -I tools/assembler-carte.py <dossier des captures> <image assemblée>
+```
+
+Les captures et l'image (contenu de Funcom) restent dans `%APPDATA%\com.captainvii.sietch\`, jamais dans le dépôt.
