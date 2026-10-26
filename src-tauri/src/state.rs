@@ -25,6 +25,8 @@ pub struct AppState {
     pub live_reload: AtomicBool,
     /// Widgets de l'overlay affichés ou masqués (raccourci de l'overlay).
     pub widgets_on: AtomicBool,
+    /// Mode édition : les widgets se déplacent à la souris et ne laissent plus passer les clics.
+    pub widgets_edit: AtomicBool,
     counter: AtomicU64,
 }
 
@@ -45,6 +47,7 @@ impl AppState {
             live_status: Mutex::new(LiveStatus::default()),
             live_reload: AtomicBool::new(false),
             widgets_on: AtomicBool::new(false),
+            widgets_edit: AtomicBool::new(false),
             counter: AtomicU64::new(0),
         }
     }

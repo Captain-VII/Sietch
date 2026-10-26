@@ -2,6 +2,7 @@ import "./styles/theme.css";
 import "./styles/components.css";
 import "./styles/widget.css";
 
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, on, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
 import { markers, sectorOf } from "./lib/data";
 import { h, mount } from "./lib/dom";
@@ -78,13 +79,43 @@ function sectorKey() {
   return sectorOf(m.x, m.y);
 }
 
+// ---------- Mode édition ----------
+
+/** Cadre, déplacement à la souris et taille à la molette ; le moteur enregistre les positions en sortant. */
+const badge = h("span", { class: "w-badge" });
+
+function setEditing(on: boolean) {
+  document.documentElement.classList.toggle("editing", on);
+  badge.textContent = `${Math.round((config(settings)?.scale ?? 1) * 100)} %`;
+}
+
+function editControls() {
+  card.addEventListener("mousedown", (e) => {
+    if (document.documentElement.classList.contains("editing") && e.button === 0) {
+      void getCurrentWindow().startDragging();
+    }
+  });
+  window.addEventListener("wheel", (e) => {
+    const w = config(settings);
+    if (!document.documentElement.classList.contains("editing") || !w) return;
+    const scale = Math.round(Math.min(2, Math.max(0.5, w.scale + (e.deltaY < 0 ? 0.1 : -0.1))) * 10) / 10;
+    if (scale === w.scale) return;
+    w.scale = scale;
+    badge.textContent = `${Math.round(scale * 100)} %`;
+    void api.setSettings(settings);
+  });
+}
+
 // ---------- Démarrage ----------
 
 async function start() {
   [settings, timers] = await Promise.all([api.settings(), api.timers()]);
   await syncClock();
   apply(settings);
-  mount(document.getElementById("app")!, card);
+  mount(document.getElementById("app")!, card, badge);
+  editControls();
+  setEditing(await api.widgetsEdit());
+  await on.widgetsEdit(setEditing);
 
   switch (kind) {
     case "clock":

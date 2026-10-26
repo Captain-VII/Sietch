@@ -107,6 +107,9 @@ export const api = {
   setDnd: (on: boolean) => invoke<void>("set_dnd", { on }),
   clock: () => invoke<Clock>("get_clock"),
   toggleOverlay: () => invoke<void>("toggle_overlay"),
+  /** Entre ou sort du mode édition des widgets (positions enregistrées en sortant). */
+  toggleWidgetsEdit: () => invoke<void>("toggle_widgets_edit"),
+  widgetsEdit: () => invoke<boolean>("get_widgets_edit"),
   showWiki: () => invoke<void>("show_wiki"),
   showMain: (view?: string) => invoke<void>("show_main", { view }),
   /** Ouvre awakening.wiki ou dune.gaming.tools dans la fenêtre de navigation de Sietch. */
@@ -123,6 +126,7 @@ export const on = {
   alarm: (fn: (a: Alarm) => void) => listen<Alarm>("alarm", (e) => fn(e.payload)),
   liveStatus: (fn: (s: LiveStatus) => void) => listen<LiveStatus>("live-status", (e) => fn(e.payload)),
   position: (fn: (p: PlayerPosition) => void) => listen<PlayerPosition>("player-position", (e) => fn(e.payload)),
+  widgetsEdit: (fn: (editing: boolean) => void) => listen<boolean>("widgets-edit", (e) => fn(e.payload)),
   navigate: (fn: (n: { view: string; action: string | null }) => void) =>
     listen<{ view: string; action: string | null }>("navigate", (e) => fn(e.payload)),
 };
@@ -137,6 +141,7 @@ export const SHORTCUT_LABELS: Record<string, string> = {
   marker: "Ajouter un marqueur",
   timer: "Démarrer un minuteur",
   overlay: "Afficher / masquer l'overlay",
+  "overlay-edit": "Placer les widgets",
   wiki: "Recherche wiki",
   map: "Ouvrir la carte",
 };

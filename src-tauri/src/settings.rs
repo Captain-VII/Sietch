@@ -117,8 +117,23 @@ impl Settings {
         if !self.layouts.iter().any(|l| l.id == self.active_layout) {
             self.active_layout = self.layouts[0].id.clone();
         }
+        // Action ajoutée dans une version plus récente : elle reçoit sa combinaison par défaut.
+        // Une combinaison vidée par l'utilisateur reste vide.
+        for (action, accel) in DEFAULT_SHORTCUTS {
+            self.shortcuts.entry(action.into()).or_insert_with(|| accel.into());
+        }
     }
 }
+
+/// Raccourcis globaux par défaut : action → combinaison.
+pub const DEFAULT_SHORTCUTS: [(&str, &str); 6] = [
+    ("marker", "Ctrl+Shift+M"),
+    ("timer", "Ctrl+Shift+T"),
+    ("overlay", "Ctrl+Shift+O"),
+    ("overlay-edit", "Ctrl+Shift+L"),
+    ("wiki", "Ctrl+Shift+W"),
+    ("map", "Ctrl+Shift+C"),
+];
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -131,16 +146,10 @@ pub struct CalibrationPoint {
 
 impl Default for Settings {
     fn default() -> Self {
-        let shortcuts = [
-            ("marker", "Ctrl+Shift+M"),
-            ("timer", "Ctrl+Shift+T"),
-            ("overlay", "Ctrl+Shift+O"),
-            ("wiki", "Ctrl+Shift+W"),
-            ("map", "Ctrl+Shift+C"),
-        ]
-        .into_iter()
-        .map(|(a, k)| (a.to_string(), k.to_string()))
-        .collect();
+        let shortcuts = DEFAULT_SHORTCUTS
+            .into_iter()
+            .map(|(a, k)| (a.to_string(), k.to_string()))
+            .collect();
         Self {
             server_offset_min: 60,
             server_label: "Europe".into(),
@@ -244,5 +253,15 @@ mod tests {
         s.layouts.clear();
         s.normalize();
         assert_eq!(s.layouts, vec![Layout::default()]);
+    }
+
+    #[test]
+    fn normalize_adds_new_shortcuts_only() {
+        let mut s: Settings =
+            serde_json::from_str(r#"{"shortcuts":{"overlay":"Ctrl+Alt+O","wiki":""}}"#).unwrap();
+        s.normalize();
+        assert_eq!(s.shortcuts["overlay"], "Ctrl+Alt+O");
+        assert_eq!(s.shortcuts["wiki"], "", "combinaison vidée gardée vide");
+        assert_eq!(s.shortcuts["overlay-edit"], "Ctrl+Shift+L");
     }
 }

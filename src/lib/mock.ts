@@ -7,7 +7,7 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { Settings, Timer, TimerInput } from "./api";
 
 const KEY = "sietch-mock";
-type State = { timers: Timer[]; settings: Settings; store: Record<string, unknown> };
+type State = { timers: Timer[]; settings: Settings; store: Record<string, unknown>; widgetsEdit?: boolean };
 
 const DEFAULT_SETTINGS: Settings = {
   serverOffsetMin: 60,
@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS: Settings = {
     marker: "Ctrl+Shift+M",
     timer: "Ctrl+Shift+T",
     overlay: "Ctrl+Shift+O",
+    "overlay-edit": "Ctrl+Shift+L",
     wiki: "Ctrl+Shift+W",
     map: "Ctrl+Shift+C",
   },
@@ -151,6 +152,12 @@ function handle(cmd: string, args: Record<string, any>): unknown {
       return "/simulation/com.captainvii.sietch/position.json";
     case "test_alarm":
       void emit("alarm", { title: "Test d'alarme", body: "Les notifications de Sietch fonctionnent." });
+      return null;
+    case "get_widgets_edit":
+      return state.widgetsEdit ?? false;
+    case "toggle_widgets_edit":
+      state.widgetsEdit = !state.widgetsEdit;
+      void emit("widgets-edit", state.widgetsEdit);
       return null;
     case "toggle_overlay":
     case "show_wiki":

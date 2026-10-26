@@ -8,8 +8,31 @@ body {
 }
 
 #app {
+  position: relative;
   height: 100vh;
   zoom: var(--scale, 1);
+}
+
+/* Mode édition : cadre en pointillé, fond léger, déplacement à la souris. */
+.editing .widget {
+  cursor: move;
+  outline: 1px dashed var(--spice);
+  outline-offset: -1px;
+  background: rgba(17, 19, 31, 0.55);
+}
+
+.w-badge {
+  display: none;
+  position: absolute;
+  left: 4px;
+  top: 3px;
+  font-size: 10px;
+  color: var(--spice-light);
+  pointer-events: none;
+}
+
+.editing .w-badge {
+  display: block;
 }
 
 .widget {

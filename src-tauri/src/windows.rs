@@ -41,7 +41,12 @@ pub fn show_wiki(app: &AppHandle) {
 }
 
 pub fn toggle_overlay(app: &AppHandle) {
-    app.state::<AppState>().widgets_on.fetch_xor(true, Ordering::SeqCst);
+    let state = app.state::<AppState>();
+    // Masquer les widgets termine le mode édition (positions enregistrées).
+    if state.widgets_on.load(Ordering::SeqCst) && state.widgets_edit.load(Ordering::SeqCst) {
+        toggle_widgets_edit(app);
+    }
+    state.widgets_on.fetch_xor(true, Ordering::SeqCst);
     refresh_widgets(app);
     // L'ancien overlay d'un seul bloc n'est plus affiché : il prenait le focus au jeu.
     if let Some(w) = app.get_webview_window("overlay") {
@@ -79,6 +84,40 @@ pub fn apply_overlay(app: &AppHandle, w: &WebviewWindow) {
     let _ = w.set_position(PhysicalPosition::new(x, y));
 }
 
+/// Entre ou sort du mode édition des widgets. En sortant, les positions sont enregistrées
+/// dans la disposition active.
+pub fn toggle_widgets_edit(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let editing = !state.widgets_edit.fetch_xor(true, Ordering::SeqCst);
+    if editing {
+        state.widgets_on.store(true, Ordering::SeqCst);
+        refresh_widgets(app);
+    } else {
+        save_widget_positions(app);
+    }
+    let _ = app.emit("widgets-edit", editing);
+}
+
+fn save_widget_positions(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let mut settings = state.settings.lock().unwrap().clone();
+    let active = settings.active_layout.clone();
+    let Some(layout) = settings.layouts.iter_mut().find(|l| l.id == active) else {
+        return;
+    };
+    for w in &mut layout.widgets {
+        let Some(win) = app.get_webview_window(&format!("widget-{}", w.kind)) else {
+            continue;
+        };
+        if let (Ok(p), Ok(f)) = (win.outer_position(), win.scale_factor()) {
+            let p = p.to_logical::<f64>(f);
+            w.pos = Some([p.x.round() as i32, p.y.round() as i32]);
+        }
+    }
+    // Enregistre, prévient les fenêtres et remet les widgets en mode verrouillé.
+    crate::set_settings(app.clone(), state, settings);
+}
+
 /// Taille de base (logique) de chaque widget, avant l'échelle choisie.
 fn widget_size(kind: &str) -> (f64, f64) {
     match kind {
@@ -103,6 +142,7 @@ fn apply_widgets(app: &AppHandle) {
     let _guard = BUSY.lock().unwrap();
     let state = app.state::<AppState>();
     let on = state.widgets_on.load(Ordering::SeqCst);
+    let editing = state.widgets_edit.load(Ordering::SeqCst);
     let settings = state.settings.lock().unwrap().clone();
     let Some(layout) = settings.layouts.iter().find(|l| l.id == settings.active_layout) else {
         return;
@@ -138,7 +178,11 @@ fn apply_widgets(app: &AppHandle) {
         let win = match existing {
             Some(win) => {
                 let _ = win.set_size(LogicalSize::new(width, height));
-                let _ = win.set_position(LogicalPosition::new(x, y));
+                // En édition, la fenêtre est là où la souris l'a posée : la position enregistrée est
+                // ancienne (elle ne l'est qu'en sortant du mode édition).
+                if !editing {
+                    let _ = win.set_position(LogicalPosition::new(x, y));
+                }
                 win
             }
             None => {
@@ -158,14 +202,37 @@ fn apply_widgets(app: &AppHandle) {
                     .focusable(false)
                     .build();
                 match built {
-                    Ok(win) => win,
+                    Ok(win) => {
+                        no_activate(&win);
+                        win
+                    }
                     Err(_) => continue,
                 }
             }
         };
-        let _ = win.set_ignore_cursor_events(settings.overlay_click_through);
+        let _ = win.set_ignore_cursor_events(!editing && settings.overlay_click_through);
     }
 }
+
+/// Un clic sur le widget (mode édition) ne doit pas l'activer : le jeu garderait sinon le focus perdu.
+/// `focusable(false)` ne suffit pas sous Windows, d'où `WS_EX_NOACTIVATE`.
+#[cfg(windows)]
+fn no_activate(win: &WebviewWindow) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW, WS_EX_NOACTIVATE,
+    };
+    if let Ok(hwnd) = win.hwnd() {
+        let hwnd = hwnd.0 as _;
+        // SAFETY : fenêtre valide qui appartient à ce processus ; on n'ajoute qu'un style étendu.
+        unsafe {
+            let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_NOACTIVATE as isize);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn no_activate(_: &WebviewWindow) {}
 
 /// Sites que Sietch peut ouvrir dans sa fenêtre de navigation.
 const SITES: [&str; 2] = ["awakening.wiki", "dune.gaming.tools"];

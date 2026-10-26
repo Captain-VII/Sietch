@@ -164,6 +164,16 @@ fn toggle_overlay(app: AppHandle) {
 }
 
 #[tauri::command]
+fn toggle_widgets_edit(app: AppHandle) {
+    windows::toggle_widgets_edit(&app);
+}
+
+#[tauri::command]
+fn get_widgets_edit(state: State<AppState>) -> bool {
+    state.widgets_edit.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[tauri::command]
 fn show_wiki(app: AppHandle) {
     windows::show_wiki(&app);
 }
@@ -288,6 +298,8 @@ pub fn run() {
             set_dnd,
             get_clock,
             toggle_overlay,
+            toggle_widgets_edit,
+            get_widgets_edit,
             show_wiki,
             show_main,
             open_site,
