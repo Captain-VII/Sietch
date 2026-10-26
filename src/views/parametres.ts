@@ -28,6 +28,9 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   coriolis: "Coriolis",
   sector: "Secteur",
   timers: "Minuteurs",
+  health: "Vie",
+  stamina: "Endurance",
+  hydration: "Eau",
 };
 
 let lastTab: Tab = "general";

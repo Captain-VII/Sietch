@@ -103,6 +103,46 @@ body {
   font-size: 15px;
 }
 
+/* Barres du personnage : valeur exacte au-dessus d'une barre fine, couleurs proches du jeu. */
+.w-bar-head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.w-bar {
+  width: 100%;
+  height: 4px;
+  margin-top: 4px;
+  background: rgba(4, 5, 10, 0.55);
+  box-shadow: 0 0 2px rgba(4, 5, 10, 0.8);
+}
+
+.w-bar > span {
+  display: block;
+  height: 100%;
+  transition: width 0.25s linear;
+}
+
+.w-bar.health > span {
+  background: #e05a4f;
+}
+
+.w-bar.stamina > span {
+  background: #e6cf95;
+}
+
+.w-bar.hydration > span {
+  background: #6fb6e8;
+}
+
+/* Valeur basse (25 % ou moins) : le chiffre passe en violet, comme les alertes de Sietch. */
+.widget.low .w-mid {
+  color: var(--violet-light);
+}
+
 .w-timer.ready .w-name,
 .w-timer.ready .w-mid {
   color: var(--violet-light);

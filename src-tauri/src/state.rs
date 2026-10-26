@@ -21,6 +21,8 @@ pub struct AppState {
     pub coriolis_sent: Mutex<HashSet<(i64, i64)>>,
     pub dnd_item: Mutex<Option<CheckMenuItem<Wry>>>,
     pub live_status: Mutex<LiveStatus>,
+    /// Dernier état du personnage lu (pour les widgets qui s'ouvrent après coup).
+    pub player_state: Mutex<Option<crate::ue::PlayerState>>,
     /// Demande de relecture de position.json par le fil des modules.
     pub live_reload: AtomicBool,
     /// Widgets de l'overlay affichés ou masqués (raccourci de l'overlay).
@@ -45,6 +47,7 @@ impl AppState {
             coriolis_sent: Mutex::new(HashSet::new()),
             dnd_item: Mutex::new(None),
             live_status: Mutex::new(LiveStatus::default()),
+            player_state: Mutex::new(None),
             live_reload: AtomicBool::new(false),
             widgets_on: AtomicBool::new(false),
             widgets_edit: AtomicBool::new(false),

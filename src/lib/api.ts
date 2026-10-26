@@ -39,7 +39,25 @@ export interface Settings {
   activeLayout: string;
 }
 
-export type WidgetKind = "clock" | "coriolis" | "sector" | "timers";
+export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration";
+
+/** État du personnage lu dans le jeu (modules sans BattlEye), arrondi au dixième. */
+export interface PlayerState {
+  health: number;
+  healthMax: number;
+  stamina: number;
+  staminaMax: number;
+  power: number;
+  powerMax: number;
+  hydration: number;
+  hydrationMax: number;
+  heat: number;
+  heatMax: number;
+  sunExposure: number;
+  x: number;
+  y: number;
+  z: number;
+}
 
 /** Un widget de l'overlay : une petite fenêtre à part. */
 export interface Widget {
@@ -114,6 +132,7 @@ export const api = {
   openSite: (url: string) => invoke<void>("open_site", { url }),
   testAlarm: () => invoke<void>("test_alarm"),
   liveStatus: () => invoke<LiveStatus>("get_live_status"),
+  playerState: () => invoke<PlayerState | null>("get_player_state"),
   /** Relit position.json ; renvoie son chemin. */
   reloadLiveConfig: () => invoke<string>("reload_live_config"),
 };
@@ -123,6 +142,7 @@ export const on = {
   settingsChanged: (fn: (s: Settings) => void) => listen<Settings>("settings-changed", (e) => fn(e.payload)),
   alarm: (fn: (a: Alarm) => void) => listen<Alarm>("alarm", (e) => fn(e.payload)),
   liveStatus: (fn: (s: LiveStatus) => void) => listen<LiveStatus>("live-status", (e) => fn(e.payload)),
+  playerState: (fn: (s: PlayerState) => void) => listen<PlayerState>("player-state", (e) => fn(e.payload)),
   position: (fn: (p: PlayerPosition) => void) => listen<PlayerPosition>("player-position", (e) => fn(e.payload)),
   widgetsEdit: (fn: (editing: boolean) => void) => listen<boolean>("widgets-edit", (e) => fn(e.payload)),
   navigate: (fn: (n: { view: string; action: string | null }) => void) =>

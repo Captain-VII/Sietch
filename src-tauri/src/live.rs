@@ -259,6 +259,7 @@ pub fn spawn(app: AppHandle) {
                                         eprintln!("[personnage] {s:?}");
                                     }
                                     let _ = app.emit("player-state", &s);
+                                    *state.player_state.lock().unwrap() = Some(s.clone());
                                     last_state = Some(s);
                                 }
                             }

@@ -3,7 +3,7 @@ import "./styles/components.css";
 import "./styles/widget.css";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, on, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
+import { api, on, type PlayerState, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
 import { markers, sectorOf } from "./lib/data";
 import { h, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
@@ -79,6 +79,28 @@ function sectorKey() {
   return sectorOf(m.x, m.y);
 }
 
+// ---------- Barres du personnage (vie, endurance, eau) ----------
+
+const BARS: Partial<Record<WidgetKind, { label: string; value: (s: PlayerState) => [number, number] }>> = {
+  health: { label: "Vie", value: (s) => [s.health, s.healthMax] },
+  stamina: { label: "Endurance", value: (s) => [s.stamina, s.staminaMax] },
+  hydration: { label: "Eau", value: (s) => [s.hydration, s.hydrationMax] },
+};
+
+function drawBar(s: PlayerState | null) {
+  const bar = BARS[kind]!;
+  const [cur, max] = s ? bar.value(s) : [0, 0];
+  const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+  mount(
+    card,
+    h("div", { class: "w-bar-head" },
+      h("span", { class: "w-label" }, bar.label),
+      h("span", { class: "digits w-mid" }, max > 0 ? `${Math.round(cur)} / ${Math.round(max)}` : "—")),
+    h("div", { class: `w-bar ${kind}` }, h("span", { style: `width: ${pct.toFixed(1)}%` })),
+  );
+  card.classList.toggle("low", max > 0 && pct <= 25);
+}
+
 // ---------- Mode édition ----------
 
 /** Cadre, déplacement à la souris et taille à la molette ; le moteur enregistre les positions en sortant. */
@@ -130,6 +152,12 @@ async function start() {
         timers = await api.timers();
         drawTimers();
       });
+      break;
+    case "health":
+    case "stamina":
+    case "hydration":
+      drawBar(await api.playerState());
+      await on.playerState(drawBar);
       break;
     case "sector": {
       void drawSector();

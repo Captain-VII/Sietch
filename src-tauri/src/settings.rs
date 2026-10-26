@@ -34,7 +34,7 @@ pub struct Settings {
 }
 
 /// Éléments qu'un widget peut afficher.
-pub const WIDGET_KINDS: [&str; 4] = ["clock", "coriolis", "sector", "timers"];
+pub const WIDGET_KINDS: [&str; 7] = ["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration"];
 
 /// Une disposition : un ensemble de widgets placés à l'écran.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

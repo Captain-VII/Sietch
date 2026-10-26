@@ -4,7 +4,7 @@
 
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import type { Settings, Timer, TimerInput } from "./api";
+import type { PlayerState, Settings, Timer, TimerInput } from "./api";
 
 const KEY = "sietch-mock";
 type State = { timers: Timer[]; settings: Settings; store: Record<string, unknown>; widgetsEdit?: boolean };
@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
   layouts: [{
     id: "exploration",
     name: "Exploration",
-    widgets: (["clock", "coriolis", "sector", "timers"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 100 })),
+    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 100 })),
   }],
   activeLayout: "exploration",
 };
@@ -51,6 +51,20 @@ function read(): State {
 
 let state = read();
 const save = () => localStorage.setItem(KEY, JSON.stringify(state));
+
+/** Personnage simulé : la vie et l'endurance oscillent, l'eau baisse lentement. */
+function simPlayer(): PlayerState {
+  const t = Date.now() / 1000;
+  const r = (v: number) => Math.round(v * 10) / 10;
+  return {
+    health: r(100 + Math.sin(t / 4) * 50), healthMax: 150,
+    stamina: r(60 + Math.sin(t / 2) * 40), staminaMax: 100,
+    power: 150, powerMax: 150,
+    hydration: r(100 - ((t / 3) % 100)), hydrationMax: 100,
+    heat: 0, heatMax: 100, sunExposure: 0,
+    x: 0, y: 0, z: 0,
+  };
+}
 
 /** Même calcul que `next_coriolis` côté Rust. */
 function nextCoriolis(now: number, s: Settings) {
@@ -152,6 +166,8 @@ function handle(cmd: string, args: Record<string, any>): unknown {
     case "test_alarm":
       void emit("alarm", { title: "Test d'alarme", body: "Les notifications de Sietch fonctionnent." });
       return null;
+    case "get_player_state":
+      return state.settings.liveModules ? simPlayer() : null;
     case "get_widgets_edit":
       return state.widgetsEdit ?? false;
     case "toggle_widgets_edit":
@@ -237,6 +253,7 @@ export function install(label = "main") {
     if (!on) return;
     const t = Date.now() / 1000;
     void emit("player-position", { x: Math.cos(t * 0.15) * 40000 + 10000, y: Math.sin(t * 0.15) * 40000 - 5000, z: 1200, at: Date.now() });
+    void emit("player-state", simPlayer());
   }, 250);
   console.info("[simulation] Sietch tourne dans le navigateur avec un moteur simulé.");
 }
