@@ -55,13 +55,33 @@ Objectif : rendre Sietch utile même en ligne, avec BattlEye.
 
 ## Étape 3 — Plus de données du jeu (solo / privé, sans BattlEye)
 
-Objectif : étendre la lecture seule au-delà de la position. **Chaque donnée demande sa propre chaîne de pointeurs**,
-donc du temps à chaque patch : ne faire que ce qui sert vraiment.
+Catégorie « Personnage en direct ». Référence fonctionnelle : l'overlay de Dune Companion (gaming.tools) affiche
+les valeurs exactes des jauges (vie, endurance, eau…), la charge des équipements utilitaires (ceinture à suspenseur,
+power pack) et l'inventaire (emplacements, volume). On reprend les **fonctions**, jamais leur contenu ni leur code.
 
-- 🟢 Généraliser `position.json` en liste de valeurs lues (position, eau, chaleur…).
-- 🟡 Eau, chaleur, état du distille dans l'overlay, avec alerte quand ça baisse.
-- 🟡 Minuteur lancé automatiquement quand on récolte un nœud.
-- 🟡 Inventaire réel → « ce qu'il me manque » pour un build ou une fabrication.
+**Choix technique** : lire les structures d'Unreal Engine **par leurs noms** (table des noms + table des objets +
+réflexion des classes) au lieu d'une chaîne de pointeurs par valeur. Les offsets se retrouvent seuls au démarrage,
+donc ça résiste mieux aux patchs et chaque nouvelle valeur ne coûte qu'un nom de plus.
+
+**Performance** : un seul fil de lecture côté Rust, offsets résolus une fois (cache), un instantané du personnage
+lu 4 fois par seconde, un seul événement `player-state` envoyé aux widgets, rien n'est envoyé si rien ne change.
+Les widgets ne lisent rien eux-mêmes.
+
+| # | Tâche | Vérifiable |
+|---|---|---|
+| 1 | `sietch-scan ue` : trouver la table des noms et la table des objets | les premiers noms (« None », « ByteProperty ») s'affichent |
+| 2 | `sietch-scan ue-find` + liste des champs d'une classe (nom, type, offset) | on voit les champs du personnage (vie, endurance, eau…) |
+| 3 | Moteur : `live.rs` résout les noms au démarrage et lit l'instantané (position comprise) | les valeurs suivent le jeu dans un journal |
+| 4 | Widgets **Vie**, **Endurance**, **Eau** : barre fine + valeur exacte, style jeu | par-dessus le jeu, à côté de ses jauges |
+| 5 | Widgets **Équipement** (charge, durabilité) et **Inventaire** (emplacements, volume) | idem |
+| 6 | Alertes silencieuses : eau basse, équipement bientôt vide (seuils réglables) | notification + toast |
+| 7 | Onglet « Stats brutes » dans la fenêtre principale : toutes les valeurs lues | liste en direct |
+
+**Fini quand** : en solo sans BattlEye, les widgets affichent vie, endurance, eau, équipement et inventaire en
+direct, sans ralentir le jeu ni lui prendre le focus, et ça survit à une relance du jeu.
+
+**Liste d'attente** (autres catégories) : carte en direct avec position et région (catégorie Carte), minuteur lancé
+à la récolte d'un nœud (Minuteurs), « ce qu'il me manque » pour un build à partir de l'inventaire réel (Builds).
 
 **Décision à prendre avant** : 🔴 la position de Funcom. Dune Companion et TH.GL lisent déjà ces données en ligne et
 disent que Funcom le tolère ; si Funcom le confirme publiquement, on pourra rediscuter du garde-fou BattlEye.
