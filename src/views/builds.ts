@@ -10,7 +10,7 @@ export function render(root: HTMLElement, _ctx: Ctx, action?: string | null): Vi
   let current: Build | null = null;
   let saveTimer = 0;
 
-  const listBox = h("section", { class: "stack", style: "--gap: 8px; flex: 1 1 240px; min-width: 0", "aria-label": "Mes builds" });
+  const listBox = h("div", { class: "stack", style: "--gap: 8px" });
   const editor = h("div", { class: "columns", style: "flex: 4 1 700px; min-width: 0" });
   const savedHint = h("span", { class: "muted", "aria-live": "polite" });
 
@@ -29,11 +29,28 @@ export function render(root: HTMLElement, _ctx: Ctx, action?: string | null): Vi
     }, 400);
   }
 
+  // Recherche (nom, équipement, notes) et filtre par usage.
+  const search = h("input", { class: "input search", type: "search", placeholder: "Chercher un build, une pièce…", "aria-label": "Chercher dans les builds" });
+  const tagFilter = h("select", { class: "select", "aria-label": "Filtrer par usage" },
+    h("option", { value: "" }, "Tous les usages"),
+    (Object.keys(BUILD_TAGS) as BuildTag[]).map((t) => h("option", { value: t }, t)));
+  const filters = h("div", { class: "stack", style: "--gap: 8px" }, search, tagFilter);
+  search.addEventListener("input", () => drawList());
+  tagFilter.addEventListener("change", () => drawList());
+  const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
   function drawList() {
+    // Recherche et filtre utiles à partir de quelques builds seulement.
+    filters.hidden = list.length < 4;
+    const q = fold(search.value.trim());
+    const shown = list.filter((b) =>
+      (!tagFilter.value || b.tag === tagFilter.value)
+      && (!q || fold([b.name, b.notes, ...Object.values(b.slots)].join(" ")).includes(q)));
     mount(
       listBox,
+      list.length && !shown.length ? h("div", { class: "empty" }, "Aucun build ne correspond.") : null,
       list.length
-        ? list.map((b) =>
+        ? shown.map((b) =>
             h("button", {
               class: "pick", type: "button", "aria-pressed": String(b.id === current?.id),
               onclick: () => {
@@ -223,7 +240,9 @@ export function render(root: HTMLElement, _ctx: Ctx, action?: string | null): Vi
         h("button", { class: "btn btn-primary", type: "button", onclick: create }, icon("plus", 16), "Nouveau build"),
       ),
     ),
-    h("div", { class: "columns" }, listBox, editor),
+    h("div", { class: "columns" },
+      h("section", { class: "stack", style: "--gap: 8px; flex: 1 1 240px; min-width: 0", "aria-label": "Mes builds" }, filters, listBox),
+      editor),
   );
 
   void store.all().then((l) => {

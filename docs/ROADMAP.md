@@ -124,3 +124,10 @@ Objectif : que d'autres joueurs puissent l'utiliser sans friction.
 
 - Ton serveur privé : hébergé où, et avec quel accès ?
 - Sietch reste un outil perso, ou tu veux le diffuser à d'autres joueurs ?
+
+## Minuteurs, builds et données (2026-10-26)
+
+- ✅ Modèles de minuteurs : un minuteur enregistré comme modèle se démarre en un clic (export et import compris).
+- ✅ Ctrl+Maj+R relance le dernier minuteur terminé sans ouvrir Sietch (notification silencieuse).
+- ✅ Builds : recherche (nom, équipement, notes) et filtre par usage, affichés à partir de 4 builds.
+- 🟡 À essayer en jeu : le raccourci de relance, une fois la vraie version installée.
