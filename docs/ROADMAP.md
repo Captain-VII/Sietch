@@ -1,7 +1,7 @@
 # Feuille de route de Sietch
 
 État au 2026-10-26 : toutes les fonctions de la maquette sont codées et testées dans le navigateur, la CI produit
-le `.exe` Windows. Rien n'a encore tourné à côté du vrai jeu. Cette feuille de route va du plus sûr au plus incertain ;
+le `.exe` Windows. Le 2026-10-26, la vraie application (mode dev) a été validée sur le PC à côté du jeu. Cette feuille de route va du plus sûr au plus incertain ;
 chaque étape dit ce qui la débloque et à quoi on reconnaît qu'elle est finie.
 
 Légende : 🟢 prêt à faire · 🟡 dépend d'une info ou d'un choix · 🔴 dépend d'un tiers (Funcom, gaming.tools)
@@ -13,9 +13,10 @@ Légende : 🟢 prêt à faire · 🟡 dépend d'une info ou d'un choix · 🔴 
 Objectif : que la version actuelle marche vraiment à côté du jeu, avant d'ajouter quoi que ce soit.
 
 - 🟢 Installer depuis l'artefact de la CI (et non en mode dev) : installateur, SmartScreen, lancement au démarrage.
-- 🟢 Passer la liste « Pas encore vérifié » de `CLAUDE.md` : wiki dans l'app, notifications Windows, zone de
-  notification, raccourcis globaux **pendant que le jeu a le focus**, overlay par-dessus le jeu en plein écran fenêtré.
-- 🟡 Régler l'heure réelle de la tempête de Coriolis sur ton serveur et la mettre par défaut si elle est commune à l'Europe.
+- ✅ Passer la liste « Pas encore vérifié » de `CLAUDE.md` : wiki dans l'app, notifications Windows, zone de
+  notification, raccourcis globaux **pendant que le jeu a le focus**, overlay par-dessus le jeu en plein écran fenêtré
+  (validé le 2026-10-26, en mode dev).
+- ✅ Heure réelle de la tempête de Coriolis : le défaut (mardi 03:00, UTC+1) est confirmé sur ton serveur.
 - 🟢 Ajouter `cargo test`, `cargo clippy` et `tsc` à la CI, pour qu'un push cassé se voie tout de suite.
 
 **Fini quand** : une soirée de jeu complète avec Sietch ouvert, sans bug bloquant.
@@ -94,4 +95,3 @@ Objectif : que d'autres joueurs puissent l'utiliser sans friction.
 
 - Ton serveur privé : hébergé où, et avec quel accès ?
 - Sietch reste un outil perso, ou tu veux le diffuser à d'autres joueurs ?
-- Heure exacte de la tempête de Coriolis sur ton serveur.

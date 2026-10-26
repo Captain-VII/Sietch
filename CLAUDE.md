@@ -64,13 +64,11 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 Fait et testé dans le navigateur (moteur simulé) : tous les écrans, minuteurs, carte, builds, wiki en ligne,
 paramètres, overlay, position en direct simulée. CI Windows verte (dernier run : commit `7994955`).
 
-**Pas encore vérifié dans la vraie application** (à faire en priorité sur le PC) :
-1. Articles du wiki chargés depuis l'app (plugin HTTP).
-2. Notifications Windows (test : Paramètres › Notifications › « Envoyer une notification de test »).
-3. Zone de notification (icône du ver doré, menu).
-4. Raccourcis globaux depuis le jeu : Ctrl+Maj+O (overlay), Ctrl+Maj+W (wiki), Ctrl+Maj+C (carte), Ctrl+Maj+M (marqueur), Ctrl+Maj+T (minuteur).
-5. Overlay par-dessus le jeu (position, clic traversant).
-6. Heure réelle de la tempête de Coriolis du serveur (défaut : mardi 03:00, UTC+1, non vérifié).
+**Vérifié sur le PC le 2026-10-26** (vraie application en mode dev, à côté du jeu) : wiki chargé depuis l'app
+(plugin HTTP), notifications Windows, zone de notification, raccourcis globaux depuis le jeu (Ctrl+Maj+O/W/C/M/T),
+overlay par-dessus le jeu (position, clic traversant), heure de la tempête de Coriolis (mardi 03:00, UTC+1, confirmée).
+
+**Reste de l'étape 0** : installer depuis l'artefact de la CI (et non en mode dev), ajouter tests et lint à la CI.
 
 **Suite** : feuille de route dans [docs/ROADMAP.md](docs/ROADMAP.md) (étape 0 = valider sur le PC, étape 1 = position
 réelle). Pour la position : trouver la chaîne de pointeurs, jeu lancé en solo **sans BattlEye**, puis la mettre dans
