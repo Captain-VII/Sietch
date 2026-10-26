@@ -52,22 +52,26 @@ mod scan {
     const CHUNK: usize = 16 << 20;
     /// Au-delà, la liste de pointeurs sature la mémoire : on arrête d'ajouter des nœuds.
     const MAX_NODES_PER_LEVEL: usize = 2_000_000;
-    const MAX_CHAINS: usize = 20_000;
+    const MAX_CHAINS: usize = 200_000;
 
     const USAGE: &str = "\
 sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
 
   status                     jeu et BattlEye détectés ?
   first                      premier balayage : tous les triplets X, Y, Z plausibles
-  filter up|down|still|moved|changed
+  filter up|down|still|moved|changed|any
                              garde les candidats dont Z a monté / baissé, qui n'ont pas bougé,
-                             dont X/Y ont bougé (> 50 cm), ou qui ont changé
+                             dont X/Y ont bougé (> 50 cm), qui ont changé, ou tous (valeurs relues)
+  near <X> <Y> [rayon]       garde les candidats à moins de rayon cm de (X, Y) (500 par défaut)
   list [n]                   affiche les n premiers candidats (20 par défaut)
   watch <adresse> [s]        affiche X, Y, Z toutes les 0,5 s pendant s secondes (10 par défaut)
-  pointers <adresse> [profondeur] [décalage max]
-                             cherche les chaînes de pointeurs vers l'adresse de X (5, 0x1000 par défaut)
+  pointers <adresse|cands> [profondeur] [décalage max]
+                             cherche les chaînes de pointeurs vers l'adresse de X, ou vers tous les
+                             candidats restants avec « cands » (5, 0x1000 par défaut)
   check [adresse]            résout les chaînes enregistrées ; avec une adresse, ne garde que celles
                              qui y mènent encore (après une relance du jeu)
+  check near <X> <Y> [rayon] ne garde que les chaînes qui donnent une position à moins de rayon cm
+                             de (X, Y) (300 par défaut)
   show [n]                   affiche les n premières chaînes au format de position.json";
 
     pub fn run(args: &[String]) -> Result<(), String> {
@@ -77,17 +81,33 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
             "status" => status(),
             "first" => first(),
             "filter" => filter(arg(1).ok_or("mode manquant (up, down, still, moved, changed)")?),
+            "near" => near(
+                parse_f(arg(1).ok_or("X manquant")?)?,
+                parse_f(arg(2).ok_or("Y manquant")?)?,
+                arg(3).map(parse_f).transpose()?.unwrap_or(500.0),
+            ),
             "list" => list(arg(1).map(parse_num).transpose()?.unwrap_or(20) as usize),
             "watch" => watch(
                 parse_num(arg(1).ok_or("adresse manquante")?)?,
                 arg(2).map(parse_num).transpose()?.unwrap_or(10),
             ),
             "pointers" => pointers(
-                parse_num(arg(1).ok_or("adresse manquante")?)?,
+                match arg(1).ok_or("adresse manquante")? {
+                    "cands" => load_cands()?.iter().map(|c| c.addr).collect(),
+                    a => vec![parse_num(a)?],
+                },
                 arg(2).map(parse_num).transpose()?.unwrap_or(5) as usize,
                 arg(3).map(parse_num).transpose()?.unwrap_or(0x1000),
             ),
-            "check" => check(arg(1).map(parse_num).transpose()?),
+            "check" if arg(1) == Some("near") => check(Target::Near(
+                parse_f(arg(2).ok_or("X manquant")?)?,
+                parse_f(arg(3).ok_or("Y manquant")?)?,
+                arg(4).map(parse_f).transpose()?.unwrap_or(300.0),
+            )),
+            "check" => check(match arg(1) {
+                Some(a) => Target::Addr(parse_num(a)?),
+                None => Target::Any,
+            }),
             "show" => show(arg(1).map(parse_num).transpose()?.unwrap_or(20) as usize),
             _ => {
                 println!("{USAGE}");
@@ -103,6 +123,10 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
             None => s.parse(),
         };
         r.map_err(|_| format!("nombre illisible : {s}"))
+    }
+
+    fn parse_f(s: &str) -> Result<f64, String> {
+        s.parse().map_err(|_| format!("nombre illisible : {s}"))
     }
 
     fn state_dir() -> Result<PathBuf, String> {
@@ -380,6 +404,7 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
             "still" => |o, n| o.x == n.x && o.y == n.y && o.z == n.z,
             "moved" => |o, n| (n.x - o.x).hypot(n.y - o.y) > 50.0,
             "changed" => |o, n| o.x != n.x || o.y != n.y || o.z != n.z,
+            "any" => |_, _| true,
             _ => return Err(format!("mode inconnu : {mode}")),
         };
         let old = load_cands()?;
@@ -414,6 +439,16 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
         if out.len() <= 20 {
             print_cands(&out, 20);
         }
+        Ok(())
+    }
+
+    /// Filtre sur les valeurs déjà enregistrées : ne lit pas le jeu.
+    fn near(x: f64, y: f64, radius: f64) -> Result<(), String> {
+        let old = load_cands()?;
+        let out: Vec<Cand> = old.iter().copied().filter(|c| (c.x - x).hypot(c.y - y) <= radius).collect();
+        save_cands(&out)?;
+        println!("{} → {} candidats.", old.len(), out.len());
+        print_cands(&out, 40);
         Ok(())
     }
 
@@ -474,7 +509,7 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
             .collect()
     }
 
-    fn pointers(target: u64, depth: usize, max_off: u64) -> Result<(), String> {
+    fn pointers(targets: Vec<u64>, depth: usize, max_off: u64) -> Result<(), String> {
         let mut g = Game::open()?;
         let regions = g.regions();
         let heap: Vec<(u64, u64)> = regions.iter().filter(|r| r.private).map(|r| (r.base, r.base + r.size)).collect();
@@ -501,12 +536,16 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
             }
         });
         map.sort_unstable();
-        eprintln!("{} pointeurs. Remontée depuis 0x{target:X} (profondeur {depth}, décalage max 0x{max_off:X})…", map.len());
+        eprintln!(
+            "{} pointeurs. Remontée depuis {} adresse(s) (profondeur {depth}, décalage max 0x{max_off:X})…",
+            map.len(),
+            targets.len()
+        );
 
         // Remontée en largeur : qui pointe un peu avant `loc` ? On s'arrête aux emplacements dans l'exe du jeu.
-        let mut nodes = vec![Node { loc: target, off: 0, parent: u32::MAX }];
-        let mut level: Vec<u32> = vec![0];
-        let mut seen: HashSet<u64> = HashSet::from([target]);
+        let mut nodes: Vec<Node> = targets.iter().map(|&t| Node { loc: t, off: 0, parent: u32::MAX }).collect();
+        let mut level: Vec<u32> = (0..nodes.len() as u32).collect();
+        let mut seen: HashSet<u64> = targets.iter().copied().collect();
         let mut found: Vec<u32> = Vec::new();
         for d in 0..depth {
             let mut next = Vec::new();
@@ -535,6 +574,7 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
             }
         }
 
+        let mut per_target: std::collections::BTreeMap<u64, usize> = Default::default();
         let mut chains: Vec<Vec<u64>> = found
             .iter()
             .map(|&i| {
@@ -544,9 +584,14 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
                     ch.push(n.off);
                     n = &nodes[n.parent as usize];
                 }
+                *per_target.entry(n.loc).or_default() += 1;
                 ch
             })
             .collect();
+        for (t, n) in &per_target {
+            let pos = g.triple(*t).map_or("illisible".into(), |(x, y, z)| format!("X {x:.1}  Y {y:.1}  Z {z:.1}"));
+            println!("0x{t:X} : {n} chaîne(s)  ({pos})");
+        }
         // Les plus courtes et aux plus petits décalages d'abord : ce sont souvent les plus stables.
         chains.sort_by_key(|c| (c.len(), c[1..].iter().sum::<u64>()));
         save_chains(&chains)?;
@@ -563,35 +608,49 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
         Some(addr)
     }
 
-    fn check(target: Option<u64>) -> Result<(), String> {
+    enum Target {
+        Any,
+        Addr(u64),
+        Near(f64, f64, f64),
+    }
+
+    fn check(target: Target) -> Result<(), String> {
         let chains = load_chains()?;
         let mut g = Game::open()?;
         let mut kept = Vec::new();
         for ch in &chains {
             g.guard();
             let Some(addr) = resolve(&g, ch) else { continue };
+            let pos = g.triple(addr).filter(|&(x, y, z)| plausible(x, y, z));
             let ok = match target {
-                Some(t) => addr == t,
-                None => g.triple(addr).is_some_and(|(x, y, z)| plausible(x, y, z)),
+                Target::Any => pos.is_some(),
+                Target::Addr(t) => addr == t,
+                Target::Near(x, y, r) => pos.is_some_and(|p| (p.0 - x).hypot(p.1 - y) <= r),
             };
             if ok {
                 kept.push(ch.clone());
             }
         }
-        if target.is_some() {
-            save_chains(&kept)?;
-            println!("{} → {} chaînes mènent encore à l'adresse.", chains.len(), kept.len());
-        } else {
+        if let Target::Any = target {
             println!("{} chaînes sur {} donnent une position plausible.", kept.len(), chains.len());
+        } else {
+            save_chains(&kept)?;
+            println!("{} → {} chaînes gardées.", chains.len(), kept.len());
         }
         Ok(())
     }
 
     fn show(n: usize) -> Result<(), String> {
         let chains = load_chains()?;
+        // Position donnée par chaque chaîne, si le jeu tourne sans BattlEye.
+        let g = Game::open().ok();
         for ch in chains.iter().take(n) {
             let s: Vec<String> = ch.iter().map(|o| format!("\"0x{o:X}\"")).collect();
-            println!("[{}]", s.join(", "));
+            let pos = g
+                .as_ref()
+                .and_then(|g| g.triple(resolve(g, ch)?))
+                .map_or(String::new(), |(x, y, z)| format!("   X {x:.1}  Y {y:.1}  Z {z:.1}"));
+            println!("[{}]{pos}", s.join(", "));
         }
         if chains.len() > n {
             println!("… et {} autres.", chains.len() - n);

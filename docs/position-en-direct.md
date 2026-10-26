@@ -46,12 +46,19 @@ cd tools\sietch-scan; cargo build --release; $s = ".\target\release\sietch-scan.
 & $s first                  # tous les triplets X, Y, Z plausibles du tas
 & $s filter up              # après être monté ; puis « down », « still », « moved »… jusqu'à quelques adresses
 & $s list                   # candidats restants (adresse de X)
-& $s watch 0x…              # vérifie qu'elle suit tes déplacements
-& $s pointers 0x…           # chaînes depuis l'exe du jeu (profondeur 5, décalage 0x1000)
-# relancer le jeu, retrouver X (first / filter), puis :
-& $s check 0x…              # ne garde que les chaînes qui mènent encore à X ; répéter 2 ou 3 fois
-& $s show                   # chaînes au format de position.json
+& $s near <X> <Y> 50        # garde le groupe du personnage (la caméra est ~2 m plus loin, Z plus haut)
+& $s pointers cands         # chaînes depuis l'exe du jeu vers tous les candidats restants
+& $s check near <X> <Y> 150 # écarte les chaînes qui mènent à la caméra
+# relancer le jeu, revenir au même endroit, puis :
+& $s check near <X> <Y> 300 # ne garde que les chaînes qui tiennent ; marcher, recommencer avec la nouvelle position
+& $s show                   # chaînes au format de position.json, avec la position qu'elles donnent
 ```
+
+Repères (2026-10-26) : il y a des centaines de copies de la position (personnage, pieds, caméra, historiques).
+Mieux vaut chercher les chaînes vers toutes les copies d'un coup (`pointers cands`) que vers une seule adresse,
+qui peut n'avoir aucune chaîne. Le personnage (centre de la capsule) est environ 95 cm au-dessus des pieds.
+Une chaîne trouvée ne se diffuse pas tant que le contrat de Funcom n'a pas été vérifié : elle reste dans
+`position.json`, en local (secours : `chaines-secours-*.txt` dans le même dossier).
 
 L'état est gardé dans `%TEMP%\sietch-scan` entre deux commandes.
 
