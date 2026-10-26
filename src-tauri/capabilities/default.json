@@ -5,7 +5,8 @@
   "windows": [
     "main",
     "overlay",
-    "wiki"
+    "wiki",
+    "map"
   ],
   "permissions": [
     "core:default",
@@ -14,6 +15,7 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-hide",
     "core:window:allow-close",
+    "core:window:allow-set-always-on-top",
     "opener:default",
     "notification:default",
     "store:default",

@@ -29,6 +29,11 @@ Objectif : le point bleu suit vraiment le joueur sur la carte.
 - ✅ Trouver la chaîne de pointeurs : trouvée le 2026-10-26 avec `tools/sietch-scan` (3 niveaux, tient après une
   relance du jeu), position « en direct » dans Sietch. La chaîne reste en local dans `position.json`.
 - 🟢 Calibrer les deux régions (Bassin de Hagga, Désert profond).
+- ✅ Fenêtre de carte dédiée (Ctrl+Maj+C), flèche orientée dans le sens de la marche, « Suivre le joueur »,
+  « Toujours au premier plan », marqueurs ↑/↓ selon l'altitude (2026-10-26, inspiré de Dune Companion,
+  sans rien reprendre de son contenu).
+- 🟡 Détecter la région automatiquement (aujourd'hui : bouton « Je suis dans cette région »).
+- 🟡 Orientation réelle du personnage ou de la caméra (rotation dans la mémoire), au lieu de la direction de marche.
 - 🟢 Ajouter un outil de diagnostic dans l'onglet « Sans BattlEye » : dernière valeur lue, nombre d'échecs,
   pour comprendre vite pourquoi la position ne vient pas.
 - 🟡 Rendre la chaîne **résistante aux patchs** : retrouver automatiquement le point de départ (recherche d'une

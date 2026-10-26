@@ -50,7 +50,7 @@ pub fn run_action(app: &AppHandle, action: &str) {
         "wiki" => windows::show_wiki(app),
         "marker" => windows::show_main(app, Some("carte"), Some("new-marker")),
         "timer" => windows::show_main(app, Some("minuteurs"), Some("new-timer")),
-        "map" => windows::show_main(app, Some("carte"), None),
+        "map" => windows::toggle_map(app),
         _ => {}
     }
 }

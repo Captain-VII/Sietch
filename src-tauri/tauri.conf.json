@@ -55,6 +55,19 @@
         "center": true,
         "visible": false,
         "backgroundColor": "#0D0A07"
+      },
+      {
+        "label": "map",
+        "create": false,
+        "title": "Sietch — Carte",
+        "url": "map.html",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 480,
+        "minHeight": 360,
+        "center": true,
+        "visible": false,
+        "backgroundColor": "#0D0A07"
       }
     ],
     "security": {

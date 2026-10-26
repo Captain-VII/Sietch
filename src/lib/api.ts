@@ -84,6 +84,7 @@ export const api = {
   setDnd: (on: boolean) => invoke<void>("set_dnd", { on }),
   clock: () => invoke<Clock>("get_clock"),
   toggleOverlay: () => invoke<void>("toggle_overlay"),
+  toggleMap: () => invoke<void>("toggle_map"),
   showWiki: () => invoke<void>("show_wiki"),
   showMain: (view?: string) => invoke<void>("show_main", { view }),
   /** Ouvre awakening.wiki ou dune.gaming.tools dans la fenêtre de navigation de Sietch. */
@@ -115,7 +116,7 @@ export const SHORTCUT_LABELS: Record<string, string> = {
   timer: "Démarrer un minuteur",
   overlay: "Afficher / masquer l'overlay",
   wiki: "Recherche wiki",
-  map: "Ouvrir la carte",
+  map: "Fenêtre de carte (afficher / masquer)",
 };
 
 /** "Ctrl+Shift+M" → "Ctrl+Maj+M" pour l'affichage. */

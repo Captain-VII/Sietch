@@ -33,8 +33,18 @@ async function loadBackground(r: Region): Promise<string | null> {
 
 /** Traînée derrière le joueur : quelques dizaines de secondes de déplacement. */
 const TRAIL_MAX = 240;
+/** Écart d'altitude (cm) au-delà duquel un marqueur affiche ↑ ou ↓. */
+const Z_GAP = 500;
 
-export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
+const ARROW_HTML =
+  '<div class="live-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 20 21 12 16.5 4 21Z"/></svg></div>';
+
+export interface CarteOptions {
+  /** Fenêtre de carte dédiée : la carte seule, en plein cadre. */
+  solo?: boolean;
+}
+
+export function render(root: HTMLElement, ctx: Ctx, action?: string | null, opts: CarteOptions = {}): ViewHandle {
   let all: Marker[] = [];
   // Avec la position en direct, la carte s'ouvre sur la région où se trouve le joueur.
   let region: Region = live.status.active && ctx.settings().liveRegion in REGIONS ? (ctx.settings().liveRegion as Region) : lastRegion;
@@ -62,7 +72,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     maxZoom: 3,
     zoomSnap: 0.25,
     attributionControl: false,
-    maxBounds: L.latLngBounds(toLatLng(-200, SIZE + 200), toLatLng(SIZE + 200, -200)),
+    // Marge large : le joueur reste centré même au bord de la carte.
+    maxBounds: L.latLngBounds(toLatLng(-600, SIZE + 600), toLatLng(SIZE + 600, -600)),
   });
   const bounds = L.latLngBounds(toLatLng(0, SIZE), toLatLng(SIZE, 0));
 
@@ -136,11 +147,19 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   }
   const layer = L.layerGroup().addTo(map);
 
-  map.on("contextmenu", (e: L.LeafletMouseEvent) => startDraft(clamp(e.latlng.lng), clamp(-e.latlng.lat)));
+  // Les marqueurs se créent dans la fenêtre principale, qui a le panneau d'édition.
+  if (!opts.solo) map.on("contextmenu", (e: L.LeafletMouseEvent) => startDraft(clamp(e.latlng.lng), clamp(-e.latlng.lat)));
 
   // ---------- Position en direct (modules sans BattlEye) ----------
   const liveLayer = L.layerGroup().addTo(map);
-  const liveDot = L.circleMarker([0, 0], { radius: 9, color: "#0D0A07", weight: 3, fillColor: "#4FA3D9", fillOpacity: 1, interactive: false });
+  // Flèche orientée dans le sens de la marche (le jeu ne donne que la position : on déduit la direction).
+  const liveDot = L.marker([0, 0], {
+    icon: L.divIcon({ className: "live-arrow-icon", html: ARROW_HTML, iconSize: [30, 30], iconAnchor: [15, 15] }),
+    interactive: false,
+    keyboard: false,
+  });
+  let heading = 0;
+  let headingFrom: { x: number; y: number } | null = null;
   const liveHalo = L.circleMarker([0, 0], { radius: 18, color: "#4FA3D9", weight: 2, fill: false, className: "live-halo", interactive: false });
   const liveTrail = L.polyline([], { color: "#4FA3D9", weight: 3, opacity: 0.55, interactive: false });
   const liveBar = h("div", { class: "live-bar", role: "status", "aria-live": "polite" });
@@ -151,11 +170,17 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   /** Première position reçue depuis l'ouverture : on zoome dessus. */
   let firstFix = true;
 
+  const followBox = h("input", { type: "checkbox", checked: true, onchange: () => setFollow(followBox.checked) });
+  function setFollow(on: boolean) {
+    follow = on;
+    const ll = liveDot.getLatLng();
+    if (on && live.position && livePoint()) map.panTo(ll, { animate: false });
+    drawLive();
+  }
+
   // Déplacer la carte à la main arrête le suivi ; le bouton « Suivre » le relance.
   map.on("dragstart", () => {
-    if (!follow) return;
-    follow = false;
-    drawLive();
+    if (follow) setFollow(false);
   });
 
   /** Position du joueur sur la carte affichée, si la région et la calibration le permettent. */
@@ -181,14 +206,26 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       return; // setRegion redessine tout, position comprise
     }
     const pt = livePoint();
-    liveLayer.clearLayers();
+    // On garde les mêmes éléments et on les déplace : les recréer 4 fois par seconde casserait l'animation.
+    if (!pt) liveLayer.clearLayers();
     if (pt) {
       const ll = toLatLng(Math.max(0, Math.min(SIZE, pt.x)), Math.max(0, Math.min(SIZE, pt.y)));
       const prev = trail[trail.length - 1];
       if (!prev || map.distance(prev, ll) > 1.5) trail = [...trail, ll].slice(-TRAIL_MAX);
-      liveTrail.setLatLngs(trail).addTo(liveLayer);
-      liveHalo.setLatLng(ll).addTo(liveLayer);
-      liveDot.setLatLng(ll).addTo(liveLayer);
+      // Positions d'abord : une ligne vide ajoutée à la carte fait planter Leaflet.
+      liveTrail.setLatLngs(trail);
+      liveHalo.setLatLng(ll);
+      liveDot.setLatLng(ll);
+      for (const l of [liveTrail, liveHalo, liveDot]) if (!liveLayer.hasLayer(l)) l.addTo(liveLayer);
+      // Nord = haut de la carte (y vers le bas). On attend un vrai déplacement pour ne pas trembler sur place.
+      if (!headingFrom) headingFrom = pt;
+      else if (Math.hypot(pt.x - headingFrom.x, pt.y - headingFrom.y) > 1.5) {
+        heading = (Math.atan2(pt.x - headingFrom.x, headingFrom.y - pt.y) * 180) / Math.PI;
+        headingFrom = pt;
+      }
+      const arrow = liveDot.getElement()?.querySelector<HTMLElement>(".live-arrow");
+      if (arrow) arrow.style.transform = `rotate(${heading}deg)`;
+      if (zKey() !== markersZKey) drawMarkers();
       if (firstFix) {
         firstFix = false;
         map.setView(ll, Math.max(map.getZoom(), 1), { animate: false });
@@ -219,11 +256,12 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     } else {
       text = `Vous : ${sectorOf(pt.x, pt.y)}${st.source === "simulation" ? " (simulation)" : ""}`;
       actions.push(
-        btn("Suivre", () => { follow = !follow; drawLive(); }, follow),
-        btn("Marqueur ici", () => startDraft(clamp(pt.x), clamp(pt.y))),
-        btn("Recalibrer", () => void saveCalibration([])),
+        btn("Suivre", () => setFollow(!follow), follow),
       );
+      if (!opts.solo) actions.push(btn("Marqueur ici", () => startDraft(clamp(pt.x), clamp(pt.y), live.position?.z)));
+      actions.push(btn("Recalibrer", () => void saveCalibration([])));
     }
+    followBox.checked = follow;
     // Le bandeau ne change que si son texte change : sinon ses boutons seraient
     // remplacés à chaque position reçue (4 fois par seconde) pendant qu'on clique.
     const key = [text, st.active, follow, actions.length].join("|");
@@ -246,8 +284,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   });
   const stopLive = live.subscribe(drawLive);
 
-  function startDraft(x: number, y: number) {
-    selected = { id: uid("m"), region, type: "autre", name: "", x, y, note: "", updatedAt: Date.now() };
+  function startDraft(x: number, y: number, z?: number) {
+    selected = { id: uid("m"), region, type: "autre", name: "", x, y, z, note: "", updatedAt: Date.now() };
     draft = true;
     if (hidden.has("autre")) hidden.delete("autre");
     drawChips();
@@ -261,10 +299,30 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     return list;
   }
 
+  /** ↑ ou ↓ selon que le marqueur est plus haut ou plus bas que le joueur ; "" sinon. */
+  function zArrow(m: Marker): string {
+    const p = live.position;
+    if (m.z === undefined || !p || ctx.settings().liveRegion !== region) return "";
+    const dz = m.z - p.z;
+    return dz > Z_GAP ? "↑" : dz < -Z_GAP ? "↓" : "";
+  }
+  /** Les flèches d'altitude ne changent que de temps en temps : on ne redessine qu'à ce moment-là. */
+  const zKey = () => visible().map(zArrow).join("");
+  let markersZKey = "";
+
   function drawMarkers() {
     layer.clearLayers();
     const list = visible();
+    markersZKey = list.map(zArrow).join("");
     for (const m of list) {
+      const arrow = zArrow(m);
+      if (arrow) {
+        L.marker(toLatLng(m.x, m.y), {
+          icon: L.divIcon({ className: "marker-z", html: arrow, iconSize: [12, 16], iconAnchor: [-8, 8] }),
+          interactive: false,
+          keyboard: false,
+        }).addTo(layer);
+      }
       const isSel = selected?.id === m.id;
       const dot = L.circleMarker(toLatLng(m.x, m.y), {
         radius: isSel ? 10 : 7,
@@ -325,6 +383,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   function setRegion(r: Region) {
     region = lastRegion = r;
+    regionLabel.textContent = REGIONS[r];
     draft = false;
     selected = null;
     calibrating = false;
@@ -448,6 +507,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           type: o.type && o.type in MARKER_TYPES ? o.type : "autre",
           name: String(o.name ?? "").slice(0, 80),
           x: clamp(o.x), y: clamp(o.y),
+          z: typeof o.z === "number" && Number.isFinite(o.z) ? o.z : undefined,
           note: String(o.note ?? "").slice(0, 1000),
           updatedAt: Date.now(),
         } satisfies Marker];
@@ -487,13 +547,48 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     map.flyTo(toLatLng(found.x, found.y), 1.5);
   });
 
-  mount(
+  const regionLabel = h("span", { class: "map-foot-region" });
+  const topBox = h("input", { type: "checkbox", onchange: () => void setOnTop(topBox.checked) });
+  async function setOnTop(on: boolean) {
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().setAlwaysOnTop(on);
+      localStorage.setItem("sietch.carte.premier-plan", on ? "1" : "");
+    } catch {
+      topBox.checked = !on;
+    }
+  }
+  if (opts.solo) {
+    try {
+      topBox.checked = localStorage.getItem("sietch.carte.premier-plan") === "1";
+    } catch {
+      topBox.checked = false;
+    }
+    if (topBox.checked) void setOnTop(true);
+  }
+
+  if (opts.solo) {
+    mount(
+      root,
+      h("div", { class: "map-solo" },
+        mapEl,
+        liveBar,
+        h("footer", { class: "map-foot" },
+          regionLabel,
+          h("span", { class: "grow" }),
+          h("label", { class: "check" }, followBox, "Suivre le joueur"),
+          h("label", { class: "check" }, topBox, "Toujours au premier plan"),
+        ),
+      ),
+    );
+  } else mount(
     root,
     h("header", { class: "page-head" },
       h("div", { class: "titles" }, h("span", { class: "eyebrow" }, "Secteurs A1 — I9"), h("h1", { class: "h1" }, "Carte")),
       h("div", { class: "row wrap" },
         regionBox,
         bgBox,
+        h("button", { class: "btn", type: "button", title: "Carte seule, en plein cadre", onclick: () => void api.toggleMap() }, "Fenêtre de carte"),
         h("button", { class: "btn", type: "button", onclick: importMarkers }, "Importer"),
         h("button", { class: "btn", type: "button", onclick: exportMarkers }, "Exporter"),
       ),
@@ -509,6 +604,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     ),
   );
 
+  regionLabel.textContent = REGIONS[region];
   drawRegions();
   drawChips();
   drawBgButtons();
@@ -525,7 +621,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       // Avec la position en direct, le marqueur se pose là où se trouve le joueur.
       const lp = livePoint();
       const c = map.getCenter();
-      startDraft(clamp(lp ? lp.x : c.lng), clamp(lp ? lp.y : -c.lat));
+      startDraft(clamp(lp ? lp.x : c.lng), clamp(lp ? lp.y : -c.lat), lp ? live.position?.z : undefined);
     } else {
       drawPanel();
     }
@@ -537,6 +633,11 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   drawLive();
   return {
     onSettings: drawLive,
+    // Un marqueur lié à un minuteur a pu changer ailleurs : on relit la liste.
+    onTimers: () => void store.all().then((list) => {
+      all = list;
+      drawMarkers();
+    }),
     dispose: () => {
       stopLive();
       map.remove();

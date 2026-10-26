@@ -162,6 +162,11 @@ fn toggle_overlay(app: AppHandle) {
 }
 
 #[tauri::command]
+fn toggle_map(app: AppHandle) {
+    windows::toggle_map(&app);
+}
+
+#[tauri::command]
 fn show_wiki(app: AppHandle) {
     windows::show_wiki(&app);
 }
@@ -284,6 +289,7 @@ pub fn run() {
             set_dnd,
             get_clock,
             toggle_overlay,
+            toggle_map,
             show_wiki,
             show_main,
             open_site,
