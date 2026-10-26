@@ -117,6 +117,14 @@ fn processes(sys: &mut System) -> Vec<(String, u32)> {
         .collect()
 }
 
+/// Vérifications d'affilée (une toutes les 2 s) sans BattlEye, même processus du jeu, avant d'ouvrir le jeu.
+/// Au lancement, le jeu peut apparaître une seconde avant BattlEye : on ne le lit jamais dans ce laps de temps.
+const CLEAN_CHECKS: u32 = 3;
+
+fn next_clean_checks(prev: u32, battleye: bool, game: Option<u32>, prev_game: Option<u32>) -> u32 {
+    if battleye || game.is_none() || game != prev_game { 0 } else { prev.saturating_add(1) }
+}
+
 /// Tables d'Unreal Engine du cache, si elles valent encore pour cette version du jeu.
 fn cached_tables(path: &std::path::Path, r: &memory::Reader) -> Option<ue::Tables> {
     let t: ue::Tables = serde_json::from_str(&fs::read_to_string(path).ok()?).ok()?;
@@ -145,6 +153,7 @@ pub fn spawn(app: AppHandle) {
         let mut reader: Option<memory::Reader> = None;
         let mut tick: u64 = 0;
         let mut game_pid: Option<u32> = None;
+        let mut clean_checks: u32 = 0;
         let ue_cache = app.state::<AppState>().dir.join("ue.json");
         let mut tables: Option<ue::Tables> = None;
         let mut player: Option<ue::Player> = None;
@@ -177,14 +186,18 @@ pub fn spawn(app: AppHandle) {
                 if battleye || game.is_none() || game != game_pid {
                     reader = None; // on lâche immédiatement le jeu
                 }
+                clean_checks = next_clean_checks(clean_checks, battleye, game, game_pid);
                 game_pid = game;
                 // Le personnage se retrouve par les noms d'Unreal Engine : plus besoin de chaîne de pointeurs.
                 let configured = sim || cfg!(windows);
-                let active = enabled && game.is_some() && !battleye && configured && (sim || cfg!(windows));
+                let waiting = !sim && clean_checks < CLEAN_CHECKS;
+                let active = enabled && game.is_some() && !battleye && !waiting && configured && (sim || cfg!(windows));
                 let message = if let Some(e) = &cfg_error {
                     Some(e.clone())
                 } else if battleye && game.is_some() {
                     Some("BattlEye est actif : les modules sont coupés.".into())
+                } else if enabled && game.is_some() && waiting {
+                    Some("Jeu détecté : vérification de l'absence de BattlEye…".into())
                 } else if !sim && !cfg!(windows) && enabled {
                     Some("La lecture de position ne fonctionne que sous Windows.".into())
                 } else {
@@ -474,6 +487,21 @@ mod memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn waits_for_several_clean_checks() {
+        // Le jeu apparaît (nouveau processus) : on repart de zéro.
+        let mut n = next_clean_checks(5, false, Some(42), None);
+        assert_eq!(n, 0);
+        for _ in 0..CLEAN_CHECKS {
+            assert!(n < CLEAN_CHECKS, "pas encore de lecture");
+            n = next_clean_checks(n, false, Some(42), Some(42));
+        }
+        assert_eq!(n, CLEAN_CHECKS);
+        // BattlEye apparaît, ou le jeu est relancé : tout recommence.
+        assert_eq!(next_clean_checks(n, true, Some(42), Some(42)), 0);
+        assert_eq!(next_clean_checks(n, false, Some(43), Some(42)), 0);
+    }
 
     #[test]
     fn pointer_chain_parses_hex() {

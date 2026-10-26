@@ -38,7 +38,7 @@ npm ci                       # dépendances
 npm run tauri dev            # lancer (Rust + Vite sur le port 1420)
 SIETCH_SIMULATION=1 npm run tauri dev   # simule un jeu sans BattlEye et une position qui bouge
 npx tsc --noEmit -p .        # types
-cd src-tauri && cargo test && cargo clippy   # tests (14) et lint Rust, doit rester à 0 avertissement
+cd src-tauri && cargo test && cargo clippy   # tests (15) et lint Rust, doit rester à 0 avertissement
 npm run tauri build          # installateurs (sous Windows : NSIS + MSI)
 npm run icon                 # regénère toutes les icônes depuis assets/ (et force la recompilation Rust)
 ```
@@ -56,6 +56,7 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 - **Modules sans BattlEye** (`live.rs`) : la lecture de la mémoire du jeu n'a lieu que si le jeu tourne **sans**
   BattlEye (mode solo ou serveur privé ; option officielle depuis la 1.5) **et** que l'utilisateur l'a activée.
   Lecture seule (`PROCESS_VM_READ`), poignée fermée dès que BattlEye apparaît, état incertain = BattlEye supposé actif.
+  Le jeu n'est ouvert qu'après 3 vérifications d'affilée sans BattlEye (6 s), pour ne jamais le lire au lancement.
   Ne jamais écrire dans la mémoire du jeu ni ajouter de triche. Ce garde-fou reste tant que Funcom n'a rien dit d'officiel.
 - **Sécurité des fenêtres** : la fenêtre « web » (sites externes) n'a aucune permission Tauri ; seuls
   awakening.wiki et dune.gaming.tools y sont autorisés (`windows.rs`).
