@@ -72,7 +72,20 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
                              qui y mènent encore (après une relance du jeu)
   check near <X> <Y> [rayon] ne garde que les chaînes qui donnent une position à moins de rayon cm
                              de (X, Y) (300 par défaut)
-  show [n]                   affiche les n premières chaînes au format de position.json";
+  show [n]                   affiche les n premières chaînes au format de position.json
+
+Structures d'Unreal Engine (noms et objets du jeu) :
+  ue                         trouve la table des noms et la table des objets, et en affiche un extrait
+  ue-find <texte> [n]        objets dont le nom ou la classe contient le texte (40 par défaut)";
+
+    // Lecture des structures d'Unreal Engine (catégorie « Personnage en direct ») : pas encore écrite.
+    fn ue_find_tables() -> Result<(), String> {
+        Err("commande « ue » pas encore écrite".into())
+    }
+
+    fn ue_find(_text: &str, _n: usize) -> Result<(), String> {
+        Err("commande « ue-find » pas encore écrite".into())
+    }
 
     pub fn run(args: &[String]) -> Result<(), String> {
         let cmd = args.first().map(String::as_str).unwrap_or("");
@@ -109,6 +122,8 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
                 None => Target::Any,
             }),
             "show" => show(arg(1).map(parse_num).transpose()?.unwrap_or(20) as usize),
+            "ue" => ue_find_tables(),
+            "ue-find" => ue_find(arg(1).ok_or("texte manquant")?, arg(2).map(parse_num).transpose()?.unwrap_or(40) as usize),
             _ => {
                 println!("{USAGE}");
                 Ok(())
