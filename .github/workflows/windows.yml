@@ -25,6 +25,8 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -32,6 +34,17 @@ jobs:
 
       - name: Dépendances
         run: npm ci
+
+      - name: Types
+        run: npx tsc --noEmit -p .
+
+      - name: Lint Rust
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests Rust
+        working-directory: src-tauri
+        run: cargo test
 
       - name: Compilation
         run: npx tauri build

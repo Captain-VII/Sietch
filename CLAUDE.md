@@ -68,7 +68,7 @@ paramètres, overlay, position en direct simulée. CI Windows verte (dernier run
 (plugin HTTP), notifications Windows, zone de notification, raccourcis globaux depuis le jeu (Ctrl+Maj+O/W/C/M/T),
 overlay par-dessus le jeu (position, clic traversant), heure de la tempête de Coriolis (mardi 03:00, UTC+1, confirmée).
 
-**Reste de l'étape 0** : installer depuis l'artefact de la CI (et non en mode dev), ajouter tests et lint à la CI.
+**Reste de l'étape 0** : installer depuis l'artefact de la CI (et non en mode dev).
 
 **Suite** : feuille de route dans [docs/ROADMAP.md](docs/ROADMAP.md) (étape 0 = valider sur le PC, étape 1 = position
 réelle). Pour la position : trouver la chaîne de pointeurs, jeu lancé en solo **sans BattlEye**, puis la mettre dans

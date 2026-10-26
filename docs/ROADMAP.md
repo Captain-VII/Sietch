@@ -17,7 +17,7 @@ Objectif : que la version actuelle marche vraiment à côté du jeu, avant d'ajo
   notification, raccourcis globaux **pendant que le jeu a le focus**, overlay par-dessus le jeu en plein écran fenêtré
   (validé le 2026-10-26, en mode dev).
 - ✅ Heure réelle de la tempête de Coriolis : le défaut (mardi 03:00, UTC+1) est confirmé sur ton serveur.
-- 🟢 Ajouter `cargo test`, `cargo clippy` et `tsc` à la CI, pour qu'un push cassé se voie tout de suite.
+- ✅ `cargo test`, `cargo clippy` (0 avertissement) et `tsc` tournent dans la CI avant la compilation.
 
 **Fini quand** : une soirée de jeu complète avec Sietch ouvert, sans bug bloquant.
 
