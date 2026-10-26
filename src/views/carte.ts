@@ -8,6 +8,7 @@ import {
   type Marker, type MarkerType, type Region,
 } from "../lib/data";
 import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
+import { live, solveAffine, toMap } from "../lib/live";
 
 const SIZE = 900;
 /** Leaflet compte la latitude vers le haut : y (vers le bas) devient -y. */
@@ -67,6 +68,90 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   const layer = L.layerGroup().addTo(map);
 
   map.on("contextmenu", (e: L.LeafletMouseEvent) => startDraft(clamp(e.latlng.lng), clamp(-e.latlng.lat)));
+
+  // ---------- Position en direct (modules sans BattlEye) ----------
+  const liveLayer = L.layerGroup().addTo(map);
+  const liveDot = L.circleMarker([0, 0], { radius: 9, color: "#0D0A07", weight: 3, fillColor: "#4FA3D9", fillOpacity: 1, interactive: false });
+  const liveHalo = L.circleMarker([0, 0], { radius: 18, color: "#4FA3D9", weight: 2, fill: false, className: "live-halo", interactive: false });
+  const liveBar = h("div", { class: "live-bar", role: "status", "aria-live": "polite" });
+  let follow = true;
+  let calibrating = false;
+  let liveBarKey = "";
+
+  /** Position du joueur sur la carte affichée, si la région et la calibration le permettent. */
+  function livePoint(): { x: number; y: number } | null {
+    const p = live.position;
+    const s = ctx.settings();
+    if (!p || s.liveRegion !== region) return null;
+    const t = solveAffine(s.calibration[region]);
+    return t ? toMap(t, p.x, p.y) : null;
+  }
+
+  async function saveCalibration(points: { wx: number; wy: number; mx: number; my: number }[]) {
+    const s = ctx.settings();
+    await ctx.saveSettings({ ...s, calibration: { ...s.calibration, [region]: points } });
+    drawLive();
+  }
+
+  function drawLive() {
+    const st = live.status;
+    const s = ctx.settings();
+    const pt = livePoint();
+    liveLayer.clearLayers();
+    if (pt) {
+      const ll = toLatLng(Math.max(0, Math.min(SIZE, pt.x)), Math.max(0, Math.min(SIZE, pt.y)));
+      liveHalo.setLatLng(ll).addTo(liveLayer);
+      liveDot.setLatLng(ll).addTo(liveLayer);
+      if (follow && !map.getBounds().pad(-0.25).contains(ll)) map.panTo(ll, { animate: true });
+    }
+    liveBar.hidden = !st.enabled;
+    if (!st.enabled) return;
+    const pts = s.calibration[region] ?? [];
+    const btn = (label: string, onclick: () => void, pressed?: boolean) =>
+      h("button", { class: "btn", type: "button", onclick, "aria-pressed": pressed === undefined ? undefined : String(pressed) }, label);
+    let text: string;
+    const actions: HTMLElement[] = [];
+    if (!st.active) {
+      text = st.message ?? (st.gameRunning ? "Position en direct en attente." : "Position en direct : jeu non détecté.");
+    } else if (s.liveRegion !== region) {
+      text = `Position en direct : vous êtes dans ${REGIONS[s.liveRegion as Region] ?? s.liveRegion}.`;
+      actions.push(btn("Je suis dans cette région", () => void ctx.saveSettings({ ...s, liveRegion: region }).then(drawLive)));
+    } else if (calibrating) {
+      text = "Cliquez sur la carte à l'endroit exact où vous vous trouvez dans le jeu.";
+      actions.push(btn("Annuler", () => { calibrating = false; drawLive(); }));
+    } else if (!pt) {
+      text = `Calibration ${Math.min(pts.length, 3)}/3 : placez-vous à un endroit reconnaissable (bord de falaise, base…), puis ajoutez un point. Éloignez bien les 3 points.`;
+      actions.push(btn("Ajouter un point", () => { calibrating = true; drawLive(); }));
+      if (pts.length) actions.push(btn("Recommencer", () => void saveCalibration([])));
+    } else {
+      text = `Vous : ${sectorOf(pt.x, pt.y)}${st.source === "simulation" ? " (simulation)" : ""}`;
+      actions.push(
+        btn("Suivre", () => { follow = !follow; drawLive(); }, follow),
+        btn("Marqueur ici", () => startDraft(clamp(pt.x), clamp(pt.y))),
+        btn("Recalibrer", () => void saveCalibration([])),
+      );
+    }
+    // Le bandeau ne change que si son texte change : sinon ses boutons seraient
+    // remplacés à chaque position reçue (4 fois par seconde) pendant qu'on clique.
+    const key = [text, st.active, follow, actions.length].join("|");
+    if (key === liveBarKey) return;
+    liveBarKey = key;
+    mount(liveBar, h("span", { class: "live-dot", "data-on": String(st.active) }), h("span", { class: "grow" }, text), actions);
+  }
+
+  map.on("click", (e: L.LeafletMouseEvent) => {
+    const p = live.position;
+    if (!calibrating || !p) return;
+    calibrating = false;
+    const pts = [...(ctx.settings().calibration[region] ?? []), { wx: p.x, wy: p.y, mx: clamp(e.latlng.lng), my: clamp(-e.latlng.lat) }].slice(-3);
+    if (pts.length === 3 && !solveAffine(pts)) {
+      toast("Points trop proches ou alignés", "Ajoutez un point ailleurs, loin des deux autres.");
+      void saveCalibration(pts.slice(0, 2));
+      return;
+    }
+    void saveCalibration(pts);
+  });
+  const stopLive = live.subscribe(drawLive);
 
   function startDraft(x: number, y: number) {
     selected = { id: uid("m"), region, type: "autre", name: "", x, y, note: "", updatedAt: Date.now() };
@@ -140,9 +225,11 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
             region = lastRegion = r;
             draft = false;
             selected = null;
+            calibrating = false;
             drawRegions();
             drawMarkers();
             drawPanel();
+            drawLive();
           },
         }, REGIONS[r]),
       ),
@@ -310,6 +397,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       ),
     ),
     h("div", { class: "row wrap" }, h("label", { class: "sr-only", for: "recherche-carte" }, "Rechercher sur la carte"), search, chipsBox),
+    liveBar,
     h("div", { class: "columns" },
       h("div", { class: "map-wrap" },
         mapEl,
@@ -329,8 +417,10 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     all = list;
     drawMarkers();
     if (action === "new-marker") {
+      // Avec la position en direct, le marqueur se pose là où se trouve le joueur.
+      const lp = livePoint();
       const c = map.getCenter();
-      startDraft(clamp(c.lng), clamp(-c.lat));
+      startDraft(clamp(lp ? lp.x : c.lng), clamp(lp ? lp.y : -c.lat));
     } else {
       drawPanel();
     }
@@ -339,5 +429,12 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   // Le décompte du minuteur lié se met à jour tout seul (data-timer) :
   // pas besoin de redessiner le panneau, ce qui effacerait une saisie en cours.
-  return { dispose: () => map.remove() };
+  drawLive();
+  return {
+    onSettings: drawLive,
+    dispose: () => {
+      stopLive();
+      map.remove();
+    },
+  };
 }

@@ -33,6 +33,30 @@ export interface Settings {
   overlayClickThrough: boolean;
   overlayPosition: string;
   shortcuts: Record<string, string>;
+  liveModules: boolean;
+  liveRegion: string;
+  calibration: Record<string, CalibrationPoint[]>;
+}
+
+/** Correspondance entre coordonnées du jeu (wx, wy) et position sur la carte (mx, my, de 0 à 900). */
+export type { CalibrationPoint } from "./affine";
+import type { CalibrationPoint } from "./affine";
+
+export interface LiveStatus {
+  gameRunning: boolean;
+  battleyeRunning: boolean;
+  enabled: boolean;
+  configured: boolean;
+  active: boolean;
+  source: "memoire" | "simulation" | "aucune";
+  message: string | null;
+}
+
+export interface PlayerPosition {
+  x: number;
+  y: number;
+  z: number;
+  at: number;
 }
 
 export interface Clock {
@@ -65,12 +89,17 @@ export const api = {
   /** Ouvre awakening.wiki ou dune.gaming.tools dans la fenêtre de navigation de Sietch. */
   openSite: (url: string) => invoke<void>("open_site", { url }),
   testAlarm: () => invoke<void>("test_alarm"),
+  liveStatus: () => invoke<LiveStatus>("get_live_status"),
+  /** Relit position.json ; renvoie son chemin. */
+  reloadLiveConfig: () => invoke<string>("reload_live_config"),
 };
 
 export const on = {
   timersChanged: (fn: () => void): Promise<UnlistenFn> => listen("timers-changed", fn),
   settingsChanged: (fn: (s: Settings) => void) => listen<Settings>("settings-changed", (e) => fn(e.payload)),
   alarm: (fn: (a: Alarm) => void) => listen<Alarm>("alarm", (e) => fn(e.payload)),
+  liveStatus: (fn: (s: LiveStatus) => void) => listen<LiveStatus>("live-status", (e) => fn(e.payload)),
+  position: (fn: (p: PlayerPosition) => void) => listen<PlayerPosition>("player-position", (e) => fn(e.payload)),
   navigate: (fn: (n: { view: string; action: string | null }) => void) =>
     listen<{ view: string; action: string | null }>("navigate", (e) => fn(e.payload)),
 };

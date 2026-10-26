@@ -13,6 +13,7 @@ Sietch ne lit ni ne modifie la mémoire du jeu : il reste compatible avec BattlE
 - **Wiki** : les articles du [Dune: Awakening Community Wiki](https://awakening.wiki/) (soutenu par Funcom), chargés à la demande et affichés dans Sietch ; recherche dans les titres, fenêtre dédiée avec historique. Contenu sous licence CC BY-NC-SA 4.0, source citée sous chaque article.
 - **Base de données** : [dune.gaming.tools](https://dune.gaming.tools/) s'ouvre dans une fenêtre de Sietch. Ses conditions interdisent de copier sa base sans autorisation : Sietch ne la récupère donc pas.
 - **Overlay** : heure serveur, Coriolis, minuteurs ; opacité, position, clic traversant.
+- **Position en direct** (modules sans BattlEye) : en mode solo ou sur un serveur privé lancé sans BattlEye, Sietch lit la position du joueur (lecture seule) pour l'afficher sur la carte et dans l'overlay. Coupé dès que BattlEye est détecté. Réglage dans `position.json` (chaîne de pointeurs), calibration depuis la carte. Test sans le jeu : `SIETCH_SIMULATION=1 npm run tauri dev`.
 - **Zone de notification**, **raccourcis globaux** réglables, lancement au démarrage, sauvegarde complète.
 
 ## Développement

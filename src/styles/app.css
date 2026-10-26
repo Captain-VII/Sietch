@@ -543,3 +543,49 @@
   border-color: var(--spice);
   color: var(--text-strong);
 }
+
+/* ---------- Position en direct ---------- */
+
+.live-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #0f1a22;
+  border: 1px solid #2e5470;
+  border-radius: var(--radius-lg);
+  color: #cfe3f0;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.live-dot[data-on="true"] {
+  background: var(--water);
+  box-shadow: 0 0 0 4px rgba(79, 163, 217, 0.25);
+}
+
+.live-halo {
+  animation: live-pulse 1.6s ease-out infinite;
+}
+
+@keyframes live-pulse {
+  from {
+    stroke-opacity: 0.9;
+  }
+  to {
+    stroke-opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-halo {
+    animation: none;
+  }
+}

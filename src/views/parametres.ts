@@ -8,12 +8,14 @@ import { api, prettyKeys, SHORTCUT_LABELS, type Settings } from "../lib/api";
 import { builds, getNotes, markers, setNotes, type Build, type Marker } from "../lib/data";
 import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
 import { durationLabel, pad } from "../lib/time";
+import { live, solveAffine } from "../lib/live";
 
 const TABS = [
   ["general", "Général"],
   ["raccourcis", "Raccourcis"],
   ["notifications", "Notifications"],
   ["overlay", "Overlay"],
+  ["sansbe", "Sans BattlEye"],
   ["donnees", "Données"],
   ["apropos", "À propos"],
 ] as const;
@@ -201,6 +203,49 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       );
     },
 
+    sansbe: async () => {
+      const s = ctx.settings();
+      const st = live.status;
+      const path = await api.reloadLiveConfig().catch(() => "position.json");
+      const line = (label: string, value: string, ok: boolean | null) =>
+        h("div", { class: "setting-row" }, h("span", {}, label),
+          h("span", { style: `color: ${ok === null ? "var(--text-soft)" : ok ? "var(--info)" : "var(--danger)"}` }, value));
+      const regions: [string, string][] = [["hagga", "Bassin de Hagga"], ["profond", "Désert profond"]];
+      return card("Modules sans BattlEye",
+        h("p", { class: "prose soft", style: "margin: 0" },
+          "Depuis la mise à jour 1.5, Dune: Awakening peut se lancer sans BattlEye pour le mode solo et les serveurs privés qui ne l'exigent pas. "
+          + "Dans ce cas seulement, Sietch peut lire votre position dans le jeu pour l'afficher sur la carte. Lecture seule : rien n'est modifié dans le jeu."),
+        h("p", { class: "muted", style: "margin: 0" },
+          "Garde-fou : dès que BattlEye est détecté, la lecture s'arrête immédiatement. Ne l'utilisez pas pour contourner les règles d'un serveur."),
+        h("div", {},
+          sw("Activer la position en direct", "Uniquement quand le jeu tourne sans BattlEye", s.liveModules, (v) => update({ liveModules: v })),
+          line("Jeu détecté", st.gameRunning ? "oui" : "non", st.gameRunning ? true : null),
+          line("BattlEye", st.battleyeRunning ? "actif : modules coupés" : "absent", st.battleyeRunning ? false : true),
+          line("Position", st.active ? (st.source === "simulation" ? "en direct (simulation)" : "en direct") : "inactive", st.active),
+          st.message ? line("État", st.message, false) : null,
+        ),
+        h("div", { class: "stack", style: "--gap: 8px" },
+          h("span", { class: "label" }, "Calibration de la carte"),
+          ...regions.map(([id, label]) => {
+            const n = (s.calibration[id] ?? []).length;
+            const ok = !!solveAffine(s.calibration[id]);
+            return h("div", { class: "row spread" },
+              h("span", {}, `${label} : ${ok ? "calibrée" : `${Math.min(n, 3)}/3 points`}${s.liveRegion === id ? " · région actuelle" : ""}`),
+              n ? h("button", { class: "btn", type: "button", onclick: () => update({ calibration: { ...s.calibration, [id]: [] } }).then(() => draw()) }, "Effacer") : null);
+          }),
+          h("span", { class: "muted" }, "La calibration se fait depuis la carte, jeu lancé : bandeau bleu au-dessus de la carte."),
+        ),
+        h("div", { class: "stack", style: "--gap: 8px" },
+          h("span", { class: "label" }, "Réglage technique (position.json)"),
+          h("p", { class: "muted", style: "margin: 0; word-break: break-all" }, path),
+          h("p", { class: "muted", style: "margin: 0" },
+            "La position du joueur se trouve à une adresse mémoire qui change à chaque mise à jour du jeu. "
+            + "Renseignez sa chaîne de pointeurs (pointerChain), trouvée par exemple avec Cheat Engine en mode solo sans BattlEye, puis rechargez."),
+          h("div", { class: "row" }, h("button", { class: "btn btn-accent", type: "button", onclick: async () => { await api.reloadLiveConfig(); toast("position.json rechargé"); } }, "Recharger position.json")),
+        ),
+      );
+    },
+
     donnees: async () => {
       const dir = await appDataDir().catch(() => "");
       return card("Données",
@@ -301,6 +346,16 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     h("div", { class: "columns" }, tabsBox, content),
   );
   void draw();
+  // L'état du jeu change : on rafraîchit l'onglet Sans BattlEye s'il est affiché.
+  let lastActive: string = "";
+  const stopLive = live.subscribe(() => {
+    const st = live.status;
+    const key = [st.gameRunning, st.battleyeRunning, st.active, st.enabled, st.message].join("|");
+    if (key !== lastActive) {
+      lastActive = key;
+      if (tab === "sansbe" && !stopListening) void draw();
+    }
+  });
 
   return {
     // Un autre écran (ou la zone de notification) a changé un réglage : on rafraîchit,
@@ -312,6 +367,9 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       }
       if (!stopListening) void draw();
     },
-    dispose: () => stopListening?.(),
+    dispose: () => {
+      stopListening?.();
+      stopLive();
+    },
   };
 }

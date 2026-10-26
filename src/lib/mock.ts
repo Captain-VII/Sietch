@@ -29,6 +29,9 @@ const DEFAULT_SETTINGS: Settings = {
     wiki: "Ctrl+Shift+W",
     map: "Ctrl+Shift+C",
   },
+  liveModules: false,
+  liveRegion: "hagga",
+  calibration: {},
 };
 
 function read(): State {
@@ -136,6 +139,10 @@ function handle(cmd: string, args: Record<string, any>): unknown {
       return null;
     case "get_clock":
       return { now: Date.now(), serverOffsetMin: state.settings.serverOffsetMin, coriolisNext: nextCoriolis(Date.now(), state.settings) };
+    case "get_live_status":
+      return liveStatus();
+    case "reload_live_config":
+      return "/simulation/com.captainvii.sietch/position.json";
     case "test_alarm":
       void emit("alarm", { title: "Test d'alarme", body: "Les notifications de Sietch fonctionnent." });
       return null;
@@ -178,6 +185,15 @@ function handle(cmd: string, args: Record<string, any>): unknown {
   }
 }
 
+/** En mode navigateur, les modules sans BattlEye tournent toujours en simulation. */
+function liveStatus() {
+  const on = state.settings.liveModules;
+  return {
+    gameRunning: true, battleyeRunning: false, enabled: on, configured: true,
+    active: on, source: on ? "simulation" : "aucune", message: null,
+  };
+}
+
 export function install(label = "main") {
   mockWindows(label);
   mockIPC((cmd, args) => handle(cmd, (args ?? {}) as Record<string, any>), { shouldMockEvents: true });
@@ -197,5 +213,18 @@ export function install(label = "main") {
     }
     if (any) changed();
   }, 500);
+
+  // Position simulée (même trajectoire que SIETCH_SIMULATION=1 côté Rust).
+  let lastEnabled: boolean | null = null;
+  setInterval(() => {
+    const on = state.settings.liveModules;
+    if (on !== lastEnabled) {
+      lastEnabled = on;
+      void emit("live-status", liveStatus());
+    }
+    if (!on) return;
+    const t = Date.now() / 1000;
+    void emit("player-position", { x: Math.cos(t * 0.15) * 40000 + 10000, y: Math.sin(t * 0.15) * 40000 - 5000, z: 1200, at: Date.now() });
+  }, 250);
   console.info("[simulation] Sietch tourne dans le navigateur avec un moteur simulé.");
 }

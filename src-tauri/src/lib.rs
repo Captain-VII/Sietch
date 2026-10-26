@@ -1,4 +1,5 @@
 mod engine;
+mod live;
 mod settings;
 mod shortcuts;
 mod state;
@@ -171,6 +172,18 @@ fn show_main(app: AppHandle, view: Option<String>) {
 }
 
 #[tauri::command]
+fn get_live_status(state: State<AppState>) -> live::LiveStatus {
+    state.live_status.lock().unwrap().clone()
+}
+
+/// Relit position.json et renvoie son chemin, pour l'afficher dans les réglages.
+#[tauri::command]
+fn reload_live_config(app: AppHandle, state: State<AppState>) -> String {
+    state.live_reload.store(true, std::sync::atomic::Ordering::Relaxed);
+    live::config_path(&app).display().to_string()
+}
+
+#[tauri::command]
 fn open_site(app: AppHandle, url: String) -> CmdResult<()> {
     windows::open_site(&app, &url)
 }
@@ -220,6 +233,7 @@ pub fn run() {
                 eprintln!("Raccourci refusé — {e}");
             }
             engine::spawn(handle.clone());
+            live::spawn(handle.clone());
 
             let minimized = std::env::args().any(|a| a == "--minimized")
                 || handle
@@ -267,6 +281,8 @@ pub fn run() {
             show_wiki,
             show_main,
             open_site,
+            get_live_status,
+            reload_live_config,
             test_alarm,
         ])
         .run(tauri::generate_context!())

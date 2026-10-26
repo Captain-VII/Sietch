@@ -23,6 +23,21 @@ pub struct Settings {
     pub overlay_position: String,
     /// Action → combinaison, ex. "overlay" → "Ctrl+Shift+O".
     pub shortcuts: BTreeMap<String, String>,
+    /// Modules sans BattlEye (position en direct). Désactivés par défaut.
+    pub live_modules: bool,
+    /// Région où se trouve le joueur : "hagga" ou "profond".
+    pub live_region: String,
+    /// Points de calibration par région : coordonnées du jeu ↔ position sur la carte.
+    pub calibration: BTreeMap<String, Vec<CalibrationPoint>>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalibrationPoint {
+    pub wx: f64,
+    pub wy: f64,
+    pub mx: f64,
+    pub my: f64,
 }
 
 impl Default for Settings {
@@ -51,6 +66,9 @@ impl Default for Settings {
             overlay_click_through: false,
             overlay_position: "top-right".into(),
             shortcuts,
+            live_modules: false,
+            live_region: "hagga".into(),
+            calibration: BTreeMap::new(),
         }
     }
 }

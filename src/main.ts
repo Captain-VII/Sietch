@@ -5,6 +5,7 @@ import "./styles/app.css";
 
 import { api, on, type Settings, type Timer } from "./lib/api";
 import { h, icon, logo, mount, toast } from "./lib/dom";
+import { startLive } from "./lib/live";
 import { startLiveUpdates, syncClock } from "./lib/time";
 import { DATABASE_URL, openExternal } from "./lib/wiki-browser";
 import * as accueil from "./views/accueil";
@@ -123,6 +124,7 @@ async function start() {
   updateServerLabel();
   go("accueil");
   startLiveUpdates(() => timers);
+  await startLive();
 
   await on.timersChanged(() => void refreshTimers());
   await on.settingsChanged(async (s) => {

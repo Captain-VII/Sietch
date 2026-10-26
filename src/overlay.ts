@@ -5,6 +5,7 @@ import "./styles/overlay.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, on, type Settings, type Timer } from "./lib/api";
 import { markers, sectorOf } from "./lib/data";
+import { live, solveAffine, startLive, toMap } from "./lib/live";
 import { h, icon, logo, mount } from "./lib/dom";
 import { remaining, startLiveUpdates, syncClock } from "./lib/time";
 
@@ -43,7 +44,21 @@ function drawTimers() {
   );
 }
 
+/** Secteur en direct si la position est connue et la carte calibrée, sinon dernier marqueur. */
 async function drawSector() {
+  const p = live.position;
+  const t = p ? solveAffine(settings.calibration[settings.liveRegion]) : null;
+  if (p && t) {
+    const m = toMap(t, p.x, p.y);
+    mount(
+      sectorBox,
+      h("span", { class: "digits", style: "font-size: 22px; color: var(--water)" }, sectorOf(Math.max(0, Math.min(899, m.x)), Math.max(0, Math.min(899, m.y)))),
+      h("div", { class: "stack", style: "--gap: 2px; min-width: 0" },
+        h("span", { class: "label", style: "font-size: 11px" }, "Position en direct"),
+        h("span", { class: "name" }, settings.liveRegion === "profond" ? "Désert profond" : "Bassin de Hagga")),
+    );
+    return;
+  }
   const last = (await markers.all()).sort((a, b) => b.updatedAt - a.updatedAt)[0];
   if (!last) {
     mount(sectorBox, h("span", { class: "muted", style: "font-size: 13px" }, "Aucun marqueur suivi."));
@@ -89,6 +104,18 @@ async function start() {
   drawTimers();
   void drawSector();
   startLiveUpdates(() => timers);
+  await startLive();
+  // Le secteur change rarement : on ne redessine qu'à chaque changement de secteur.
+  let lastKey = "";
+  live.subscribe(() => {
+    const p = live.position;
+    const t = p ? solveAffine(settings.calibration[settings.liveRegion]) : null;
+    const key = p && t ? (() => { const m = toMap(t, p.x, p.y); return sectorOf(m.x, m.y); })() : "aucun";
+    if (key !== lastKey) {
+      lastKey = key;
+      void drawSector();
+    }
+  });
 
   await on.timersChanged(async () => {
     timers = await api.timers();
