@@ -35,6 +35,26 @@ Unreal Engine 5 range la position en trois nombres **Double** consécutifs : X, 
    **Pointer scanner › Rescan memory** avec la nouvelle adresse. Recommencer 2 ou 3 fois.
 3. Garder un résultat dont la base est `DuneSandbox-Win64-Shipping.exe+XXXXXXXX` et qui pointe toujours sur X.
 
+## Variante sans Cheat Engine : `sietch-scan`
+
+`tools/sietch-scan` fait les étapes 1 et 2 en ligne de commande, en lecture seule. Il refuse de tourner si BattlEye
+est présent (ou si la liste des processus est illisible), et s'arrête net s'il apparaît pendant un balayage.
+
+```powershell
+cd tools\sietch-scan; cargo build --release; $s = ".\target\release\sietch-scan.exe"
+& $s status                 # jeu détecté, BattlEye absent ?
+& $s first                  # tous les triplets X, Y, Z plausibles du tas
+& $s filter up              # après être monté ; puis « down », « still », « moved »… jusqu'à quelques adresses
+& $s list                   # candidats restants (adresse de X)
+& $s watch 0x…              # vérifie qu'elle suit tes déplacements
+& $s pointers 0x…           # chaînes depuis l'exe du jeu (profondeur 5, décalage 0x1000)
+# relancer le jeu, retrouver X (first / filter), puis :
+& $s check 0x…              # ne garde que les chaînes qui mènent encore à X ; répéter 2 ou 3 fois
+& $s show                   # chaînes au format de position.json
+```
+
+L'état est gardé dans `%TEMP%\sietch-scan` entre deux commandes.
+
 ## 3. Le mettre dans Sietch
 
 Ouvrir `%APPDATA%\com.captainvii.sietch\position.json` (créé au premier lancement) et remplir `pointerChain`

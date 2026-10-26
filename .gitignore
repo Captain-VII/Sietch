@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Outil sietch-scan
+tools/sietch-scan/target
