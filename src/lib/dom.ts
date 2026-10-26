@@ -1,3 +1,5 @@
+import logoUrl from "../assets/logo.png";
+
 export type Child = Node | string | number | null | undefined | false | Child[];
 type Props = Record<string, unknown>;
 
@@ -81,18 +83,9 @@ export function icon(name: keyof typeof ICONS | string, size = 18): SVGSVGElemen
   return svg;
 }
 
-/** Le logo : un soleil au-dessus d'une dune. */
-export function logo(size = 34): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("width", String(size));
-  svg.setAttribute("height", String(size));
-  svg.setAttribute("viewBox", "0 0 32 32");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "var(--spice)");
-  svg.setAttribute("stroke-width", "1.8");
-  svg.setAttribute("aria-hidden", "true");
-  svg.innerHTML = '<circle cx="16" cy="12" r="5"/><path d="M2 26c6-6 10-6 14-2s8 4 14-2"/>';
-  return svg;
+/** Le logo de Sietch : un ver des sables qui jaillit devant le soleil. Décoratif. */
+export function logo(size = 34): HTMLImageElement {
+  return h("img", { src: logoUrl, width: String(size), height: String(size), alt: "", "aria-hidden": "true", style: "display: block; flex: 0 0 auto" });
 }
 
 /** Petite notification dans la fenêtre (erreurs, confirmations). */

@@ -86,7 +86,7 @@ function sidebar() {
   return h(
     "nav",
     { class: "sidebar", "aria-label": "Navigation principale" },
-    h("div", { class: "brand" }, logo(), h("div", { class: "stack", style: "--gap: 4px" },
+    h("div", { class: "brand" }, logo(42), h("div", { class: "stack", style: "--gap: 4px" },
       h("span", { class: "name" }, "SIETCH"),
       h("span", { class: "sub" }, "DUNE AWAKENING"),
     )),
