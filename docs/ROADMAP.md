@@ -77,6 +77,10 @@ Les widgets ne lisent rien eux-mêmes.
 | 6 | Alertes silencieuses : eau basse, équipement bientôt vide (seuils réglables) | notification + toast |
 | 7 | Onglet « Stats brutes » dans la fenêtre principale : toutes les valeurs lues | liste en direct |
 
+**État au 2026-10-26** : tâches 1 à 7 faites et vérifiées en jeu (vie, endurance, eau, énergie, volume du sac,
+heure du jeu jour/nuit, alertes, Stats brutes). Reste : le nombre d'emplacements du sac (liste interne à décoder)
+et la durabilité des équipements utilitaires.
+
 **Fini quand** : en solo sans BattlEye, les widgets affichent vie, endurance, eau, équipement et inventaire en
 direct, sans ralentir le jeu ni lui prendre le focus, et ça survit à une relance du jeu.
 
