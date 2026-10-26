@@ -31,6 +31,8 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   health: "Vie",
   stamina: "Endurance",
   hydration: "Eau",
+  power: "Énergie",
+  inventory: "Volume du sac",
 };
 
 let lastTab: Tab = "general";

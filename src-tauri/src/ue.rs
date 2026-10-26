@@ -204,6 +204,17 @@ impl<'a> Ue<'a> {
         if cfg!(debug_assertions) {
             eprintln!("[personnage] trouvé : 0x{character:X} (n° {index}), heure : {time_of_day:?}");
         }
+        // Sac : composant → ItemInventory → InventoryVolumeTracker. Facultatif.
+        let backpack = (|| {
+            let comp = ptr(self.m, character + self.field(player_class, "m_BackpackInventoryComponent")?);
+            let comp_class = ptr(self.m, comp + 0x10);
+            let inv = ptr(self.m, comp + self.field(comp_class, "m_Inventory")?);
+            let tracker = ptr(self.m, inv + self.field(ptr(self.m, inv + 0x10), "m_VolumeTracker")?);
+            let max = read::<4>(self.m, comp + self.field(comp_class, "m_MaxItemVolume")?).map(f32::from_le_bytes)?;
+            // Le volume courant n'a pas de nom : champ interne du suivi, juste après le maximum (+0x38).
+            // On vérifie que le maximum y est bien avant de s'y fier.
+            (read::<4>(self.m, tracker + 0x38).map(f32::from_le_bytes) == Some(max)).then_some(tracker)
+        })();
         let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
         let root_class = ptr(self.m, root + 0x10);
         let mut f = |class: u64, n: &str| self.field(class, n);
@@ -221,7 +232,7 @@ impl<'a> Ue<'a> {
             heat_max: f(hydration_class, "HeatExhaustionMax")?,
             sun: f(hydration_class, "CurrentSunExposure")?,
         };
-        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, fields })
+        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, fields })
     }
 }
 
@@ -277,6 +288,8 @@ pub struct Player {
     root: u64,
     /// TimeOfDayComponent et offset de m_TimeOfDayServer.
     time_of_day: Option<Watched>,
+    /// InventoryVolumeTracker du sac : maximum à +0x38, volume courant à +0x3C (champs internes).
+    backpack: Option<u64>,
     fields: Fields,
 }
 
@@ -310,6 +323,9 @@ pub struct PlayerState {
     pub sun_exposure: f32,
     /// Heure du jeu, en heures (7.5 = 07:30) ; `None` si elle n'a pas été trouvée.
     pub time_of_day: Option<f32>,
+    /// Volume du sac et son maximum ; `None` s'il n'a pas été trouvé.
+    pub volume: Option<f32>,
+    pub volume_max: Option<f32>,
     pub x: f64,
     pub y: f64,
     pub z: f64,
@@ -334,6 +350,8 @@ impl PlayerState {
             sun_exposure: r(self.sun_exposure),
             // À la minute du jeu près.
             time_of_day: self.time_of_day.map(|t| (t * 60.0).floor() / 60.0),
+            volume: self.volume.map(r),
+            volume_max: self.volume_max.map(r),
             x: m(self.x),
             y: m(self.y),
             z: m(self.z),
@@ -376,6 +394,8 @@ impl Player {
                 .time_of_day
                 .and_then(|w| read::<4>(m, w.obj + w.offset).map(f32::from_le_bytes))
                 .filter(|t| (0.0..=24.0).contains(t)),
+            volume: self.backpack.and_then(|t| read::<4>(m, t + 0x3C).map(f32::from_le_bytes)),
+            volume_max: self.backpack.and_then(|t| read::<4>(m, t + 0x38).map(f32::from_le_bytes)),
             x: v(0),
             y: v(8),
             z: v(16),

@@ -39,7 +39,7 @@ export interface Settings {
   activeLayout: string;
 }
 
-export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration";
+export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory";
 
 /** État du personnage lu dans le jeu (modules sans BattlEye), arrondi au dixième. */
 export interface PlayerState {
@@ -56,6 +56,9 @@ export interface PlayerState {
   sunExposure: number;
   /** Heure du jeu en heures (7.5 = 07:30), null si elle n'a pas été trouvée. */
   timeOfDay: number | null;
+  /** Volume du sac et son maximum, null s'ils n'ont pas été trouvés. */
+  volume: number | null;
+  volumeMax: number | null;
   x: number;
   y: number;
   z: number;

@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
   layouts: [{
     id: "exploration",
     name: "Exploration",
-    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 100 })),
+    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 100 })),
   }],
   activeLayout: "exploration",
 };
@@ -64,6 +64,7 @@ function simPlayer(): PlayerState {
     heat: 0, heatMax: 100, sunExposure: 0,
     // Une journée du jeu en 4 minutes.
     timeOfDay: Math.floor(((t / 10) % 24) * 60) / 60,
+    volume: 268.5, volumeMax: 1750,
     x: 0, y: 0, z: 0,
   };
 }

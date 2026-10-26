@@ -111,10 +111,13 @@ function drawClock(s: PlayerState | null) {
 
 // ---------- Barres du personnage (vie, endurance, eau) ----------
 
-const BARS: Partial<Record<WidgetKind, { label: string; value: (s: PlayerState) => [number, number] }>> = {
+const BARS: Partial<Record<WidgetKind, { label: string; value: (s: PlayerState) => [number, number]; full?: boolean }>> = {
   health: { label: "Vie", value: (s) => [s.health, s.healthMax] },
   stamina: { label: "Endurance", value: (s) => [s.stamina, s.staminaMax] },
   hydration: { label: "Eau", value: (s) => [s.hydration, s.hydrationMax] },
+  power: { label: "Énergie", value: (s) => [s.power, s.powerMax] },
+  // Le sac s'alerte quand il est presque plein, pas presque vide.
+  inventory: { label: "Volume", value: (s) => [s.volume ?? 0, s.volumeMax ?? 0], full: true },
 };
 
 function drawBar(s: PlayerState | null) {
@@ -128,7 +131,7 @@ function drawBar(s: PlayerState | null) {
       h("span", { class: "digits w-mid" }, max > 0 ? `${Math.round(cur)} / ${Math.round(max)}` : "—")),
     h("div", { class: `w-bar ${kind}` }, h("span", { style: `width: ${pct.toFixed(1)}%` })),
   );
-  card.classList.toggle("low", max > 0 && pct <= 25);
+  card.classList.toggle("low", max > 0 && (bar.full ? pct >= 90 : pct <= 25));
 }
 
 // ---------- Mode édition ----------
@@ -187,6 +190,8 @@ async function start() {
     case "health":
     case "stamina":
     case "hydration":
+    case "power":
+    case "inventory":
       drawBar(await api.playerState());
       await on.playerState(drawBar);
       break;
