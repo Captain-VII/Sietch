@@ -60,7 +60,8 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 - Icônes embarquées à la compilation : après un changement d'icône, `npm run icon` (touche `lib.rs`).
 - **Fenêtres** : `"create": false` dans `tauri.conf.json`, créées dans `setup` après `manage(AppState)`. Sinon, en
   release (pages embarquées), le front appelle les commandes avant `manage()` → « state not managed ». Invisible en dev.
-  Toute nouvelle fenêtre de la config suit la même règle.
+  Toute nouvelle fenêtre de la config suit la même règle. Une commande Tauri qui crée une fenêtre doit être `async`,
+  sinon la fenêtre reste blanche sous Windows (cas de `open_site`, corrigé le 2026-10-26).
 
 ## État au 2026-10-26 (fin de la session sur le Mac)
 
