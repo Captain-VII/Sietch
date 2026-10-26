@@ -355,40 +355,133 @@
   color: var(--spice-light);
 }
 
-/* ---------- Wiki ---------- */
+/* ---------- Wiki (articles d'awakening.wiki) ---------- */
 
-.article {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 32px;
-}
-
-.article .body {
-  flex: 2 1 320px;
-  min-width: 0;
+.wiki-article {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
+  min-width: 0;
 }
 
-.facts {
-  flex: 1 1 220px;
-  min-width: 0;
-  align-self: flex-start;
+.wiki-content {
+  color: #dccfb8;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.wiki-content::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+.wiki-content p,
+.wiki-content ul,
+.wiki-content ol {
+  margin: 0 0 14px;
+  max-width: 72ch;
+}
+
+.wiki-content h2,
+.wiki-content h3,
+.wiki-content h4 {
+  margin: 26px 0 10px;
+  font-family: var(--font-label);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-strong);
+}
+
+.wiki-content h2 {
+  font-size: 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wiki-content h3,
+.wiki-content h4 {
+  font-size: 14px;
+  color: var(--text-soft);
+}
+
+.wiki-content a {
+  color: var(--spice-light);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(240, 182, 118, 0.35);
+}
+
+.wiki-content a:hover {
+  border-bottom-color: currentColor;
+}
+
+.wiki-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 3px;
+}
+
+.wiki-content figure {
+  margin: 0 0 16px;
+  max-width: 280px;
+}
+
+.wiki-content figcaption {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.wiki-content table {
+  border-collapse: collapse;
+  margin: 0 0 16px;
+  font-size: 14px;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.wiki-content th,
+.wiki-content td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.wiki-content th {
+  background: var(--panel-2);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+/* Fiche récapitulative (infobox) placée à droite du texte. */
+.wiki-content .wiki-infobox {
+  float: right;
+  clear: right;
+  width: 300px;
+  max-width: 100%;
+  margin: 0 0 16px 20px;
   background: var(--bg);
   border: 1px solid var(--line-2);
   border-radius: var(--radius);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
 
-.facts .k {
+.wiki-content sup {
+  font-size: 11px;
+  line-height: 0;
+}
+
+.wiki-credit {
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
   font-size: 12px;
-  letter-spacing: 0.16em;
-  color: var(--text-muted);
-  text-transform: uppercase;
+}
+
+.wiki-credit a {
+  color: var(--text-soft);
 }
 
 /* ---------- Paramètres ---------- */

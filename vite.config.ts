@@ -15,6 +15,14 @@ export default defineConfig(() => ({
     host: host || false,
     hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,
     watch: { ignored: ["**/src-tauri/**"] },
+    // Mode navigateur : relaie les requêtes du wiki (sinon bloquées par CORS).
+    proxy: {
+      "/__wiki": {
+        target: "https://awakening.wiki",
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/__wiki/, ""),
+      },
+    },
   },
   // Trois fenêtres : principale, overlay et wiki.
   build: {

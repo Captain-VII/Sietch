@@ -25,7 +25,10 @@ fn get_timers(state: State<AppState>) -> Vec<Timer> {
 fn with_timer(app: &AppHandle, id: &str, f: impl FnOnce(&mut Timer)) -> CmdResult<()> {
     let state = app.state::<AppState>();
     let mut timers = state.timers.lock().unwrap();
-    let t = timers.iter_mut().find(|t| t.id == id).ok_or("Minuteur introuvable")?;
+    let t = timers
+        .iter_mut()
+        .find(|t| t.id == id)
+        .ok_or("Minuteur introuvable")?;
     f(t);
     state.save_timers(&timers);
     drop(timers);
@@ -143,7 +146,11 @@ struct Clock {
 fn get_clock(state: State<AppState>) -> Clock {
     let s = state.settings.lock().unwrap();
     let now = now_ms();
-    Clock { now, server_offset_min: s.server_offset_min, coriolis_next: next_coriolis(now, &s) }
+    Clock {
+        now,
+        server_offset_min: s.server_offset_min,
+        coriolis_next: next_coriolis(now, &s),
+    }
 }
 
 // ---------- Fenêtres ----------
@@ -164,6 +171,11 @@ fn show_main(app: AppHandle, view: Option<String>) {
 }
 
 #[tauri::command]
+fn open_site(app: AppHandle, url: String) -> CmdResult<()> {
+    windows::open_site(&app, &url)
+}
+
+#[tauri::command]
 fn test_alarm(app: AppHandle, state: State<AppState>) {
     let mut settings = state.settings.lock().unwrap().clone();
     settings.dnd = false;
@@ -180,10 +192,15 @@ fn test_alarm(app: AppHandle, state: State<AppState>) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             windows::show_main(app, None, None);
         }))
-        .plugin(tauri_plugin_autostart::Builder::new().args(["--minimized"]).build())
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .args(["--minimized"])
+                .build(),
+        )
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -205,7 +222,12 @@ pub fn run() {
             engine::spawn(handle.clone());
 
             let minimized = std::env::args().any(|a| a == "--minimized")
-                || handle.state::<AppState>().settings.lock().unwrap().start_minimized;
+                || handle
+                    .state::<AppState>()
+                    .settings
+                    .lock()
+                    .unwrap()
+                    .start_minimized;
             if !minimized {
                 windows::show_main(&handle, None, None);
             }
@@ -214,7 +236,13 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let to_tray = window.label() != "main"
-                    || window.app_handle().state::<AppState>().settings.lock().unwrap().close_to_tray;
+                    || window
+                        .app_handle()
+                        .state::<AppState>()
+                        .settings
+                        .lock()
+                        .unwrap()
+                        .close_to_tray;
                 if to_tray {
                     api.prevent_close();
                     let _ = window.hide();
@@ -238,6 +266,7 @@ pub fn run() {
             toggle_overlay,
             show_wiki,
             show_main,
+            open_site,
             test_alarm,
         ])
         .run(tauri::generate_context!())

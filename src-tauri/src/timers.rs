@@ -112,7 +112,9 @@ impl Timer {
 
     /// Fait avancer le minuteur ; renvoie vrai s'il vient de sonner.
     pub fn tick(&mut self, now: i64) -> bool {
-        let Some(end) = self.ends_at else { return false };
+        let Some(end) = self.ends_at else {
+            return false;
+        };
         if end > now {
             return false;
         }

@@ -7,7 +7,13 @@ use tauri::{AppHandle, Manager};
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let dnd = app.state::<AppState>().settings.lock().unwrap().dnd;
     let open = MenuItem::with_id(app, "open", "Ouvrir Sietch", true, None::<&str>)?;
-    let overlay = MenuItem::with_id(app, "overlay", "Afficher / masquer l'overlay", true, None::<&str>)?;
+    let overlay = MenuItem::with_id(
+        app,
+        "overlay",
+        "Afficher / masquer l'overlay",
+        true,
+        None::<&str>,
+    )?;
     let wiki = MenuItem::with_id(app, "wiki", "Ouvrir le wiki", true, None::<&str>)?;
     let timer = MenuItem::with_id(app, "timer", "Nouveau minuteur", true, None::<&str>)?;
     let dnd_item = CheckMenuItem::with_id(app, "dnd", "Ne pas déranger", true, dnd, None::<&str>)?;
@@ -17,7 +23,9 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let sep2 = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(
         app,
-        &[&open, &overlay, &wiki, &timer, &sep1, &dnd_item, &settings, &sep2, &quit],
+        &[
+            &open, &overlay, &wiki, &timer, &sep1, &dnd_item, &settings, &sep2, &quit,
+        ],
     )?;
     *app.state::<AppState>().dnd_item.lock().unwrap() = Some(dnd_item);
 
@@ -39,7 +47,12 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
                 windows::show_main(tray.app_handle(), None, None);
             }
         });

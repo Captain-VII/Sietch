@@ -62,6 +62,8 @@ export const api = {
   toggleOverlay: () => invoke<void>("toggle_overlay"),
   showWiki: () => invoke<void>("show_wiki"),
   showMain: (view?: string) => invoke<void>("show_main", { view }),
+  /** Ouvre awakening.wiki ou dune.gaming.tools dans la fenêtre de navigation de Sietch. */
+  openSite: (url: string) => invoke<void>("open_site", { url }),
   testAlarm: () => invoke<void>("test_alarm"),
 };
 

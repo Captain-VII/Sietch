@@ -6,6 +6,7 @@ import "./styles/app.css";
 import { api, on, type Settings, type Timer } from "./lib/api";
 import { h, icon, logo, mount, toast } from "./lib/dom";
 import { startLiveUpdates, syncClock } from "./lib/time";
+import { DATABASE_URL, openExternal } from "./lib/wiki-browser";
 import * as accueil from "./views/accueil";
 import * as builds from "./views/builds";
 import * as carte from "./views/carte";
@@ -93,6 +94,7 @@ function sidebar() {
       (["accueil", "carte", "minuteurs", "builds", "wiki"] as ViewName[]).map(navButton),
       h("div", { class: "nav-sep" }),
       h("button", { class: "nav-link", type: "button", onclick: () => api.toggleOverlay() }, icon("layers"), "Overlay"),
+      h("button", { class: "nav-link", type: "button", title: "dune.gaming.tools", onclick: () => void openExternal(DATABASE_URL) }, icon("external"), "Base de données"),
       navButton("parametres"),
     ),
     h("div", { class: "server-clock" },

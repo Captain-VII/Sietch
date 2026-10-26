@@ -63,7 +63,9 @@ fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
 
 /// Écrit dans un fichier temporaire puis renomme, pour ne jamais laisser un fichier à moitié écrit.
 fn write_json<T: Serialize + ?Sized>(path: &Path, value: &T) {
-    let Ok(text) = serde_json::to_string_pretty(value) else { return };
+    let Ok(text) = serde_json::to_string_pretty(value) else {
+        return;
+    };
     let tmp = path.with_extension("json.tmp");
     if fs::write(&tmp, text).is_ok() {
         let _ = fs::rename(&tmp, path);

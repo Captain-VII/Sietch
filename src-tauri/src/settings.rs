@@ -65,8 +65,8 @@ pub fn next_coriolis(now: i64, s: &Settings) -> i64 {
     // Le 1er janvier 1970 était un jeudi : lundi = 0 donne jeudi = 3.
     let weekday = (day + 3).rem_euclid(7);
     let ahead = (s.coriolis_weekday as i64 - weekday).rem_euclid(7);
-    let mut target = (day + ahead) * DAY_MS
-        + (s.coriolis_hour as i64 * 60 + s.coriolis_minute as i64) * 60_000;
+    let mut target =
+        (day + ahead) * DAY_MS + (s.coriolis_hour as i64 * 60 + s.coriolis_minute as i64) * 60_000;
     if target <= local {
         target += 7 * DAY_MS;
     }
@@ -79,7 +79,12 @@ mod tests {
 
     #[test]
     fn coriolis_is_next_tuesday() {
-        let s = Settings { server_offset_min: 0, coriolis_weekday: 1, coriolis_hour: 3, ..Default::default() };
+        let s = Settings {
+            server_offset_min: 0,
+            coriolis_weekday: 1,
+            coriolis_hour: 3,
+            ..Default::default()
+        };
         // Lundi 26 octobre 2026, 12:00 UTC.
         let monday_noon = 1_793_016_000_000;
         let next = next_coriolis(monday_noon, &s);

@@ -30,7 +30,10 @@ fn tick(app: &AppHandle) {
 
     let rung: Vec<Timer> = {
         let mut timers = state.timers.lock().unwrap();
-        let rung: Vec<Timer> = timers.iter_mut().filter_map(|t| t.tick(now).then(|| t.clone())).collect();
+        let rung: Vec<Timer> = timers
+            .iter_mut()
+            .filter_map(|t| t.tick(now).then(|| t.clone()))
+            .collect();
         if !rung.is_empty() {
             state.save_timers(&timers);
         }
@@ -43,14 +46,24 @@ fn tick(app: &AppHandle) {
     }
     for t in rung.iter().filter(|t| t.alarm) {
         let mut body = if t.repeat {
-            format!("Le minuteur repart pour {}.", format_minutes(t.duration_secs / 60))
+            format!(
+                "Le minuteur repart pour {}.",
+                format_minutes(t.duration_secs / 60)
+            )
         } else {
             "Minuteur terminé.".to_string()
         };
         if !t.place.is_empty() {
             body = format!("{} · {body}", t.place);
         }
-        send_alarm(app, &settings, Alarm { title: t.name.clone(), body });
+        send_alarm(
+            app,
+            &settings,
+            Alarm {
+                title: t.name.clone(),
+                body,
+            },
+        );
     }
 
     let next = next_coriolis(now, &settings);
@@ -82,7 +95,12 @@ pub fn send_alarm(app: &AppHandle, settings: &Settings, alarm: Alarm) {
     if settings.dnd {
         return;
     }
-    let _ = app.notification().builder().title(&alarm.title).body(&alarm.body).show();
+    let _ = app
+        .notification()
+        .builder()
+        .title(&alarm.title)
+        .body(&alarm.body)
+        .show();
     let _ = app.emit("alarm", alarm);
 }
 

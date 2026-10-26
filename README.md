@@ -10,7 +10,8 @@ Sietch ne lit ni ne modifie la mémoire du jeu : il reste compatible avec BattlE
 - **Minuteurs** : groupes, pause, relance, répétition, glisser-déposer. Ils tournent côté Rust, même fenêtres fermées.
 - **Alarmes** : silencieuses, par notification système et message dans l'application ; rappels avant la tempête de Coriolis (24 h, 1 h, 10 min par défaut) ; mode Ne pas déranger.
 - **Builds** : 9 emplacements, 5 écoles de compétences, notes, code de partage `SIETCH1-…`.
-- **Wiki** : recherche sans accents, catégories, fenêtre dédiée avec historique.
+- **Wiki** : les articles du [Dune: Awakening Community Wiki](https://awakening.wiki/) (soutenu par Funcom), chargés à la demande et affichés dans Sietch ; recherche dans les titres, fenêtre dédiée avec historique. Contenu sous licence CC BY-NC-SA 4.0, source citée sous chaque article.
+- **Base de données** : [dune.gaming.tools](https://dune.gaming.tools/) s'ouvre dans une fenêtre de Sietch. Ses conditions interdisent de copier sa base sans autorisation : Sietch ne la récupère donc pas.
 - **Overlay** : heure serveur, Coriolis, minuteurs ; opacité, position, clic traversant.
 - **Zone de notification**, **raccourcis globaux** réglables, lancement au démarrage, sauvegarde complète.
 
@@ -23,7 +24,8 @@ npm run tauri dev
 
 - Interface : TypeScript sans framework, Vite, Leaflet (`src/`).
 - Moteur : Rust, Tauri 2 (`src-tauri/src/`). Tests : `cargo test` dans `src-tauri`.
-- Contenu du wiki : `src/data/wiki.json` (les valeurs `[À COMPLÉTER]` sont à renseigner).
+- Wiki : `src/lib/wiki.ts`. Sietch lit le plan du site (sitemap) et les pages `?action=render`, jamais `api.php` ni `index.php`, que le robots.txt du wiki réserve.
+- En mode navigateur (`npm run dev`), les requêtes du wiki passent par le relais de Vite.
 
 ## Licence
 

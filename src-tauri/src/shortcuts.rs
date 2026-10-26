@@ -35,7 +35,9 @@ pub fn handle(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
     }
     let action = {
         let list = app.state::<AppState>().shortcuts.lock().unwrap().clone();
-        list.into_iter().find(|(sc, _)| sc == shortcut).map(|(_, a)| a)
+        list.into_iter()
+            .find(|(sc, _)| sc == shortcut)
+            .map(|(_, a)| a)
     };
     if let Some(action) = action {
         run_action(app, &action);

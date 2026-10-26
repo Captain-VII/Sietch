@@ -142,6 +142,7 @@ function handle(cmd: string, args: Record<string, any>): unknown {
     case "toggle_overlay":
     case "show_wiki":
     case "show_main":
+    case "open_site":
       console.info(`[simulation] ${cmd}`, args);
       return null;
 
@@ -167,6 +168,10 @@ function handle(cmd: string, args: Record<string, any>): unknown {
     case "plugin:dialog|open":
       return null;
     default:
+      if (cmd.startsWith("plugin:opener|")) {
+        window.open(args.url, "_blank");
+        return null;
+      }
       if (cmd.startsWith("plugin:window|") || cmd.startsWith("plugin:autostart|")) return null;
       console.warn(`[simulation] commande non simulée : ${cmd}`, args);
       return null;
