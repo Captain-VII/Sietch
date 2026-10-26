@@ -351,7 +351,7 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             (0..self.num).find_map(|i| {
                 g.guard();
                 let o = self.object(g, i)?;
-                (self.name_of(g, o) == name && matches!(self.class_of(g, o).as_str(), "Class" | "ScriptStruct" | "BlueprintGeneratedClass"))
+                (self.name_of(g, o) == name && matches!(self.class_of(g, o).as_str(), "Class" | "ScriptStruct" | "BlueprintGeneratedClass" | "UserDefinedStruct"))
                     .then_some(o)
             })
         }

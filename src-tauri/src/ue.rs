@@ -58,6 +58,7 @@ pub struct Ue<'a> {
     table: u64,
     stride: u64,
     names: HashMap<u32, String>,
+    fields: HashMap<(u64, &'static str), Option<u64>>,
 }
 
 impl<'a> Ue<'a> {
@@ -67,7 +68,7 @@ impl<'a> Ue<'a> {
         if size != t.module_size {
             return None;
         }
-        let mut ue = Ue { m, blocks: base + t.blocks_rva, table: base + t.table_rva, stride: t.stride, names: HashMap::new() };
+        let mut ue = Ue { m, blocks: base + t.blocks_rva, table: base + t.table_rva, stride: t.stride, names: HashMap::new(), fields: HashMap::new() };
         (ue.name(0).as_deref() == Some("None")).then_some(ue)
     }
 
@@ -102,7 +103,7 @@ impl<'a> Ue<'a> {
         .ok_or("table des objets introuvable")?;
         let (base, size) = m.module();
         for stride in [24u64, 16, 32] {
-            let ue = Ue { m, blocks, table, stride, names: HashMap::new() };
+            let ue = Ue { m, blocks, table, stride, names: HashMap::new(), fields: HashMap::new() };
             let ok = (1..200u32).filter(|&i| ue.object(i).is_some_and(|o| read::<4>(m, o + 0xC).map(u32::from_le_bytes) == Some(i))).count();
             if ok > 150 {
                 let t = Tables { module_size: size, blocks_rva: blocks - base, table_rva: table - base, stride };
@@ -214,6 +215,98 @@ impl<'a> Ue<'a> {
         read::<4>(self.m, at).map(u32::from_le_bytes).and_then(|i| self.name(i))
     }
 
+    /// Offset d'un champ, mis en cache par classe (la carte lit des centaines d'objets de la même classe).
+    fn field_cached(&mut self, class: u64, wanted: &'static str) -> Option<u64> {
+        if let Some(&v) = self.fields.get(&(class, wanted)) {
+            return v;
+        }
+        let v = self.field(class, wanted);
+        self.fields.insert((class, wanted), v);
+        v
+    }
+
+    /// Position (cm) d'un acteur : RootComponent → RelativeLocation.
+    fn location(&mut self, actor: u64, class: u64) -> Option<[f64; 3]> {
+        let root = ptr(self.m, actor + self.field_cached(class, "RootComponent")?);
+        let off = self.field_cached(ptr(self.m, root + 0x10), "RelativeLocation")?;
+        let b = read::<24>(self.m, root + off)?;
+        Some([0, 8, 16].map(|i| f64::from_le_bytes(b[i..i + 8].try_into().unwrap())))
+    }
+
+    /// Données de la carte de la région : limites, zones et points d'intérêt. Un passage sur la table des objets.
+    pub fn map_data(&mut self) -> Option<MapData> {
+        let head = read::<24>(self.m, self.table)?;
+        let mut class_names: HashMap<u64, String> = HashMap::new();
+        let (mut bounds, mut areas, mut pois, mut layer_name) = (None, Vec::new(), Vec::new(), String::new());
+        for i in 0..u32_at(&head, 20) {
+            let Some(o) = self.object(i) else { continue };
+            let Some(b) = read::<0x28>(self.m, o) else { continue };
+            if u32_at(&b, 0x08) & TEMPLATE != 0 {
+                continue;
+            }
+            let class = u64_at(&b, 0x10);
+            let cname = match class_names.get(&class) {
+                Some(n) => n.clone(),
+                None => {
+                    let n = self.name_at(class + 0x18).unwrap_or_default();
+                    class_names.insert(class, n.clone());
+                    n
+                }
+            };
+            if cname == "CartographyMapLayerComponent" && bounds.is_none() {
+                // Le calque de la région (pas le calque « Global ») ; limites en mètres.
+                let layer = self.name_at(u64_at(&b, 0x20) + 0x18).unwrap_or_default();
+                if layer.starts_with("BP_MapLayer_") && !layer.contains("Global") {
+                    let off = self.field_cached(class, "m_MapLayerMapBounds")?;
+                    let bx = read::<0x30>(self.m, o + off)?;
+                    let v = |i: usize| f64::from_le_bytes(bx[i..i + 8].try_into().unwrap()) * 100.0;
+                    bounds = Some(Bounds { min_x: v(0), min_y: v(8), max_x: v(0x18), max_y: v(0x20) });
+                    layer_name = layer;
+                }
+            } else if cname == "BP_WorldMapAreasData_C" && areas.is_empty() {
+                areas = self.areas(o, class);
+            } else if cname.contains("TerrainBlockActor")
+                && let Some(p) = self.poi(o, class)
+            {
+                pois.push(p);
+            }
+        }
+        Some(MapData { layer: layer_name, bounds: bounds?, areas, pois })
+    }
+
+    /// Zones de la carte (BP_WorldMapAreasData_C.Areas) : type et cercles (centre et rayon en cm).
+    fn areas(&mut self, obj: u64, class: u64) -> Vec<Area> {
+        let Some(off) = self.field_cached(class, "Areas") else { return Vec::new() };
+        let Some(arr) = read::<12>(self.m, obj + off) else { return Vec::new() };
+        let (data, num) = (u64_at(&arr, 0), u32_at(&arr, 8).min(2000) as u64);
+        let tarray = |at: u64| read::<12>(self.m, at).map(|b| (u64_at(&b, 0), u32_at(&b, 8).min(500) as u64));
+        (0..num)
+            .filter_map(|i| {
+                let e = data + i * 0x58;
+                let kind = read::<1>(self.m, e)?[0];
+                let ((centers, n), (radii, _)) = (tarray(e + 0x08)?, tarray(e + 0x18)?);
+                let circles = (0..n)
+                    .filter_map(|j| {
+                        let c = read::<24>(self.m, centers + j * 24)?;
+                        let r = read::<8>(self.m, radii + j * 8).map(f64::from_le_bytes)?;
+                        let v = |k: usize| f64::from_le_bytes(c[k..k + 8].try_into().unwrap());
+                        Some([v(0), v(8), r])
+                    })
+                    .collect();
+                Some(Area { kind, circles })
+            })
+            .collect()
+    }
+
+    /// Point d'intérêt d'un Terrain Block, si son type nous intéresse (le relief est ignoré).
+    fn poi(&mut self, obj: u64, class: u64) -> Option<Poi> {
+        let asset = ptr(self.m, obj + self.field_cached(class, "m_TerrainBlockAsset")?);
+        let name = self.name_at(asset + 0x18)?;
+        let kind = poi_kind(&name)?;
+        let [x, y, z] = self.location(obj, class)?;
+        Some(Poi { kind: kind.into(), name: name.trim_start_matches("CB_").into(), x, y, z })
+    }
+
     /// Le personnage du joueur et ses jeux d'attributs, en un seul passage sur la table des objets.
     pub fn find_player(&mut self) -> Option<Player> {
         let head = read::<24>(self.m, self.table)?;
@@ -230,8 +323,6 @@ impl<'a> Ue<'a> {
         let player_class = class_named(self, "BP_DunePlayerCharacter_C")?;
         let stats_class = class_named(self, "DuneCharacterAttributeSet")?;
         let hydration_class = class_named(self, "DuneHydrationAttributeSet")?;
-        // Modèles (RF_ClassDefaultObject 0x10, RF_ArchetypeObject 0x20) : pas des objets du monde.
-        const TEMPLATE: u32 = 0x10 | 0x20;
         let &(character, _, _, _, _, index) = all.iter().find(|a| a.2 == player_class && a.1 & TEMPLATE == 0)?;
         let owned = |class: u64| all.iter().find(|a| a.2 == class && a.4 == character).map(|a| a.0);
         let (stats, hydration) = (owned(stats_class)?, owned(hydration_class)?);
@@ -282,6 +373,62 @@ impl<'a> Ue<'a> {
         };
         Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, sets, fields })
     }
+}
+
+/// Modèles (RF_ClassDefaultObject 0x10, RF_ArchetypeObject 0x20) : pas des objets du monde.
+const TEMPLATE: u32 = 0x10 | 0x20;
+
+/// Type de point d'intérêt d'après le nom de son Terrain Block (`CB_<biome>_<type>_<n>`) ; `None` pour le relief.
+pub fn poi_kind(asset: &str) -> Option<&'static str> {
+    let n = asset.to_lowercase();
+    const KINDS: [(&str, &str); 10] = [
+        ("ecolab", "station"),
+        ("wreckedship", "epave"),
+        ("wreckage", "epave"),
+        ("mininggallery", "mine"),
+        ("altar", "autel"),
+        ("landsraadshelter", "abri"),
+        ("harvester", "moissonneuse"),
+        ("story", "histoire"),
+        ("infected", "evenement"),
+        ("base", "base"),
+    ];
+    KINDS.iter().find(|(k, _)| n.contains(k)).map(|&(_, v)| v)
+}
+
+/// Limites de la carte de la région, en cm.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Bounds {
+    pub min_x: f64,
+    pub min_y: f64,
+    pub max_x: f64,
+    pub max_y: f64,
+}
+
+/// Zone de la carte : type (valeur brute du jeu) et cercles [x, y, rayon] en cm.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Area {
+    pub kind: u8,
+    pub circles: Vec<[f64; 3]>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Poi {
+    pub kind: String,
+    pub name: String,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct MapData {
+    /// Calque de carte de la région, ex. « BP_MapLayer_Survival_1_C_… » (Bassin de Hagga).
+    pub layer: String,
+    pub bounds: Bounds,
+    pub areas: Vec<Area>,
+    pub pois: Vec<Poi>,
 }
 
 /// Parcourt des zones par blocs de 16 Mio (qui se chevauchent de 32 octets) jusqu'au premier résultat.
@@ -488,6 +635,15 @@ mod tests {
 
     fn put(mem: &mut [u8], at: usize, bytes: &[u8]) {
         mem[at - 0x1000..at - 0x1000 + bytes.len()].copy_from_slice(bytes);
+    }
+
+    #[test]
+    fn classifies_terrain_blocks() {
+        assert_eq!(poi_kind("CB_Arrakis_Ecolab_Bronze_03"), Some("station"));
+        assert_eq!(poi_kind("CB_SB_SandFliesBase_05"), Some("base"));
+        assert_eq!(poi_kind("CB_Arrakis_WreckedShip_02"), Some("epave"));
+        assert_eq!(poi_kind("CB_Arrakis_Generic_12"), None, "relief ignoré");
+        assert_eq!(poi_kind("CB_ShieldW_CliffFormation_1"), None);
     }
 
     #[test]

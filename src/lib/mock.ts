@@ -4,7 +4,7 @@
 
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import type { PlayerState, Settings, Timer, TimerInput } from "./api";
+import type { MapData, PlayerState, Settings, Timer, TimerInput } from "./api";
 
 const KEY = "sietch-mock";
 type State = { timers: Timer[]; settings: Settings; store: Record<string, unknown>; widgetsEdit?: boolean };
@@ -67,6 +67,17 @@ function simPlayer(): PlayerState {
     timeOfDay: Math.floor(((t / 10) % 24) * 60) / 60,
     volume: 268.5, volumeMax: 1750,
     x: 0, y: 0, z: 0,
+  };
+}
+
+/** Carte simulée : limites du Bassin de Hagga, quelques zones et points d'intérêt. */
+function simMap(): MapData {
+  const kinds = ["station", "base", "epave", "mine", "autel"];
+  return {
+    layer: "BP_MapLayer_Survival_1_C_0",
+    bounds: { minX: -457200, minY: -457200, maxX: 355600, maxY: 355600 },
+    areas: Array.from({ length: 12 }, (_, i) => ({ kind: 0, circles: [[-300000 + i * 50000, -200000 + (i % 4) * 120000, 8000 + i * 1500] as [number, number, number]] })),
+    pois: Array.from({ length: 30 }, (_, i) => ({ kind: kinds[i % 5], name: `CB_Simulation_${i}`, x: -400000 + (i * 73000) % 740000, y: -400000 + (i * 151000) % 740000, z: 0 })),
   };
 }
 
@@ -176,6 +187,8 @@ function handle(cmd: string, args: Record<string, any>): unknown {
         ? [["DuneCharacterAttributeSet", "CurrentHealth", p.health], ["DuneCharacterAttributeSet", "MaxHealth", p.healthMax], ["DuneCharacterAttributeSet", "CurrentStamina", p.stamina], ["DuneHydrationAttributeSet", "CurrentHydration", p.hydration]].map(([set, name, value]) => ({ set, name, value }))
         : [];
     }
+    case "get_map_data":
+      return state.settings.liveModules ? simMap() : null;
     case "get_player_state":
       return state.settings.liveModules ? simPlayer() : null;
     case "get_widgets_edit":

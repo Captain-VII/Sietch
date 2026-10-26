@@ -43,6 +43,14 @@ export interface Settings {
 
 export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory";
 
+/** Carte de la région lue dans le jeu : limites (cm), zones (cercles x, y, rayon) et points d'intérêt. */
+export interface MapData {
+  layer: string;
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  areas: { kind: number; circles: [number, number, number][] }[];
+  pois: { kind: string; name: string; x: number; y: number; z: number }[];
+}
+
 /** Une valeur d'attribut du personnage (écran « Stats brutes »). */
 export interface RawStat {
   set: string;
@@ -149,6 +157,7 @@ export const api = {
   playerState: () => invoke<PlayerState | null>("get_player_state"),
   /** Demande une relecture de tous les attributs du personnage ; renvoie la dernière lecture. */
   requestRawStats: () => invoke<RawStat[]>("request_raw_stats"),
+  mapData: () => invoke<MapData | null>("get_map_data"),
   /** Relit position.json ; renvoie son chemin. */
   reloadLiveConfig: () => invoke<string>("reload_live_config"),
 };
@@ -158,6 +167,7 @@ export const on = {
   settingsChanged: (fn: (s: Settings) => void) => listen<Settings>("settings-changed", (e) => fn(e.payload)),
   alarm: (fn: (a: Alarm) => void) => listen<Alarm>("alarm", (e) => fn(e.payload)),
   liveStatus: (fn: (s: LiveStatus) => void) => listen<LiveStatus>("live-status", (e) => fn(e.payload)),
+  mapData: (fn: (m: MapData | null) => void) => listen<MapData | null>("map-data", (e) => fn(e.payload)),
   playerState: (fn: (s: PlayerState) => void) => listen<PlayerState>("player-state", (e) => fn(e.payload)),
   position: (fn: (p: PlayerPosition) => void) => listen<PlayerPosition>("player-position", (e) => fn(e.payload)),
   widgetsEdit: (fn: (editing: boolean) => void) => listen<boolean>("widgets-edit", (e) => fn(e.payload)),

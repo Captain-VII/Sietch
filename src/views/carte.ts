@@ -2,7 +2,20 @@ import L from "leaflet";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api } from "../lib/api";
+import { api, on, type MapData } from "../lib/api";
+
+/** Types de points d'intérêt lus dans le jeu (Terrain Blocks), couleurs de la carte. */
+const POI_KINDS: Record<string, { label: string; color: string }> = {
+  station: { label: "Station écologique", color: "#6fb6e8" },
+  base: { label: "Base", color: "#e05a4f" },
+  epave: { label: "Épave", color: "#b9ad93" },
+  mine: { label: "Galerie de mine", color: "#c9a861" },
+  autel: { label: "Autel", color: "#b46be0" },
+  abri: { label: "Abri du Landsraad", color: "#7fd1b9" },
+  moissonneuse: { label: "Moissonneuse", color: "#e8823a" },
+  histoire: { label: "Lieu de l'histoire", color: "#f1d7ff" },
+  evenement: { label: "Événement", color: "#f09a8a" },
+};
 import {
   markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -45,6 +58,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     maxBounds: L.latLngBounds(toLatLng(-200, SIZE + 200), toLatLng(SIZE + 200, -200)),
   });
   const bounds = L.latLngBounds(toLatLng(0, SIZE), toLatLng(SIZE, 0));
+  // Vue initiale tout de suite : les données du jeu peuvent arriver avant la fin de l'affichage.
+  map.fitBounds(bounds);
 
   // Grille des secteurs A1–I9 et quelques lignes de dunes décoratives.
   const lineStyle = { color: "rgba(217, 182, 122, 0.16)", weight: 1, interactive: false };
@@ -65,6 +80,41 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     const pts = Array.from({ length: 19 }, (_, i) => toLatLng(i * 50, y + Math.sin(i * 0.7 + y) * 18));
     L.polyline(pts, { color: "#5B4D2E", weight: 1.2, interactive: false, smoothFactor: 2 }).addTo(map);
   }
+  // ---------- Carte lue dans le jeu : zones et points d'intérêt de la région ----------
+  const gameLayer = L.layerGroup().addTo(map);
+  let mapData: MapData | null = null;
+
+  /** Région de la carte lue (calque Survival_1 = Bassin de Hagga). */
+  const mapRegion = (m: MapData): Region => (/deep|profond/i.test(m.layer) ? "profond" : "hagga");
+
+  /** Coordonnées du jeu (cm) → carte (0 à 900) ; +y vers le sud, comme la carte du jeu. */
+  function worldToMap(x: number, y: number) {
+    const b = mapData!.bounds;
+    return { x: ((x - b.minX) / (b.maxX - b.minX)) * SIZE, y: ((y - b.minY) / (b.maxY - b.minY)) * SIZE };
+  }
+
+  function drawGame() {
+    gameLayer.clearLayers();
+    if (!mapData || mapRegion(mapData) !== region) return;
+    const scale = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
+    for (const a of mapData.areas) {
+      for (const [x, y, r] of a.circles) {
+        const p = worldToMap(x, y);
+        L.circle(toLatLng(p.x, p.y), { radius: r * scale, color: "#c9a861", weight: 1, opacity: 0.35, fillOpacity: 0.06, interactive: false }).addTo(gameLayer);
+      }
+    }
+    for (const poi of mapData.pois) {
+      const p = worldToMap(poi.x, poi.y);
+      const kind = POI_KINDS[poi.kind] ?? { label: poi.kind, color: "#e9dfc9" };
+      L.circleMarker(toLatLng(p.x, p.y), { radius: 5, color: "#11131F", weight: 2, fillColor: kind.color, fillOpacity: 1 })
+        .bindTooltip(`${kind.label} · ${sectorOf(p.x, p.y)}`, { className: "marker-tip", direction: "top", offset: [0, -6] })
+        .addTo(gameLayer);
+    }
+  }
+
+  void api.mapData().then((m) => { mapData = m; drawGame(); drawLive(); });
+  const stopMapData = on.mapData((m) => { mapData = m; drawGame(); drawLive(); });
+
   const layer = L.layerGroup().addTo(map);
 
   map.on("contextmenu", (e: L.LeafletMouseEvent) => startDraft(clamp(e.latlng.lng), clamp(-e.latlng.lat)));
@@ -82,6 +132,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   function livePoint(): { x: number; y: number } | null {
     const p = live.position;
     const s = ctx.settings();
+    // Carte lue dans le jeu : calage automatique, sans calibration.
+    if (p && mapData) return mapRegion(mapData) === region ? worldToMap(p.x, p.y) : null;
     if (!p || s.liveRegion !== region) return null;
     const t = solveAffine(s.calibration[region]);
     return t ? toMap(t, p.x, p.y) : null;
@@ -113,7 +165,10 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     const actions: HTMLElement[] = [];
     if (!st.active) {
       text = st.message ?? (st.gameRunning ? "Position en direct en attente." : "Position en direct : jeu non détecté.");
-    } else if (s.liveRegion !== region) {
+    } else if (mapData && mapRegion(mapData) !== region) {
+      text = `Position en direct : vous êtes dans ${REGIONS[mapRegion(mapData)]}.`;
+      actions.push(btn("Y aller", () => { region = lastRegion = mapRegion(mapData!); drawRegions(); drawMarkers(); drawPanel(); drawGame(); drawLive(); }));
+    } else if (!mapData && s.liveRegion !== region) {
       text = `Position en direct : vous êtes dans ${REGIONS[s.liveRegion as Region] ?? s.liveRegion}.`;
       actions.push(btn("Je suis dans cette région", () => void ctx.saveSettings({ ...s, liveRegion: region }).then(drawLive)));
     } else if (calibrating) {
@@ -128,7 +183,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       actions.push(
         btn("Suivre", () => { follow = !follow; drawLive(); }, follow),
         btn("Marqueur ici", () => startDraft(clamp(pt.x), clamp(pt.y))),
-        btn("Recalibrer", () => void saveCalibration([])),
+        ...(mapData ? [] : [btn("Recalibrer", () => void saveCalibration([]))]),
       );
     }
     // Le bandeau ne change que si son texte change : sinon ses boutons seraient
@@ -229,6 +284,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
             drawRegions();
             drawMarkers();
             drawPanel();
+            drawGame();
             drawLive();
           },
         }, REGIONS[r]),
@@ -434,6 +490,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     onSettings: drawLive,
     dispose: () => {
       stopLive();
+      void stopMapData.then((un) => un());
       map.remove();
     },
   };

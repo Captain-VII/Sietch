@@ -249,7 +249,20 @@ pub fn spawn(app: AppHandle) {
                             && last_player_try.is_none_or(|i| i.elapsed() > Duration::from_secs(3))
                         {
                             last_player_try = Some(Instant::now());
-                            player = ue::Ue::open(r, t).and_then(|mut u| u.find_player());
+                            if let Some(mut u) = ue::Ue::open(r, t) {
+                                player = u.find_player();
+                                // Personnage (re)trouvé : nouvelle région possible, on relit la carte.
+                                if player.is_some() {
+                                    let map = u.map_data();
+                                    if cfg!(debug_assertions)
+                                        && let Some(m) = &map
+                                    {
+                                        eprintln!("[carte] {:?}, {} zones, {} points", m.bounds, m.areas.len(), m.pois.len());
+                                    }
+                                    let _ = app.emit("map-data", &map);
+                                    *state.map_data.lock().unwrap() = map;
+                                }
+                            }
                         }
                         match player.as_ref().map(|p| p.read(r)) {
                             Some(Some(s)) => {
