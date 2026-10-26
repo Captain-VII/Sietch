@@ -72,11 +72,15 @@ paramètres, overlay, position en direct simulée. CI Windows verte (dernier run
 (plugin HTTP), notifications Windows, zone de notification, raccourcis globaux depuis le jeu (Ctrl+Maj+O/W/C/M/T),
 overlay par-dessus le jeu (position, clic traversant), heure de la tempête de Coriolis (mardi 03:00, UTC+1, confirmée).
 
-Installateur de la CI installé et lancé sans erreur (commit `6e3d7bb`). Étape 0 terminée ; prochaine étape : position réelle.
+Installateur de la CI installé et lancé sans erreur (commit `6e3d7bb`). Étape 0 terminée.
 
-**Suite** : feuille de route dans [docs/ROADMAP.md](docs/ROADMAP.md) (étape 0 = valider sur le PC, étape 1 = position
-réelle). Pour la position : trouver la chaîne de pointeurs, jeu lancé en solo **sans BattlEye**, puis la mettre dans
-`position.json` et calibrer la carte. Méthode : [docs/position-en-direct.md](docs/position-en-direct.md).
+Étape 1 : chaîne de pointeurs trouvée le 2026-10-26 avec `tools/sietch-scan` (lecture seule, refuse de tourner avec
+BattlEye) ; Sietch affiche la position en direct. La chaîne et les chaînes de secours restent en local, dans
+`%APPDATA%\com.captainvii.sietch\` (pas dans le dépôt). Après un patch : refaire la recherche, méthode dans
+[docs/position-en-direct.md](docs/position-en-direct.md).
+
+**Suite** : feuille de route dans [docs/ROADMAP.md](docs/ROADMAP.md) : calibrer la carte (Hagga, Désert profond),
+puis outil de diagnostic, chaîne résistante aux patchs.
 Tenir la feuille de route à jour quand une étape avance.
 
 ## Concurrence et contexte

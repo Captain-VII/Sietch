@@ -26,7 +26,9 @@ Objectif : que la version actuelle marche vraiment à côté du jeu, avant d'ajo
 
 Objectif : le point bleu suit vraiment le joueur sur la carte.
 
-- 🟢 Trouver la chaîne de pointeurs (guide : `docs/position-en-direct.md`) et calibrer les deux régions.
+- ✅ Trouver la chaîne de pointeurs : trouvée le 2026-10-26 avec `tools/sietch-scan` (3 niveaux, tient après une
+  relance du jeu), position « en direct » dans Sietch. La chaîne reste en local dans `position.json`.
+- 🟢 Calibrer les deux régions (Bassin de Hagga, Désert profond).
 - 🟢 Ajouter un outil de diagnostic dans l'onglet « Sans BattlEye » : dernière valeur lue, nombre d'échecs,
   pour comprendre vite pourquoi la position ne vient pas.
 - 🟡 Rendre la chaîne **résistante aux patchs** : retrouver automatiquement le point de départ (recherche d'une
