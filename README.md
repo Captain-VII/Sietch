@@ -27,6 +27,7 @@ npm run tauri dev
 - Moteur : Rust, Tauri 2 (`src-tauri/src/`). Tests : `cargo test` dans `src-tauri`.
 - Reprendre sur une autre machine : [docs/REPRENDRE.md](docs/REPRENDRE.md). Mémoire du projet pour Claude : [CLAUDE.md](CLAUDE.md).
 - Position en direct : [docs/position-en-direct.md](docs/position-en-direct.md).
+- Feuille de route : [docs/ROADMAP.md](docs/ROADMAP.md).
 - Wiki : `src/lib/wiki.ts`. Sietch lit le plan du site (sitemap) et les pages `?action=render`, jamais `api.php` ni `index.php`, que le robots.txt du wiki réserve.
 - En mode navigateur (`npm run dev`), les requêtes du wiki passent par le relais de Vite.
 

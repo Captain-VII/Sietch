@@ -72,8 +72,10 @@ paramètres, overlay, position en direct simulée. CI Windows verte (dernier run
 5. Overlay par-dessus le jeu (position, clic traversant).
 6. Heure réelle de la tempête de Coriolis du serveur (défaut : mardi 03:00, UTC+1, non vérifié).
 
-**Prochaine grosse étape** : trouver la chaîne de pointeurs de la position du joueur, jeu lancé en solo
-**sans BattlEye**, puis la mettre dans `position.json` et calibrer la carte. Méthode : [docs/position-en-direct.md](docs/position-en-direct.md).
+**Suite** : feuille de route dans [docs/ROADMAP.md](docs/ROADMAP.md) (étape 0 = valider sur le PC, étape 1 = position
+réelle). Pour la position : trouver la chaîne de pointeurs, jeu lancé en solo **sans BattlEye**, puis la mettre dans
+`position.json` et calibrer la carte. Méthode : [docs/position-en-direct.md](docs/position-en-direct.md).
+Tenir la feuille de route à jour quand une étape avance.
 
 ## Concurrence et contexte
 
