@@ -4,7 +4,7 @@ import { disable as disableAutostart, enable as enableAutostart, isEnabled as au
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api, prettyKeys, SHORTCUT_LABELS, type Settings } from "../lib/api";
+import { api, prettyKeys, SHORTCUT_LABELS, type Layout, type Settings, type WidgetKind } from "../lib/api";
 import { builds, getNotes, markers, setNotes, type Build, type Marker } from "../lib/data";
 import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
 import { durationLabel, pad } from "../lib/time";
@@ -23,12 +23,11 @@ type Tab = (typeof TABS)[number][0];
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const REMINDERS = [1440, 360, 60, 30, 10, 5];
-const POSITIONS: Record<string, string> = {
-  "top-right": "En haut à droite",
-  "top-left": "En haut à gauche",
-  "bottom-right": "En bas à droite",
-  "bottom-left": "En bas à gauche",
-  free: "Libre (là où je la place)",
+const WIDGET_LABELS: Record<WidgetKind, string> = {
+  clock: "Heure serveur",
+  coriolis: "Coriolis",
+  sector: "Secteur",
+  timers: "Minuteurs",
 };
 
 let lastTab: Tab = "general";
@@ -188,18 +187,71 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
     overlay: () => {
       const s = ctx.settings();
-      const op = h("input", { id: "p-op", type: "range", min: "30", max: "100", value: String(s.overlayOpacity) });
-      op.addEventListener("input", () => update({ overlayOpacity: Number(op.value) }));
+      const layout = s.layouts.find((l) => l.id === s.activeLayout) ?? s.layouts[0];
+      /** Modifie une copie des dispositions, l'enregistre et redessine l'onglet. */
+      const edit = (fn: (layouts: Layout[]) => string | void) => {
+        const layouts = structuredClone(ctx.settings().layouts);
+        const active = fn(layouts) ?? ctx.settings().activeLayout;
+        void update({ layouts, activeLayout: active }).then(() => draw());
+      };
+      const current = (layouts: Layout[]) => layouts.find((l) => l.id === layout.id)!;
+
+      const name = h("input", { class: "input", id: "p-disp-nom", type: "text", maxlength: "30", value: layout.name });
+      name.addEventListener("change", () => {
+        const v = name.value.trim();
+        if (v) edit((ls) => void (current(ls).name = v));
+      });
+
+      const elements = layout.widgets.map((w) => {
+        const box = h("input", { type: "checkbox", checked: w.shown });
+        box.addEventListener("change", () => edit((ls) => {
+          current(ls).widgets.find((x) => x.kind === w.kind)!.shown = box.checked;
+        }));
+        return h("label", { class: "chip", style: "border-style: solid" }, box, WIDGET_LABELS[w.kind],
+          w.scale !== 1 ? h("span", { class: "muted", style: "font-size: 12px" }, `${Math.round(w.scale * 100)} %`) : null);
+      });
+
       return card("Overlay",
+        h("p", { class: "muted", style: "margin: 0" },
+          `Chaque élément est un widget que vous placez où vous voulez par-dessus le jeu. ${prettyKeys(s.shortcuts.overlay ?? "")} les affiche ou les masque, `
+          + `${prettyKeys(s.shortcuts["overlay-edit"] ?? "")} ouvre le mode édition : glissez-les à la souris, la molette change leur taille, puis la même combinaison les verrouille.`),
+        h("div", { class: "row wrap" },
+          h("button", { class: "btn btn-primary", type: "button", onclick: () => api.toggleWidgetsEdit() }, "Placer les widgets"),
+          h("button", { class: "btn", type: "button", onclick: () => api.toggleOverlay() }, "Afficher / masquer"),
+        ),
         h("div", { class: "grid-auto", style: "--min: 220px; gap: 16px" },
-          select("p-pos", "Position", Object.entries(POSITIONS), s.overlayPosition, (v) => update({ overlayPosition: v })),
-          h("div", { class: "field" }, h("label", { class: "label", for: "p-op" }, "Opacité du fond"), op),
+          select("p-disp", "Disposition affichée", s.layouts.map((l) => [l.id, l.name]), layout.id,
+            (v) => void update({ activeLayout: v }).then(() => draw())),
+          h("div", { class: "field" }, h("label", { class: "label", for: "p-disp-nom" }, "Nom de la disposition"), name),
         ),
+        h("div", { class: "row wrap" },
+          h("button", { class: "btn", type: "button", onclick: () => edit((ls) => {
+            // Copie de la disposition affichée : on part de ses positions.
+            const id = `disposition-${Date.now().toString(36)}`;
+            ls.push({ ...structuredClone(current(ls)), id, name: `Disposition ${ls.length + 1}` });
+            return id;
+          }) }, "Nouvelle disposition"),
+          h("button", { class: "btn", type: "button", onclick: () => edit((ls) => {
+            for (const w of current(ls).widgets) w.pos = null;
+          }) }, "Replacer automatiquement"),
+          s.layouts.length > 1
+            ? h("button", { class: "btn btn-danger", type: "button", onclick: async () => {
+              if (!(await confirmDialog(`Supprimer la disposition « ${layout.name} » ?`, "Supprimer"))) return;
+              edit((ls) => {
+                ls.splice(ls.findIndex((l) => l.id === layout.id), 1);
+                return ls[0].id;
+              });
+            } }, "Supprimer")
+            : null,
+        ),
+        h("div", { class: "stack", style: "--gap: 8px" },
+          h("span", { class: "label" }, "Éléments affichés"),
+          h("div", { class: "row wrap", style: "--gap: 8px" }, elements)),
         h("div", {},
-          sw("Clic traversant", `Les clics passent à travers l'overlay vers le jeu. Pour le déplacer à nouveau, désactivez ce réglage ici (${prettyKeys(s.shortcuts.overlay ?? "")} le masque).`, s.overlayClickThrough, (v) => update({ overlayClickThrough: v })),
+          sw("Clic traversant", "Widgets verrouillés : les clics passent à travers, vers le jeu. Le mode édition les rend toujours déplaçables.",
+            s.overlayClickThrough, (v) => update({ overlayClickThrough: v })),
         ),
-        h("div", { class: "row" }, h("button", { class: "btn btn-accent", type: "button", onclick: () => api.toggleOverlay() }, "Afficher / masquer l'overlay")),
-        h("p", { class: "muted", style: "margin: 0" }, "Choisissez dans l'écran Minuteurs quels minuteurs apparaissent dans l'overlay."),
+        h("p", { class: "muted", style: "margin: 0" }, "Un raccourci par disposition arrive bientôt. Choisissez dans l'écran Minuteurs quels minuteurs apparaissent dans le widget Minuteurs."),
       );
     },
 
