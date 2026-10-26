@@ -8,6 +8,12 @@ import { markers, sectorOf } from "./lib/data";
 import { h, icon, logo, mount } from "./lib/dom";
 import { remaining, startLiveUpdates, syncClock } from "./lib/time";
 
+/** En développement, hors de Tauri, on simule le moteur pour tester dans un navigateur. */
+function boot(label: string): Promise<void> {
+  const inTauri = "__TAURI_INTERNALS__" in window;
+  return import.meta.env.DEV && !inTauri ? import("./lib/mock").then((m) => m.install(label)) : Promise.resolve();
+}
+
 let timers: Timer[] = [];
 let settings: Settings;
 const panel = h("div", { class: "overlay" });
@@ -29,7 +35,7 @@ function drawTimers() {
       ? list.map((t) =>
           h("div", { class: "stack", style: "--gap: 5px" },
             h("div", { class: "row spread", style: "--gap: 8px" },
-              h("span", { class: "name" }, t.name),
+              h("span", { class: "name" }, t.endsAt === null && !t.fired ? `${t.name} (pause)` : t.name),
               h("span", { class: "digits", style: "font-size: 12px", "data-timer": t.id, "data-part": "left" })),
             h("div", { class: "bar", style: "height: 3px" }, h("span", { "data-timer": t.id, "data-part": "bar" })),
           ))
@@ -98,4 +104,4 @@ async function start() {
   window.addEventListener("focus", () => void drawSector());
 }
 
-void start();
+void boot("overlay").then(start);

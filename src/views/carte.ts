@@ -187,7 +187,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           const mins = Math.max(1, Number(respawn.value) || 45);
           m.timerId = await api.saveTimer({
             name: `${m.name} — ${sectorOf(m.x, m.y)}`, place: REGIONS[m.region], group: "ressources",
-            durationSecs: mins * 60, repeat: false, alarm: true, sound: "", inOverlay: true,
+            durationSecs: mins * 60, repeat: false, alarm: true, inOverlay: true,
           });
         }
         await store.save(m);

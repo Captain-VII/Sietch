@@ -13,7 +13,6 @@ export interface Timer {
   remainingMs: number;
   repeat: boolean;
   alarm: boolean;
-  sound: string;
   inOverlay: boolean;
   fired: boolean;
 }
@@ -28,8 +27,6 @@ export interface Settings {
   coriolisMinute: number;
   coriolisReminders: number[];
   dnd: boolean;
-  defaultSound: string;
-  volume: number;
   closeToTray: boolean;
   startMinimized: boolean;
   overlayOpacity: number;
@@ -47,7 +44,6 @@ export interface Clock {
 export interface Alarm {
   title: string;
   body: string;
-  sound: string;
 }
 
 export const api = {
@@ -73,16 +69,8 @@ export const on = {
   timersChanged: (fn: () => void): Promise<UnlistenFn> => listen("timers-changed", fn),
   settingsChanged: (fn: (s: Settings) => void) => listen<Settings>("settings-changed", (e) => fn(e.payload)),
   alarm: (fn: (a: Alarm) => void) => listen<Alarm>("alarm", (e) => fn(e.payload)),
-  stopSound: (fn: () => void) => listen("stop-sound", fn),
   navigate: (fn: (n: { view: string; action: string | null }) => void) =>
     listen<{ view: string; action: string | null }>("navigate", (e) => fn(e.payload)),
-};
-
-export const SOUNDS: Record<string, string> = {
-  tambour: "Tambour fremen",
-  ver: "Battement de ver",
-  bip: "Bip discret",
-  aucun: "Aucun son",
 };
 
 export const GROUPS: Record<TimerGroup, string> = {
@@ -96,7 +84,6 @@ export const SHORTCUT_LABELS: Record<string, string> = {
   timer: "Démarrer un minuteur",
   overlay: "Afficher / masquer l'overlay",
   wiki: "Recherche wiki",
-  mute: "Couper le son des alarmes",
   map: "Ouvrir la carte",
 };
 

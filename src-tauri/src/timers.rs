@@ -33,8 +33,6 @@ pub struct Timer {
     pub repeat: bool,
     #[serde(default = "yes")]
     pub alarm: bool,
-    #[serde(default)]
-    pub sound: String,
     #[serde(default = "yes")]
     pub in_overlay: bool,
     #[serde(default)]
@@ -55,8 +53,6 @@ pub struct TimerInput {
     pub repeat: bool,
     #[serde(default = "yes")]
     pub alarm: bool,
-    #[serde(default)]
-    pub sound: String,
     #[serde(default = "yes")]
     pub in_overlay: bool,
 }
@@ -74,7 +70,6 @@ impl Timer {
             remaining_ms: 0,
             repeat: input.repeat,
             alarm: input.alarm,
-            sound: input.sound,
             in_overlay: input.in_overlay,
             fired: false,
         }
@@ -90,7 +85,6 @@ impl Timer {
         self.duration_secs = input.duration_secs.max(1);
         self.repeat = input.repeat;
         self.alarm = input.alarm;
-        self.sound = input.sound;
         self.in_overlay = input.in_overlay;
         if restart {
             self.restart();
@@ -151,7 +145,6 @@ mod tests {
             duration_secs: 60,
             repeat,
             alarm: true,
-            sound: String::new(),
             in_overlay: true,
         };
         Timer::start(input, "t1".into())

@@ -15,8 +15,6 @@ pub struct Settings {
     /// Rappels avant la tempête, en minutes.
     pub coriolis_reminders: Vec<i64>,
     pub dnd: bool,
-    pub default_sound: String,
-    pub volume: u8,
     pub close_to_tray: bool,
     pub start_minimized: bool,
     pub overlay_opacity: u8,
@@ -34,7 +32,6 @@ impl Default for Settings {
             ("timer", "Ctrl+Shift+T"),
             ("overlay", "Ctrl+Shift+O"),
             ("wiki", "Ctrl+Shift+W"),
-            ("mute", "Ctrl+Shift+S"),
             ("map", "Ctrl+Shift+C"),
         ]
         .into_iter()
@@ -48,8 +45,6 @@ impl Default for Settings {
             coriolis_minute: 0,
             coriolis_reminders: vec![1440, 60, 10],
             dnd: false,
-            default_sound: "tambour".into(),
-            volume: 70,
             close_to_tray: true,
             start_minimized: false,
             overlay_opacity: 85,

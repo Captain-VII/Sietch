@@ -13,7 +13,6 @@ use tauri_plugin_notification::NotificationExt;
 pub struct Alarm {
     pub title: String,
     pub body: String,
-    pub sound: String,
 }
 
 pub fn spawn(app: AppHandle) {
@@ -51,8 +50,7 @@ fn tick(app: &AppHandle) {
         if !t.place.is_empty() {
             body = format!("{} · {body}", t.place);
         }
-        let sound = if t.sound.is_empty() { settings.default_sound.clone() } else { t.sound.clone() };
-        send_alarm(app, &settings, Alarm { title: t.name.clone(), body, sound });
+        send_alarm(app, &settings, Alarm { title: t.name.clone(), body });
     }
 
     let next = next_coriolis(now, &settings);
@@ -75,7 +73,6 @@ fn tick(app: &AppHandle) {
             Alarm {
                 title: format!("Tempête de Coriolis dans {}", format_minutes(r)),
                 body: "Le Désert profond va être réinitialisé. Mettez vos véhicules et vos coffres à l'abri.".into(),
-                sound: settings.default_sound.clone(),
             },
         );
     }

@@ -46,6 +46,7 @@ export function shortCountdown(ms: number): string {
 }
 
 export function durationLabel(secs: number): string {
+  if (secs < 60) return `${secs} s`;
   const h = Math.floor(secs / 3600);
   const m = Math.round((secs % 3600) / 60);
   if (h && m) return `${h} h ${pad(m)}`;

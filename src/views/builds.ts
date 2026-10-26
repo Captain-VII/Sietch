@@ -21,6 +21,7 @@ export function render(root: HTMLElement, _ctx: Ctx, action?: string | null): Vi
     clearTimeout(saveTimer);
     const b = current;
     saveTimer = window.setTimeout(async () => {
+      saveTimer = 0;
       await store.save(b);
       list = await store.all();
       savedHint.textContent = "Enregistré";

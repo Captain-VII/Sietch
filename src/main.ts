@@ -5,7 +5,6 @@ import "./styles/app.css";
 
 import { api, on, type Settings, type Timer } from "./lib/api";
 import { h, icon, logo, mount, toast } from "./lib/dom";
-import { playAlarm, stopAlarm } from "./lib/sound";
 import { startLiveUpdates, syncClock } from "./lib/time";
 import * as accueil from "./views/accueil";
 import * as builds from "./views/builds";
@@ -40,6 +39,12 @@ const VIEWS: Record<ViewName, { label: string; icon: string; module: ViewModule 
   wiki: { label: "Wiki", icon: "book", module: wiki },
   parametres: { label: "Paramètres", icon: "gear", module: parametres },
 };
+
+/** En développement, hors de Tauri, on simule le moteur pour tester dans un navigateur. */
+function boot(label: string): Promise<void> {
+  const inTauri = "__TAURI_INTERNALS__" in window;
+  return import.meta.env.DEV && !inTauri ? import("./lib/mock").then((m) => m.install(label)) : Promise.resolve();
+}
 
 let timers: Timer[] = [];
 let settings: Settings;
@@ -129,12 +134,10 @@ async function start() {
   });
   await on.alarm((a) => {
     toast(a.title, a.body);
-    if (!settings.dnd && a.sound !== "aucun") playAlarm(a.sound, settings.volume);
   });
-  await on.stopSound(stopAlarm);
 }
 
-start().catch((e) => {
+boot("main").then(start).catch((e) => {
   console.error(e);
   mount(document.getElementById("app")!, h("p", { class: "empty", style: "margin: 40px" }, `Sietch n'a pas pu démarrer : ${e}`));
 });

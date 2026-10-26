@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use crate::windows;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 /// Réenregistre toutes les combinaisons des réglages.
@@ -49,9 +49,6 @@ pub fn run_action(app: &AppHandle, action: &str) {
         "marker" => windows::show_main(app, Some("carte"), Some("new-marker")),
         "timer" => windows::show_main(app, Some("minuteurs"), Some("new-timer")),
         "map" => windows::show_main(app, Some("carte"), None),
-        "mute" => {
-            let _ = app.emit("stop-sound", ());
-        }
         _ => {}
     }
 }

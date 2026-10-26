@@ -1,5 +1,5 @@
 import type { Ctx, ViewHandle } from "../main";
-import { api, GROUPS, SOUNDS, type Timer, type TimerGroup, type TimerInput } from "../lib/api";
+import { api, GROUPS, type Timer, type TimerGroup, type TimerInput } from "../lib/api";
 import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
 import { durationLabel, timerStatus } from "../lib/time";
 
@@ -13,8 +13,8 @@ const GRIP = () => {
 };
 
 function toInput(t: Timer): TimerInput {
-  const { id, name, place, group, durationSecs, repeat, alarm, sound, inOverlay } = t;
-  return { id, name, place, group, durationSecs, repeat, alarm, sound, inOverlay };
+  const { id, name, place, group, durationSecs, repeat, alarm, inOverlay } = t;
+  return { id, name, place, group, durationSecs, repeat, alarm, inOverlay };
 }
 
 export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
@@ -30,9 +30,6 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       Object.entries(GROUPS).map(([v, l]) => h("option", { value: v }, l))),
     hours: h("input", { class: "input", id: "t-h", type: "number", min: "0", max: "999", value: "0" }),
     minutes: h("input", { class: "input", id: "t-m", type: "number", min: "0", max: "59", value: "45" }),
-    sound: h("select", { class: "select", id: "t-son" },
-      h("option", { value: "" }, "Son par défaut"),
-      Object.entries(SOUNDS).map(([v, l]) => h("option", { value: v }, l))),
     alarm: h("input", { type: "checkbox", checked: true }),
     repeat: h("input", { type: "checkbox" }),
     inOverlay: h("input", { type: "checkbox", checked: true }),
@@ -49,7 +46,6 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     f.group.value = t?.group ?? "ressources";
     f.hours.value = String(t ? Math.floor(t.durationSecs / 3600) : 0);
     f.minutes.value = String(t ? Math.round((t.durationSecs % 3600) / 60) : 45);
-    f.sound.value = t?.sound ?? "";
     f.alarm.checked = t?.alarm ?? true;
     f.repeat.checked = t?.repeat ?? false;
     f.inOverlay.checked = t?.inOverlay ?? true;
@@ -76,7 +72,6 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           durationSecs: secs,
           repeat: f.repeat.checked,
           alarm: f.alarm.checked,
-          sound: f.sound.value,
           inOverlay: f.inOverlay.checked,
         };
         try {
@@ -96,9 +91,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       h("div", { class: "field grow" }, h("label", { class: "label", for: "t-h" }, "Heures"), f.hours),
       h("div", { class: "field grow" }, h("label", { class: "label", for: "t-m" }, "Minutes"), f.minutes),
     ),
-    h("div", { class: "field" }, h("label", { class: "label", for: "t-son" }, "Son d'alarme"), f.sound),
     h("div", { class: "stack", style: "--gap: 0" },
-      h("label", { class: "check" }, f.alarm, "Alarme et notification Windows"),
+      h("label", { class: "check" }, f.alarm, "Notification à la fin"),
       h("label", { class: "check" }, f.repeat, "Répéter automatiquement"),
       h("label", { class: "check" }, f.inOverlay, "Afficher dans l'overlay"),
     ),

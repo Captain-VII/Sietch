@@ -4,10 +4,9 @@ import { disable as disableAutostart, enable as enableAutostart, isEnabled as au
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api, prettyKeys, SHORTCUT_LABELS, SOUNDS, type Settings } from "../lib/api";
+import { api, prettyKeys, SHORTCUT_LABELS, type Settings } from "../lib/api";
 import { builds, getNotes, markers, setNotes, type Build, type Marker } from "../lib/data";
 import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
-import { playAlarm } from "../lib/sound";
 import { durationLabel, pad } from "../lib/time";
 
 const TABS = [
@@ -163,8 +162,6 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
     notifications: () => {
       const s = ctx.settings();
-      const vol = h("input", { id: "p-vol", type: "range", min: "0", max: "100", value: String(s.volume) });
-      vol.addEventListener("change", () => update({ volume: Number(vol.value) }));
       const reminders = REMINDERS.map((m) => {
         const box = h("input", { type: "checkbox", checked: s.coriolisReminders.includes(m) });
         box.addEventListener("change", () => {
@@ -175,17 +172,11 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         });
         return h("label", { class: "chip", style: "border-style: solid" }, box, durationLabel(m * 60));
       });
-      return card("Notifications et sons",
-        h("div", { class: "grid-auto", style: "--min: 220px; gap: 16px" },
-          h("div", { class: "row", style: "align-items: flex-end" },
-            h("div", { class: "grow" }, select("p-son", "Son par défaut", Object.entries(SOUNDS), s.defaultSound, (v) => update({ defaultSound: v }))),
-            h("button", { class: "btn", type: "button", onclick: () => playAlarm(ctx.settings().defaultSound, ctx.settings().volume) }, "Écouter"),
-          ),
-          h("div", { class: "field" }, h("label", { class: "label", for: "p-vol" }, "Volume"), vol),
-        ),
+      return card("Notifications",
+        h("p", { class: "muted", style: "margin: 0" }, "Les alertes sont silencieuses : une notification du système et un message dans Sietch, sans aucun son."),
         h("div", { class: "stack", style: "--gap: 8px" }, h("span", { class: "label" }, "Rappels avant la tempête de Coriolis"), h("div", { class: "row wrap", style: "--gap: 8px" }, reminders)),
         h("div", {},
-          sw("Ne pas déranger", "Aucune notification ni aucun son jusqu'à nouvel ordre", s.dnd, (v) => api.setDnd(v)),
+          sw("Ne pas déranger", "Aucune notification jusqu'à nouvel ordre", s.dnd, (v) => api.setDnd(v)),
         ),
         h("div", { class: "row" },
           h("button", { class: "btn btn-accent", type: "button", onclick: () => api.testAlarm() }, "Envoyer une notification de test"),
@@ -267,7 +258,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         if (typeof t?.name !== "string" || typeof t?.durationSecs !== "number") continue;
         await api.saveTimer({
           name: t.name, place: String(t.place ?? ""), group: ["ressources", "evenements", "personnels"].includes(t.group) ? t.group : "personnels",
-          durationSecs: t.durationSecs, repeat: !!t.repeat, alarm: t.alarm !== false, sound: String(t.sound ?? ""), inOverlay: t.inOverlay !== false,
+          durationSecs: t.durationSecs, repeat: !!t.repeat, alarm: t.alarm !== false, inOverlay: t.inOverlay !== false,
         });
         n++;
       }

@@ -110,10 +110,10 @@ fn set_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> V
         let _ = item.set_checked(dnd);
     }
     let errors = shortcuts::register_all(&app);
-    if let Some(w) = app.get_webview_window("overlay") {
-        if w.is_visible().unwrap_or(false) {
-            windows::apply_overlay(&app, &w);
-        }
+    if let Some(w) = app.get_webview_window("overlay")
+        && w.is_visible().unwrap_or(false)
+    {
+        windows::apply_overlay(&app, &w);
     }
     let _ = app.emit("settings-changed", settings);
     errors
@@ -124,9 +124,6 @@ pub(crate) fn set_dnd_inner(app: &AppHandle, on: bool) {
     let mut settings = state.settings.lock().unwrap().clone();
     settings.dnd = on;
     set_settings(app.clone(), state, settings);
-    if on {
-        let _ = app.emit("stop-sound", ());
-    }
 }
 
 #[tauri::command]
@@ -170,14 +167,12 @@ fn show_main(app: AppHandle, view: Option<String>) {
 fn test_alarm(app: AppHandle, state: State<AppState>) {
     let mut settings = state.settings.lock().unwrap().clone();
     settings.dnd = false;
-    let sound = settings.default_sound.clone();
     engine::send_alarm(
         &app,
         &settings,
         engine::Alarm {
             title: "Test d'alarme".into(),
             body: "Les notifications de Sietch fonctionnent.".into(),
-            sound,
         },
     );
 }
@@ -194,7 +189,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, shortcut, event| shortcuts::handle(app, shortcut, event))
+                .with_handler(shortcuts::handle)
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
