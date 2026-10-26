@@ -35,20 +35,6 @@ pub fn show_wiki(app: &AppHandle) {
     }
 }
 
-/// Fenêtre de carte dédiée : la carte seule, en plein cadre.
-pub fn toggle_map(app: &AppHandle) {
-    let Some(w) = app.get_webview_window("map") else {
-        return;
-    };
-    if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) {
-        let _ = w.hide();
-    } else {
-        let _ = w.show();
-        let _ = w.unminimize();
-        let _ = w.set_focus();
-    }
-}
-
 pub fn toggle_overlay(app: &AppHandle) {
     let Some(w) = app.get_webview_window("overlay") else {
         return;

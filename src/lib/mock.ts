@@ -147,7 +147,6 @@ function handle(cmd: string, args: Record<string, any>): unknown {
       void emit("alarm", { title: "Test d'alarme", body: "Les notifications de Sietch fonctionnent." });
       return null;
     case "toggle_overlay":
-    case "toggle_map":
     case "show_wiki":
     case "show_main":
     case "open_site":

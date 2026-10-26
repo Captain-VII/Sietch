@@ -5,8 +5,7 @@
   "windows": [
     "main",
     "overlay",
-    "wiki",
-    "map"
+    "wiki"
   ],
   "permissions": [
     "core:default",
@@ -15,19 +14,12 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-hide",
     "core:window:allow-close",
-    "core:window:allow-set-always-on-top",
     "opener:default",
     "notification:default",
     "store:default",
     "dialog:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
-    "fs:allow-read-file",
-    "fs:allow-write-file",
-    "fs:allow-exists",
-    "fs:allow-remove",
-    "fs:allow-mkdir",
-    "fs:scope-appdata-recursive",
     {
       "identifier": "http:default",
       "allow": [

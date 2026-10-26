@@ -26,7 +26,6 @@ https://github.com/Captain-VII/Sietch (licence GPL-3.0-or-later).
 | `src/main.ts` | coquille de la fenêtre principale, routeur, événements |
 | `src/views/*.ts` | écrans : accueil, carte (Leaflet), minuteurs, builds, wiki, paramètres |
 | `src/overlay.ts`, `src/wiki-window.ts` | fenêtres overlay et wiki |
-| `src/map-window.ts` | fenêtre de carte dédiée : `views/carte.ts` en mode `solo` (carte seule, plein cadre) |
 | `src/lib/` | `api.ts` (types + invoke), `data.ts` (marqueurs/builds via plugin-store), `time.ts`, `dom.ts` (`h()`), `wiki*.ts`, `live.ts` + `affine.ts` (position), `mock.ts` (mode navigateur) |
 | `.github/workflows/windows.yml` | compilation Windows à chaque push sur `main` |
 

@@ -24,14 +24,13 @@ export default defineConfig(() => ({
       },
     },
   },
-  // Quatre fenêtres : principale, overlay, wiki et carte.
+  // Trois fenêtres : principale, overlay et wiki.
   build: {
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, "index.html"),
         overlay: resolve(import.meta.dirname, "overlay.html"),
         wiki: resolve(import.meta.dirname, "wiki.html"),
-        map: resolve(import.meta.dirname, "map.html"),
       },
     },
   },

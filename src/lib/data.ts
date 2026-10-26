@@ -13,8 +13,6 @@ export interface Marker {
   /** Position sur la carte, de 0 à 900 sur chaque axe (0,0 = coin haut gauche). */
   x: number;
   y: number;
-  /** Altitude dans le jeu (cm), si le marqueur a été posé à la position du joueur. */
-  z?: number;
   note: string;
   timerId?: string;
   updatedAt: number;

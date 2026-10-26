@@ -29,11 +29,6 @@ Objectif : le point bleu suit vraiment le joueur sur la carte.
 - ✅ Trouver la chaîne de pointeurs : trouvée le 2026-10-26 avec `tools/sietch-scan` (3 niveaux, tient après une
   relance du jeu), position « en direct » dans Sietch. La chaîne reste en local dans `position.json`.
 - 🟢 Calibrer les deux régions (Bassin de Hagga, Désert profond).
-- ✅ Fenêtre de carte dédiée (Ctrl+Maj+C), flèche orientée dans le sens de la marche, « Suivre le joueur »,
-  « Toujours au premier plan », marqueurs ↑/↓ selon l'altitude (2026-10-26, inspiré de Dune Companion,
-  sans rien reprendre de son contenu).
-- 🟡 Détecter la région automatiquement (aujourd'hui : bouton « Je suis dans cette région »).
-- 🟡 Orientation réelle du personnage ou de la caméra (rotation dans la mémoire), au lieu de la direction de marche.
 - 🟢 Ajouter un outil de diagnostic dans l'onglet « Sans BattlEye » : dernière valeur lue, nombre d'échecs,
   pour comprendre vite pourquoi la position ne vient pas.
 - 🟡 Rendre la chaîne **résistante aux patchs** : retrouver automatiquement le point de départ (recherche d'une
@@ -48,8 +43,7 @@ Objectif : rendre Sietch utile même en ligne, avec BattlEye.
 
 - 🟡 **Minuteurs prêts à l'emploi** : délais de réapparition des ressources courantes (à relever en jeu ou sur le
   wiki), en un clic depuis le marqueur.
-- ✅ **Fond de carte** : import d'une capture de la carte du jeu par région (2026-10-26), étirée sur la grille ;
-  la calibration en 3 points absorbe le cadrage. La carte s'ouvre sur la région du joueur et le suit en continu.
+- 🟢 **Fond de carte** : importer sa propre image par région (capture de la carte du jeu) et la caler sur la grille.
 - 🟢 **Partage de marqueurs** par code, comme pour les builds (entre amis, en guilde).
 - 🟢 **Overlay personnalisable** : choisir les blocs affichés (heure, Coriolis, minuteurs, secteur), taille.
 - 🟢 **Liens wiki ↔ builds** : un emplacement de build ouvre l'article de l'objet sur awakening.wiki.
