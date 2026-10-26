@@ -120,6 +120,7 @@ fn set_settings(app: AppHandle, state: State<AppState>, mut settings: Settings) 
     {
         windows::apply_overlay(&app, &w);
     }
+    windows::refresh_widgets(&app);
     let _ = app.emit("settings-changed", settings);
     errors
 }

@@ -1,6 +1,11 @@
 use crate::state::AppState;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use std::sync::Mutex;
+use std::sync::atomic::Ordering;
+use tauri::{
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
+};
 
 #[derive(Clone, Serialize)]
 pub struct Navigate {
@@ -36,10 +41,12 @@ pub fn show_wiki(app: &AppHandle) {
 }
 
 pub fn toggle_overlay(app: &AppHandle) {
+    let on = !app.state::<AppState>().widgets_on.fetch_xor(true, Ordering::SeqCst);
+    refresh_widgets(app);
     let Some(w) = app.get_webview_window("overlay") else {
         return;
     };
-    if w.is_visible().unwrap_or(false) {
+    if !on {
         let _ = w.hide();
     } else {
         apply_overlay(app, &w);
@@ -75,6 +82,93 @@ pub fn apply_overlay(app: &AppHandle, w: &WebviewWindow) {
         _ => (right, top + margin),
     };
     let _ = w.set_position(PhysicalPosition::new(x, y));
+}
+
+/// Taille de base (logique) de chaque widget, avant l'échelle choisie.
+fn widget_size(kind: &str) -> (f64, f64) {
+    match kind {
+        "timers" => (240.0, 200.0),
+        "coriolis" | "sector" => (210.0, 64.0),
+        _ => (180.0, 64.0),
+    }
+}
+
+/// Ouvre, place ou ferme les fenêtres des widgets selon la disposition active.
+/// Passe par une tâche de fond : créer une fenêtre depuis le fil principal (commande synchrone,
+/// raccourci) la laisserait blanche sous Windows.
+pub fn refresh_widgets(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { apply_widgets(&app) });
+}
+
+fn apply_widgets(app: &AppHandle) {
+    // Deux mises à jour en même temps créeraient deux fois la même fenêtre.
+    static BUSY: Mutex<()> = Mutex::new(());
+    let _guard = BUSY.lock().unwrap();
+    let state = app.state::<AppState>();
+    let on = state.widgets_on.load(Ordering::SeqCst);
+    let settings = state.settings.lock().unwrap().clone();
+    let Some(layout) = settings.layouts.iter().find(|l| l.id == settings.active_layout) else {
+        return;
+    };
+    // Placement automatique : en colonne, en haut à droite de l'écran principal.
+    let area = app.primary_monitor().ok().flatten().map(|m| {
+        let area = m.work_area();
+        let size = area.size.to_logical::<f64>(m.scale_factor());
+        let p = area.position.to_logical::<f64>(m.scale_factor());
+        (p.x, p.y, size.width)
+    });
+    let mut next_y = 24.0;
+    for w in &layout.widgets {
+        let label = format!("widget-{}", w.kind);
+        let existing = app.get_webview_window(&label);
+        if !(on && w.shown) {
+            if let Some(win) = existing {
+                let _ = win.destroy();
+            }
+            continue;
+        }
+        let (bw, bh) = widget_size(&w.kind);
+        let (width, height) = (bw * w.scale, bh * w.scale);
+        let (x, y) = match (w.pos, area) {
+            (Some([x, y]), _) => (x as f64, y as f64),
+            (None, Some((left, top, aw))) => {
+                let pos = (left + aw - width - 24.0, top + next_y);
+                next_y += height + 10.0;
+                pos
+            }
+            (None, None) => (24.0, 24.0),
+        };
+        let win = match existing {
+            Some(win) => {
+                let _ = win.set_size(LogicalSize::new(width, height));
+                let _ = win.set_position(LogicalPosition::new(x, y));
+                win
+            }
+            None => {
+                let url = WebviewUrl::App(format!("widget.html?kind={}", w.kind).into());
+                let built = WebviewWindowBuilder::new(app, &label, url)
+                    .title("Sietch — Widget")
+                    .inner_size(width, height)
+                    .position(x, y)
+                    .decorations(false)
+                    .transparent(true)
+                    .shadow(false)
+                    .resizable(false)
+                    .always_on_top(true)
+                    .skip_taskbar(true)
+                    // Ne jamais prendre le focus au jeu.
+                    .focused(false)
+                    .focusable(false)
+                    .build();
+                match built {
+                    Ok(win) => win,
+                    Err(_) => continue,
+                }
+            }
+        };
+        let _ = win.set_ignore_cursor_events(settings.overlay_click_through);
+    }
 }
 
 /// Sites que Sietch peut ouvrir dans sa fenêtre de navigation.

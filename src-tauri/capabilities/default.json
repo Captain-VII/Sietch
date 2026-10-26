@@ -5,6 +5,7 @@
   "windows": [
     "main",
     "overlay",
+    "widget-*",
     "wiki"
   ],
   "permissions": [

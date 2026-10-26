@@ -23,6 +23,8 @@ pub struct AppState {
     pub live_status: Mutex<LiveStatus>,
     /// Demande de relecture de position.json par le fil des modules.
     pub live_reload: AtomicBool,
+    /// Widgets de l'overlay affichés ou masqués (raccourci de l'overlay).
+    pub widgets_on: AtomicBool,
     counter: AtomicU64,
 }
 
@@ -42,6 +44,7 @@ impl AppState {
             dnd_item: Mutex::new(None),
             live_status: Mutex::new(LiveStatus::default()),
             live_reload: AtomicBool::new(false),
+            widgets_on: AtomicBool::new(false),
             counter: AtomicU64::new(0),
         }
     }
