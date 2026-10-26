@@ -36,6 +36,29 @@ export interface Settings {
   liveModules: boolean;
   liveRegion: string;
   calibration: Record<string, CalibrationPoint[]>;
+  /** Dispositions de widgets de l'overlay (au moins une). */
+  layouts: Layout[];
+  activeLayout: string;
+}
+
+export type WidgetKind = "clock" | "coriolis" | "sector" | "timers";
+
+/** Un widget de l'overlay : une petite fenêtre à part. */
+export interface Widget {
+  kind: WidgetKind;
+  shown: boolean;
+  /** Coin haut gauche à l'écran, en pixels logiques ; null : placé automatiquement. */
+  pos: [number, number] | null;
+  /** De 0.5 à 2. */
+  scale: number;
+  /** Opacité du fond, de 20 à 100. */
+  opacity: number;
+}
+
+export interface Layout {
+  id: string;
+  name: string;
+  widgets: Widget[];
 }
 
 /** Correspondance entre coordonnées du jeu (wx, wy) et position sur la carte (mx, my, de 0 à 900). */

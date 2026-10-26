@@ -31,7 +31,11 @@ impl AppState {
         let _ = fs::create_dir_all(&dir);
         Self {
             timers: Mutex::new(read_json(&dir.join("timers.json")).unwrap_or_default()),
-            settings: Mutex::new(read_json(&dir.join("settings.json")).unwrap_or_default()),
+            settings: Mutex::new({
+                let mut s: Settings = read_json(&dir.join("settings.json")).unwrap_or_default();
+                s.normalize();
+                s
+            }),
             dir,
             shortcuts: Mutex::new(Vec::new()),
             coriolis_sent: Mutex::new(HashSet::new()),

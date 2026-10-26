@@ -32,6 +32,12 @@ const DEFAULT_SETTINGS: Settings = {
   liveModules: false,
   liveRegion: "hagga",
   calibration: {},
+  layouts: [{
+    id: "exploration",
+    name: "Exploration",
+    widgets: (["clock", "coriolis", "sector", "timers"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 70 })),
+  }],
+  activeLayout: "exploration",
 };
 
 function read(): State {

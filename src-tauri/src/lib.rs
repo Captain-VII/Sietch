@@ -106,7 +106,8 @@ fn get_settings(state: State<AppState>) -> Settings {
 
 /// Enregistre les réglages ; renvoie les raccourcis qui n'ont pas pu être enregistrés.
 #[tauri::command]
-fn set_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> Vec<String> {
+fn set_settings(app: AppHandle, state: State<AppState>, mut settings: Settings) -> Vec<String> {
+    settings.normalize();
     let dnd = settings.dnd;
     state.save_settings(&settings);
     *state.settings.lock().unwrap() = settings.clone();
