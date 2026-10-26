@@ -1,6 +1,6 @@
 import L from "leaflet";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { BaseDirectory, exists, mkdir, readFile, readTextFile, remove, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api } from "../lib/api";
 import {
@@ -18,9 +18,29 @@ const clamp = (v: number) => Math.min(SIZE, Math.max(0, Math.round(v)));
 let lastRegion: Region = "hagga";
 const hidden = new Set<MarkerType>();
 
+/** Fond de carte importé par le joueur (capture de la carte du jeu), dans le dossier de données. */
+const bgFile = (r: Region) => `fond-${r}.img`;
+const APPDATA = { baseDir: BaseDirectory.AppData };
+
+async function loadBackground(r: Region): Promise<string | null> {
+  try {
+    if (!(await exists(bgFile(r), APPDATA))) return null;
+    return URL.createObjectURL(new Blob([await readFile(bgFile(r), APPDATA)]));
+  } catch {
+    return null; // mode navigateur, ou fichier illisible : la grille seule suffit
+  }
+}
+
+/** Traînée derrière le joueur : quelques dizaines de secondes de déplacement. */
+const TRAIL_MAX = 240;
+
 export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
   let all: Marker[] = [];
-  let region = lastRegion;
+  // Avec la position en direct, la carte s'ouvre sur la région où se trouve le joueur.
+  let region: Region = live.status.active && ctx.settings().liveRegion in REGIONS ? (ctx.settings().liveRegion as Region) : lastRegion;
+  /** Vrai dès que le joueur choisit lui-même une région : on ne la change plus à sa place. */
+  let pickedRegion = false;
+  let bgUrl: string | null = null;
   let selected: Marker | null = null;
   /** Marqueur pas encore enregistré (clic droit ou raccourci). */
   let draft = false;
@@ -46,6 +66,55 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   });
   const bounds = L.latLngBounds(toLatLng(0, SIZE), toLatLng(SIZE, 0));
 
+  // Le fond de carte passe sous la grille et les marqueurs.
+  map.createPane("fond").style.zIndex = "250";
+  let bgLayer: L.ImageOverlay | null = null;
+  // Dunes décoratives dans leur propre calque, masqué quand un vrai fond est affiché.
+  const decorPane = map.createPane("decor");
+
+  async function drawBackground() {
+    const r = region;
+    const url = await loadBackground(r);
+    if (r !== region) {
+      if (url) URL.revokeObjectURL(url);
+      return;
+    }
+    bgLayer?.remove();
+    if (bgUrl) URL.revokeObjectURL(bgUrl);
+    bgUrl = url;
+    bgLayer = url ? L.imageOverlay(url, bounds, { pane: "fond", interactive: false }).addTo(map) : null;
+    decorPane.hidden = !!url;
+    drawBgButtons();
+  }
+
+  async function importBackground() {
+    const path = await open({ multiple: false, filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp"] }] });
+    if (typeof path !== "string") return;
+    try {
+      await mkdir("", { ...APPDATA, recursive: true }).catch(() => {});
+      await writeFile(bgFile(region), await readFile(path), APPDATA);
+      await drawBackground();
+      toast("Fond de carte importé", `${REGIONS[region]} : recadrez la capture sur la carte du jeu, bords compris.`);
+    } catch (e) {
+      toast("Import impossible", String(e instanceof Error ? e.message : e));
+    }
+  }
+
+  async function removeBackground() {
+    if (!(await confirmDialog(`Retirer le fond de carte de ${REGIONS[region]} ?`, "Retirer"))) return;
+    await remove(bgFile(region), APPDATA).catch(() => {});
+    await drawBackground();
+  }
+
+  const bgBox = h("div", { class: "row" });
+  function drawBgButtons() {
+    mount(
+      bgBox,
+      h("button", { class: "btn", type: "button", onclick: importBackground }, bgUrl ? "Changer le fond" : "Fond de carte"),
+      bgUrl ? h("button", { class: "btn", type: "button", onclick: removeBackground }, "Retirer le fond") : null,
+    );
+  }
+
   // Grille des secteurs A1–I9 et quelques lignes de dunes décoratives.
   const lineStyle = { color: "rgba(217, 182, 122, 0.16)", weight: 1, interactive: false };
   for (let i = 0; i <= 9; i++) {
@@ -63,7 +132,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   }
   for (const y of [200, 430, 670]) {
     const pts = Array.from({ length: 19 }, (_, i) => toLatLng(i * 50, y + Math.sin(i * 0.7 + y) * 18));
-    L.polyline(pts, { color: "#5A4228", weight: 1.2, interactive: false, smoothFactor: 2 }).addTo(map);
+    L.polyline(pts, { color: "#5A4228", weight: 1.2, interactive: false, smoothFactor: 2, pane: "decor" }).addTo(map);
   }
   const layer = L.layerGroup().addTo(map);
 
@@ -73,10 +142,21 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   const liveLayer = L.layerGroup().addTo(map);
   const liveDot = L.circleMarker([0, 0], { radius: 9, color: "#0D0A07", weight: 3, fillColor: "#4FA3D9", fillOpacity: 1, interactive: false });
   const liveHalo = L.circleMarker([0, 0], { radius: 18, color: "#4FA3D9", weight: 2, fill: false, className: "live-halo", interactive: false });
+  const liveTrail = L.polyline([], { color: "#4FA3D9", weight: 3, opacity: 0.55, interactive: false });
   const liveBar = h("div", { class: "live-bar", role: "status", "aria-live": "polite" });
   let follow = true;
   let calibrating = false;
   let liveBarKey = "";
+  let trail: L.LatLng[] = [];
+  /** Première position reçue depuis l'ouverture : on zoome dessus. */
+  let firstFix = true;
+
+  // Déplacer la carte à la main arrête le suivi ; le bouton « Suivre » le relance.
+  map.on("dragstart", () => {
+    if (!follow) return;
+    follow = false;
+    drawLive();
+  });
 
   /** Position du joueur sur la carte affichée, si la région et la calibration le permettent. */
   function livePoint(): { x: number; y: number } | null {
@@ -96,13 +176,26 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   function drawLive() {
     const st = live.status;
     const s = ctx.settings();
+    if (st.active && !pickedRegion && s.liveRegion !== region && s.liveRegion in REGIONS) {
+      setRegion(s.liveRegion as Region);
+      return; // setRegion redessine tout, position comprise
+    }
     const pt = livePoint();
     liveLayer.clearLayers();
     if (pt) {
       const ll = toLatLng(Math.max(0, Math.min(SIZE, pt.x)), Math.max(0, Math.min(SIZE, pt.y)));
+      const prev = trail[trail.length - 1];
+      if (!prev || map.distance(prev, ll) > 1.5) trail = [...trail, ll].slice(-TRAIL_MAX);
+      liveTrail.setLatLngs(trail).addTo(liveLayer);
       liveHalo.setLatLng(ll).addTo(liveLayer);
       liveDot.setLatLng(ll).addTo(liveLayer);
-      if (follow && !map.getBounds().pad(-0.25).contains(ll)) map.panTo(ll, { animate: true });
+      if (firstFix) {
+        firstFix = false;
+        map.setView(ll, Math.max(map.getZoom(), 1), { animate: false });
+      } else if (follow) {
+        // Recentre en continu, sans animation : la position arrive 4 fois par seconde.
+        map.panTo(ll, { animate: false });
+      }
     }
     liveBar.hidden = !st.enabled;
     if (!st.enabled) return;
@@ -222,18 +315,26 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         h("button", {
           type: "button", "aria-pressed": String(r === region),
           onclick: () => {
-            region = lastRegion = r;
-            draft = false;
-            selected = null;
-            calibrating = false;
-            drawRegions();
-            drawMarkers();
-            drawPanel();
-            drawLive();
+            pickedRegion = true;
+            setRegion(r);
           },
         }, REGIONS[r]),
       ),
     );
+  }
+
+  function setRegion(r: Region) {
+    region = lastRegion = r;
+    draft = false;
+    selected = null;
+    calibrating = false;
+    trail = [];
+    firstFix = true;
+    drawRegions();
+    drawMarkers();
+    drawPanel();
+    void drawBackground();
+    drawLive();
   }
 
   function drawPanel() {
@@ -377,8 +478,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       ?? all.find((m) => fold(m.name).includes(fold(q)));
     if (!found) return toast("Aucun résultat", `Rien ne correspond à « ${q} ».`);
     if (found.region !== region) {
-      region = lastRegion = found.region;
-      drawRegions();
+      pickedRegion = true;
+      setRegion(found.region);
     }
     hidden.delete(found.type);
     drawChips();
@@ -392,6 +493,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       h("div", { class: "titles" }, h("span", { class: "eyebrow" }, "Secteurs A1 — I9"), h("h1", { class: "h1" }, "Carte")),
       h("div", { class: "row wrap" },
         regionBox,
+        bgBox,
         h("button", { class: "btn", type: "button", onclick: importMarkers }, "Importer"),
         h("button", { class: "btn", type: "button", onclick: exportMarkers }, "Exporter"),
       ),
@@ -409,9 +511,12 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   drawRegions();
   drawChips();
+  drawBgButtons();
+  void drawBackground();
   requestAnimationFrame(() => {
     map.invalidateSize();
-    map.fitBounds(bounds, { padding: [8, 8] });
+    // Si la position est déjà arrivée, la carte est déjà centrée sur le joueur.
+    if (firstFix) map.fitBounds(bounds, { padding: [8, 8] });
   });
   void store.all().then((list) => {
     all = list;
@@ -435,6 +540,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     dispose: () => {
       stopLive();
       map.remove();
+      if (bgUrl) URL.revokeObjectURL(bgUrl);
     },
   };
 }
