@@ -79,7 +79,8 @@ Structures d'Unreal Engine (noms et objets du jeu) :
   ue-find <texte> [n]        objets dont le nom ou la classe contient le texte (40 par défaut)
   ue-fields <Classe>         champs d'une classe ou structure (offset, type, nom), parents compris
   ue-dump <n|adresse>        valeurs des champs d'un objet (numéro de ue-find ou adresse)
-  raw <adresse> [octets]     contenu brut (hexadécimal, flottants, doubles), 128 octets par défaut";
+  ue-classes [Outer] [n]     classes les plus nombreuses parmi les objets de l'Outer (PersistentLevel)
+  raw <adresse> [octets]    contenu brut (hexadécimal, flottants, doubles), 128 octets par défaut";
 
     // ---------- Structures d'Unreal Engine ----------
     //
@@ -418,6 +419,27 @@ Structures d'Unreal Engine (noms et objets du jeu) :
         Ok(())
     }
 
+    /// Nombre d'objets par classe parmi ceux dont l'Outer porte ce nom (ex. PersistentLevel).
+    fn ue_classes(outer: &str, n: usize) -> Result<(), String> {
+        let mut g = Game::open()?;
+        let ue = Ue::load(&mut g)?;
+        let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for i in 0..ue.num {
+            g.guard();
+            let Some(o) = ue.object(&g, i) else { continue };
+            let parent = ue.ptr(&g, o + 0x20);
+            if parent != 0 && ue.name_of(&g, parent) == outer {
+                *counts.entry(ue.class_of(&g, o)).or_default() += 1;
+            }
+        }
+        let mut list: Vec<_> = counts.into_iter().collect();
+        list.sort_by(|a, b| b.1.cmp(&a.1));
+        for (class, count) in list.into_iter().take(n) {
+            println!("{count:>6}  {class}");
+        }
+        Ok(())
+    }
+
     /// Octets bruts à une adresse, par mots de 4 : hexadécimal, flottant, et pointeur sur 8 octets.
     fn raw(addr: u64, len: usize) -> Result<(), String> {
         let g = Game::open()?;
@@ -493,6 +515,7 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             "ue-find" => ue_find(arg(1).ok_or("texte manquant")?, arg(2).map(parse_num).transpose()?.unwrap_or(40) as usize),
             "ue-fields" => ue_fields(arg(1).ok_or("nom de classe manquant")?),
             "ue-dump" => ue_dump(arg(1).ok_or("numéro ou adresse manquant")?),
+            "ue-classes" => ue_classes(arg(1).unwrap_or("PersistentLevel"), arg(2).map(parse_num).transpose()?.unwrap_or(80) as usize),
             "raw" => raw(parse_num(arg(1).ok_or("adresse manquante")?)?, arg(2).map(parse_num).transpose()?.unwrap_or(128) as usize),
             _ => {
                 println!("{USAGE}");
