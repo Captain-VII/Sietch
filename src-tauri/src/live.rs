@@ -274,6 +274,13 @@ pub fn spawn(app: AppHandle) {
                             Some(None) => player = None,
                             None => {}
                         }
+                        // Écran « Stats brutes » ouvert : toutes les valeurs d'attributs, à la demande.
+                        if state.raw_wanted.swap(false, std::sync::atomic::Ordering::Relaxed)
+                            && let (Some(p), Some(t)) = (player.as_ref(), tables)
+                            && let Some(mut u) = ue::Ue::open(r, t)
+                        {
+                            *state.raw_stats.lock().unwrap() = u.raw_stats(p);
+                        }
                         // Sans personnage trouvé : l'ancienne chaîne de pointeurs, si elle est renseignée.
                         if pos.is_none()
                             && let Ok(chain) = cfg.chain()

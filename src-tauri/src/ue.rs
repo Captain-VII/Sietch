@@ -175,6 +175,45 @@ impl<'a> Ue<'a> {
         None
     }
 
+    /// Toutes les valeurs d'attributs (GameplayAttributeData et dérivées) des jeux du personnage.
+    pub fn raw_stats(&mut self, p: &Player) -> Vec<RawStat> {
+        let mut out = Vec::new();
+        for (set, obj) in &p.sets {
+            let mut c = ptr(self.m, obj + 0x10);
+            for _ in 0..32 {
+                if c == 0 {
+                    break;
+                }
+                let mut f = ptr(self.m, c + 0x50);
+                for _ in 0..4000 {
+                    if f == 0 {
+                        break;
+                    }
+                    let is_attr = self.name_at(ptr(self.m, f + 0x08)).as_deref() == Some("StructProperty")
+                        && self.name_at(ptr(self.m, f + 0x78) + 0x18).is_some_and(|s| s.ends_with("GameplayAttributeData"));
+                    if is_attr {
+                        let off = read::<4>(self.m, f + 0x4C).map(|b| u32::from_le_bytes(b) as u64).unwrap_or(0);
+                        let size = read::<4>(self.m, f + 0x3C).map(u32::from_le_bytes).unwrap_or(16);
+                        let at = obj + off;
+                        // Variante plus grande (vie) : la valeur à jour est dans le bloc pointé à +0x10.
+                        let value = if size > 16 { read::<4>(self.m, ptr(self.m, at + 0x10)) } else { read::<4>(self.m, at + 0xC) };
+                        if let (Some(v), Some(name)) = (value.map(f32::from_le_bytes), self.name_at(f + 0x28)) {
+                            out.push(RawStat { set: set.clone(), name, value: v });
+                        }
+                    }
+                    f = ptr(self.m, f + 0x20);
+                }
+                c = ptr(self.m, c + 0x40);
+            }
+        }
+        out
+    }
+
+    /// Nom (FName) rangé à cette adresse.
+    fn name_at(&mut self, at: u64) -> Option<String> {
+        read::<4>(self.m, at).map(u32::from_le_bytes).and_then(|i| self.name(i))
+    }
+
     /// Le personnage du joueur et ses jeux d'attributs, en un seul passage sur la table des objets.
     pub fn find_player(&mut self) -> Option<Player> {
         let head = read::<24>(self.m, self.table)?;
@@ -201,6 +240,15 @@ impl<'a> Ue<'a> {
             let a = all.iter().find(|a| a.2 == c && a.1 & TEMPLATE == 0)?;
             Some(Watched { obj: a.0, index: a.5, class: c, offset: self.field(c, "m_TimeOfDayServer")? })
         });
+        // Tous les jeux d'attributs du personnage, pour l'écran « Stats brutes ».
+        let sets: Vec<(String, u64)> = all
+            .iter()
+            .filter(|a| a.4 == character)
+            .filter_map(|a| {
+                let class = read::<4>(self.m, a.2 + 0x18).map(u32::from_le_bytes).and_then(|i| self.name(i))?;
+                class.ends_with("AttributeSet").then_some((class, a.0))
+            })
+            .collect();
         if cfg!(debug_assertions) {
             eprintln!("[personnage] trouvé : 0x{character:X} (n° {index}), heure : {time_of_day:?}");
         }
@@ -232,7 +280,7 @@ impl<'a> Ue<'a> {
             heat_max: f(hydration_class, "HeatExhaustionMax")?,
             sun: f(hydration_class, "CurrentSunExposure")?,
         };
-        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, fields })
+        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, sets, fields })
     }
 }
 
@@ -278,7 +326,7 @@ pub struct Fields {
     sun: u64,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Player {
     character: u64,
     index: u32,
@@ -290,7 +338,17 @@ pub struct Player {
     time_of_day: Option<Watched>,
     /// InventoryVolumeTracker du sac : maximum à +0x38, volume courant à +0x3C (champs internes).
     backpack: Option<u64>,
+    /// Jeux d'attributs du personnage : (classe, objet).
+    sets: Vec<(String, u64)>,
     fields: Fields,
+}
+
+/// Une valeur de l'écran « Stats brutes ».
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RawStat {
+    pub set: String,
+    pub name: String,
+    pub value: f32,
 }
 
 /// Objet suivi : il est encore valide tant que son emplacement et sa classe n'ont pas changé.

@@ -190,6 +190,13 @@ fn get_player_state(state: State<AppState>) -> Option<ue::PlayerState> {
     state.player_state.lock().unwrap().clone()
 }
 
+/// Demande une relecture de tous les attributs et renvoie la dernière lecture.
+#[tauri::command]
+fn request_raw_stats(state: State<AppState>) -> Vec<ue::RawStat> {
+    state.raw_wanted.store(true, std::sync::atomic::Ordering::Relaxed);
+    state.raw_stats.lock().unwrap().clone()
+}
+
 /// Relit position.json et renvoie son chemin, pour l'afficher dans les réglages.
 #[tauri::command]
 fn reload_live_config(app: AppHandle, state: State<AppState>) -> String {
@@ -303,6 +310,7 @@ pub fn run() {
             toggle_widgets_edit,
             get_widgets_edit,
             get_player_state,
+            request_raw_stats,
             show_wiki,
             show_main,
             open_site,

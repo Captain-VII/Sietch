@@ -23,6 +23,9 @@ pub struct AppState {
     pub live_status: Mutex<LiveStatus>,
     /// Dernier état du personnage lu (pour les widgets qui s'ouvrent après coup).
     pub player_state: Mutex<Option<crate::ue::PlayerState>>,
+    /// Écran « Stats brutes » ouvert : le fil des modules relit tous les attributs.
+    pub raw_wanted: AtomicBool,
+    pub raw_stats: Mutex<Vec<crate::ue::RawStat>>,
     /// Demande de relecture de position.json par le fil des modules.
     pub live_reload: AtomicBool,
     /// Widgets de l'overlay affichés ou masqués (raccourci de l'overlay).
@@ -48,6 +51,8 @@ impl AppState {
             dnd_item: Mutex::new(None),
             live_status: Mutex::new(LiveStatus::default()),
             player_state: Mutex::new(None),
+            raw_wanted: AtomicBool::new(false),
+            raw_stats: Mutex::new(Vec::new()),
             live_reload: AtomicBool::new(false),
             widgets_on: AtomicBool::new(false),
             widgets_edit: AtomicBool::new(false),

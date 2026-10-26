@@ -43,6 +43,13 @@ export interface Settings {
 
 export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory";
 
+/** Une valeur d'attribut du personnage (écran « Stats brutes »). */
+export interface RawStat {
+  set: string;
+  name: string;
+  value: number;
+}
+
 /** État du personnage lu dans le jeu (modules sans BattlEye), arrondi au dixième. */
 export interface PlayerState {
   health: number;
@@ -140,6 +147,8 @@ export const api = {
   testAlarm: () => invoke<void>("test_alarm"),
   liveStatus: () => invoke<LiveStatus>("get_live_status"),
   playerState: () => invoke<PlayerState | null>("get_player_state"),
+  /** Demande une relecture de tous les attributs du personnage ; renvoie la dernière lecture. */
+  requestRawStats: () => invoke<RawStat[]>("request_raw_stats"),
   /** Relit position.json ; renvoie son chemin. */
   reloadLiveConfig: () => invoke<string>("reload_live_config"),
 };

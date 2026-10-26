@@ -170,6 +170,12 @@ function handle(cmd: string, args: Record<string, any>): unknown {
     case "test_alarm":
       void emit("alarm", { title: "Test d'alarme", body: "Les notifications de Sietch fonctionnent." });
       return null;
+    case "request_raw_stats": {
+      const p = simPlayer();
+      return state.settings.liveModules
+        ? [["DuneCharacterAttributeSet", "CurrentHealth", p.health], ["DuneCharacterAttributeSet", "MaxHealth", p.healthMax], ["DuneCharacterAttributeSet", "CurrentStamina", p.stamina], ["DuneHydrationAttributeSet", "CurrentHydration", p.hydration]].map(([set, name, value]) => ({ set, name, value }))
+        : [];
+    }
     case "get_player_state":
       return state.settings.liveModules ? simPlayer() : null;
     case "get_widgets_edit":
