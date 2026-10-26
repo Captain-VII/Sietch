@@ -76,7 +76,9 @@ sietch-scan — position du joueur, lecture seule, jeu SANS BattlEye uniquement
 
 Structures d'Unreal Engine (noms et objets du jeu) :
   ue                         trouve la table des noms et la table des objets, et en affiche un extrait
-  ue-find <texte> [n]        objets dont le nom ou la classe contient le texte (40 par défaut)";
+  ue-find <texte> [n]        objets dont le nom ou la classe contient le texte (40 par défaut)
+  ue-fields <Classe>         champs d'une classe ou structure (offset, type, nom), parents compris
+  ue-dump <n|adresse>        valeurs des champs d'un objet (numéro de ue-find ou adresse)";
 
     // ---------- Structures d'Unreal Engine ----------
     //
@@ -96,13 +98,47 @@ Structures d'Unreal Engine (noms et objets du jeu) :
     struct Ue {
         /// Adresse de Blocks[0] dans la table des noms.
         blocks: u64,
-        /// Adresse de la table des objets (champ Objects).
+        /// Adresse de la table des objets dans l'image du jeu (FChunkedFixedUObjectArray).
+        table: u64,
+        /// Tableau des paquets d'objets (champ Objects).
         objects: u64,
         num: u32,
         stride: u64,
     }
 
     impl Ue {
+        fn at(g: &Game, blocks: u64, table: u64, stride: u64) -> Result<Self, String> {
+            let b = g.read::<24>(table).ok_or("table des objets illisible")?;
+            Ok(Ue { blocks, table, objects: u(&b, 0), num: u32_at(&b, 20), stride })
+        }
+
+        /// Tables retrouvées par `ue` (ue.txt), sinon nouvelle recherche.
+        fn load(g: &mut Game) -> Result<Self, String> {
+            let text = fs::read_to_string(ue_path()?).unwrap_or_default();
+            let get = |k: &str| {
+                text.lines().find_map(|l| l.strip_prefix(k)).and_then(|v| u64::from_str_radix(v.trim_start_matches("0x"), 16).ok())
+            };
+            if let (Some(b), Some(t), Some(s)) = (get("blocks_rva=0x"), get("table_rva=0x"), get("stride=0x")) {
+                let ue = Ue::at(g, g.base + b, g.base + t, s)?;
+                if ue.entry(g, 0).as_deref() == Some("None") {
+                    return Ok(ue);
+                }
+            }
+            let ue = find_tables(g)?;
+            ue.save(g)?;
+            Ok(ue)
+        }
+
+        fn save(&self, g: &Game) -> Result<(), String> {
+            let text = format!(
+                "blocks_rva=0x{:X}\ntable_rva=0x{:X}\nstride=0x{:X}\n",
+                self.blocks - g.base,
+                self.table - g.base,
+                self.stride
+            );
+            fs::write(ue_path()?, text).map_err(|e| e.to_string())
+        }
+
         fn entry(&self, g: &Game, idx: u32) -> Option<String> {
             let block = u(&g.read::<8>(self.blocks + (idx >> 16) as u64 * 8)?, 0);
             if block == 0 {
@@ -208,11 +244,10 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             blocks.is_some() && objects.is_some()
         });
         let blocks = blocks.ok_or("pointeur vers le bloc 0 des noms introuvable dans l'image du jeu")?;
-        let (objects_at, num) = objects.ok_or("table des objets introuvable dans l'image du jeu")?;
-        let objects = u(&g.read::<8>(objects_at).ok_or("table des objets illisible")?, 0);
+        let (table, _) = objects.ok_or("table des objets introuvable dans l'image du jeu")?;
         // Taille d'un FUObjectItem : celle pour laquelle InternalIndex correspond à la position.
         for stride in [24u64, 16, 32] {
-            let ue = Ue { blocks, objects, num, stride };
+            let ue = Ue::at(g, blocks, table, stride)?;
             let ok = (1..200u32)
                 .filter(|&i| ue.object(g, i).and_then(|o| g.read::<4>(o + 0xC)).is_some_and(|b| u32_at(&b, 0) == i))
                 .count();
@@ -245,21 +280,164 @@ Structures d'Unreal Engine (noms et objets du jeu) :
                 println!("  {i:>6}  {:<28} {}", ue.class_of(&g, o), ue.name_of(&g, o));
             }
         }
-        let path = ue_path()?;
-        let text = format!(
-            "blocks_rva=0x{:X}\nobjects=0x{:X}\nnum={}\nstride={}\n",
-            ue.blocks - g.base,
-            ue.objects,
-            ue.num,
-            ue.stride
-        );
-        fs::write(&path, text).map_err(|e| e.to_string())?;
-        println!("Enregistré dans {}", path.display());
+        ue.save(&g)?;
+        println!("Enregistré dans {}", ue_path()?.display());
         Ok(())
     }
 
-    fn ue_find(_text: &str, _n: usize) -> Result<(), String> {
-        Err("commande « ue-find » pas encore écrite".into())
+    /// Objets dont le nom ou la classe contient le texte (sans tenir compte de la casse).
+    fn ue_find(text: &str, n: usize) -> Result<(), String> {
+        let mut g = Game::open()?;
+        let ue = Ue::load(&mut g)?;
+        let needle = text.to_lowercase();
+        let mut shown = 0;
+        for i in 0..ue.num {
+            g.guard();
+            let Some(o) = ue.object(&g, i) else { continue };
+            let (name, class) = (ue.name_of(&g, o), ue.class_of(&g, o));
+            if name.to_lowercase().contains(&needle) || class.to_lowercase().contains(&needle) {
+                let outer = g.read::<8>(o + 0x20).map(|b| u(&b, 0)).filter(|&p| p != 0).map(|p| ue.name_of(&g, p));
+                println!("{i:>7}  0x{o:X}  {class:<32} {name}  ← {}", outer.unwrap_or_default());
+                shown += 1;
+                if shown >= n {
+                    println!("… (limite de {n} atteinte)");
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    // Réflexion (UE 5) : UStruct.SuperStruct +0x40, ChildProperties +0x50 ; FField.ClassPrivate +0x08,
+    // Next +0x20, NamePrivate +0x28 ; FProperty.Offset_Internal +0x4C ; FStructProperty.Struct et
+    // FObjectProperty.PropertyClass +0x78 ; FBoolProperty : ByteOffset +0x79, FieldMask +0x7B ;
+    // FFieldClass.Name +0x00.
+    struct Field {
+        name: String,
+        kind: String,
+        offset: u32,
+        at: u64,
+    }
+
+    impl Ue {
+        /// Champs d'une classe ou d'une structure, ceux des parents compris (les parents d'abord).
+        fn fields(&self, g: &Game, class: u64) -> Vec<(String, Vec<Field>)> {
+            let mut out = Vec::new();
+            let mut c = class;
+            for _ in 0..32 {
+                if c == 0 {
+                    break;
+                }
+                let mut list = Vec::new();
+                let mut f = g.read::<8>(c + 0x50).map(|b| u(&b, 0)).unwrap_or(0);
+                while f != 0 && list.len() < 2000 {
+                    let kind = g.read::<8>(f + 0x08).map(|b| u(&b, 0)).and_then(|k| self.fname(g, k)).unwrap_or_default();
+                    let name = self.fname(g, f + 0x28).unwrap_or_default();
+                    let offset = g.read::<4>(f + 0x4C).map(|b| u32_at(&b, 0)).unwrap_or(0);
+                    list.push(Field { name, kind, offset, at: f });
+                    f = g.read::<8>(f + 0x20).map(|b| u(&b, 0)).unwrap_or(0);
+                }
+                out.push((self.name_of(g, c), list));
+                c = g.read::<8>(c + 0x40).map(|b| u(&b, 0)).unwrap_or(0);
+            }
+            out.reverse();
+            out
+        }
+
+        /// Classe ou structure (Class, ScriptStruct, BlueprintGeneratedClass…) portant exactement ce nom.
+        fn find_type(&self, g: &mut Game, name: &str) -> Option<u64> {
+            (0..self.num).find_map(|i| {
+                g.guard();
+                let o = self.object(g, i)?;
+                (self.name_of(g, o) == name && matches!(self.class_of(g, o).as_str(), "Class" | "ScriptStruct" | "BlueprintGeneratedClass"))
+                    .then_some(o)
+            })
+        }
+
+        fn ptr(&self, g: &Game, at: u64) -> u64 {
+            g.read::<8>(at).map(|b| u(&b, 0)).unwrap_or(0)
+        }
+
+        /// Valeur lisible d'un champ d'un objet, pour les types simples.
+        fn value(&self, g: &Game, obj: u64, fld: &Field) -> Option<String> {
+            let at = obj + fld.offset as u64;
+            Some(match fld.kind.as_str() {
+                "FloatProperty" => format!("{:.3}", f32::from_le_bytes(g.read::<4>(at)?)),
+                "DoubleProperty" => format!("{:.3}", f(&g.read::<8>(at)?, 0)),
+                "IntProperty" => i32::from_le_bytes(g.read::<4>(at)?).to_string(),
+                "UInt32Property" => u32_at(&g.read::<4>(at)?, 0).to_string(),
+                "Int64Property" => i64::from_le_bytes(g.read::<8>(at)?).to_string(),
+                "ByteProperty" | "EnumProperty" => g.read::<1>(at)?[0].to_string(),
+                "BoolProperty" => {
+                    let b = g.read::<4>(fld.at + 0x78)?;
+                    let byte = g.read::<1>(at + b[1] as u64)?[0];
+                    (byte & b[3] != 0).to_string()
+                }
+                "NameProperty" => self.fname(g, at)?,
+                "ObjectProperty" | "WeakObjectProperty" => {
+                    let p = self.ptr(g, at);
+                    if p == 0 { "nul".into() } else { format!("0x{p:X} {} {}", self.class_of(g, p), self.name_of(g, p)) }
+                }
+                "StructProperty" => {
+                    let s = self.name_of(g, self.ptr(g, fld.at + 0x78));
+                    let size = g.read::<4>(fld.at + 0x3C).map(|b| u32_at(&b, 0)).unwrap_or(0);
+                    if s.ends_with("GameplayAttributeData") && size > 16 {
+                        // Variante plus grande : on montre tous ses flottants pour repérer la bonne valeur.
+                        let mut b = vec![0u8; size.min(64) as usize];
+                        g.read_into(at, &mut b);
+                        let floats: Vec<String> = (8..b.len() - 3)
+                            .step_by(4)
+                            .map(|i| format!("+{i}:{:.2}", f32::from_le_bytes(b[i..i + 4].try_into().unwrap())))
+                            .collect();
+                        format!("[{s}, {size} octets] {}", floats.join(" "))
+                    } else if s.ends_with("GameplayAttributeData") {
+                        // FGameplayAttributeData (et ses dérivées, comme FglGameplayAttributeData) : vtable, BaseValue, CurrentValue.
+                        let b = g.read::<16>(at)?;
+                        format!("{:.2} (base {:.2})", f32::from_le_bytes(b[12..16].try_into().unwrap()), f32::from_le_bytes(b[8..12].try_into().unwrap()))
+                    } else {
+                        format!("[{s}]")
+                    }
+                }
+                _ => return None,
+            })
+        }
+    }
+
+    fn ue_fields(name: &str) -> Result<(), String> {
+        let mut g = Game::open()?;
+        let ue = Ue::load(&mut g)?;
+        let class = ue.find_type(&mut g, name).ok_or("classe ou structure introuvable (nom exact attendu)")?;
+        for (owner, list) in ue.fields(&g, class) {
+            println!("— {owner}");
+            for f in list {
+                let detail = if f.kind == "StructProperty" || f.kind == "ObjectProperty" {
+                    ue.name_of(&g, ue.ptr(&g, f.at + 0x78))
+                } else {
+                    String::new()
+                };
+                println!("  +0x{:04X}  {:<20} {} {detail}", f.offset, f.kind, f.name);
+            }
+        }
+        Ok(())
+    }
+
+    /// Valeurs d'un objet (numéro de la table ou adresse), champ par champ.
+    fn ue_dump(target: &str) -> Result<(), String> {
+        let mut g = Game::open()?;
+        let ue = Ue::load(&mut g)?;
+        let n = parse_num(target)?;
+        let obj = if n < ue.num as u64 { ue.object(&g, n as u32).ok_or("emplacement vide")? } else { n };
+        let class = ue.ptr(&g, obj + 0x10);
+        println!("0x{obj:X}  {} {}", ue.class_of(&g, obj), ue.name_of(&g, obj));
+        for (owner, list) in ue.fields(&g, class) {
+            println!("— {owner}");
+            for f in &list {
+                if let Some(v) = ue.value(&g, obj, f) {
+                    println!("  +0x{:04X}  {:<32} {v}", f.offset, f.name);
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn run(args: &[String]) -> Result<(), String> {
@@ -299,6 +477,8 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             "show" => show(arg(1).map(parse_num).transpose()?.unwrap_or(20) as usize),
             "ue" => ue_find_tables(),
             "ue-find" => ue_find(arg(1).ok_or("texte manquant")?, arg(2).map(parse_num).transpose()?.unwrap_or(40) as usize),
+            "ue-fields" => ue_fields(arg(1).ok_or("nom de classe manquant")?),
+            "ue-dump" => ue_dump(arg(1).ok_or("numéro ou adresse manquant")?),
             _ => {
                 println!("{USAGE}");
                 Ok(())
