@@ -5,6 +5,7 @@ mod shortcuts;
 mod state;
 mod timers;
 mod tray;
+mod ue;
 mod windows;
 
 use serde::Serialize;

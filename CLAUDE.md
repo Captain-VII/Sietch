@@ -38,7 +38,7 @@ npm ci                       # dépendances
 npm run tauri dev            # lancer (Rust + Vite sur le port 1420)
 SIETCH_SIMULATION=1 npm run tauri dev   # simule un jeu sans BattlEye et une position qui bouge
 npx tsc --noEmit -p .        # types
-cd src-tauri && cargo test && cargo clippy   # tests (9) et lint Rust, doit rester à 0 avertissement
+cd src-tauri && cargo test && cargo clippy   # tests (10) et lint Rust, doit rester à 0 avertissement
 npm run tauri build          # installateurs (sous Windows : NSIS + MSI)
 npm run icon                 # regénère toutes les icônes depuis assets/ (et force la recompilation Rust)
 ```

@@ -7,10 +7,11 @@
 
 use crate::state::AppState;
 use crate::timers::now_ms;
+use crate::ue;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use sysinfo::{ProcessesToUpdate, System};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -116,6 +117,26 @@ fn processes(sys: &mut System) -> Vec<(String, u32)> {
         .collect()
 }
 
+/// Tables d'Unreal Engine du cache, si elles valent encore pour cette version du jeu.
+fn cached_tables(path: &std::path::Path, r: &memory::Reader) -> Option<ue::Tables> {
+    let t: ue::Tables = serde_json::from_str(&fs::read_to_string(path).ok()?).ok()?;
+    ue::Ue::open(r, t).map(|_| t)
+}
+
+/// Pour les longues recherches : vrai (= arrêter) dès que BattlEye apparaît, vérifié toutes les 2 secondes.
+fn battleye_watch<'a>(sys: &'a mut System, names: &'a [String]) -> impl FnMut() -> bool + 'a {
+    let names: Vec<String> = names.iter().map(|n| n.to_lowercase()).collect();
+    let mut last = Instant::now();
+    move || {
+        if last.elapsed() < Duration::from_secs(2) {
+            return false;
+        }
+        last = Instant::now();
+        let list = processes(sys);
+        list.is_empty() || list.iter().any(|(n, _)| names.contains(n))
+    }
+}
+
 pub fn spawn(app: AppHandle) {
     std::thread::spawn(move || {
         let mut sys = System::new();
@@ -124,6 +145,11 @@ pub fn spawn(app: AppHandle) {
         let mut reader: Option<memory::Reader> = None;
         let mut tick: u64 = 0;
         let mut game_pid: Option<u32> = None;
+        let ue_cache = app.state::<AppState>().dir.join("ue.json");
+        let mut tables: Option<ue::Tables> = None;
+        let mut player: Option<ue::Player> = None;
+        let mut last_state: Option<ue::PlayerState> = None;
+        let (mut last_tables_try, mut last_player_try): (Option<Instant>, Option<Instant>) = (None, None);
         loop {
             let state = app.state::<AppState>();
             if state.live_reload.swap(false, std::sync::atomic::Ordering::Relaxed) {
@@ -151,14 +177,13 @@ pub fn spawn(app: AppHandle) {
                     reader = None; // on lâche immédiatement le jeu
                 }
                 game_pid = game;
-                let configured = sim || !cfg.pointer_chain.is_empty();
+                // Le personnage se retrouve par les noms d'Unreal Engine : plus besoin de chaîne de pointeurs.
+                let configured = sim || cfg!(windows);
                 let active = enabled && game.is_some() && !battleye && configured && (sim || cfg!(windows));
                 let message = if let Some(e) = &cfg_error {
                     Some(e.clone())
                 } else if battleye && game.is_some() {
                     Some("BattlEye est actif : les modules sont coupés.".into())
-                } else if !configured && enabled {
-                    Some("Chaîne de pointeurs à renseigner dans position.json.".into())
                 } else if !sim && !cfg!(windows) && enabled {
                     Some("La lecture de position ne fonctionne que sous Windows.".into())
                 } else {
@@ -186,6 +211,10 @@ pub fn spawn(app: AppHandle) {
                 }
             }
 
+            if reader.is_none() {
+                // Poignée lâchée (BattlEye, jeu fermé ou relancé) : le personnage est à retrouver.
+                player = None;
+            }
             if status.active {
                 let pos = if status.source == "simulation" {
                     let t = now_ms() as f64 / 1000.0;
@@ -198,10 +227,53 @@ pub fn spawn(app: AppHandle) {
                         let module = if cfg.module.is_empty() { cfg.game_processes[0].clone() } else { cfg.module.clone() };
                         reader = memory::Reader::open(pid, &module).ok();
                     }
-                    match (reader.as_ref(), cfg.chain()) {
-                        (Some(r), Ok(chain)) => r.position(&chain, cfg.coordinates == "f32"),
-                        _ => None,
+                    let mut pos = None;
+                    if let Some(r) = reader.as_ref() {
+                        // Tables d'Unreal Engine : depuis le cache, sinon une recherche (une fois par version du jeu).
+                        if tables.is_none() && last_tables_try.is_none_or(|t| t.elapsed() > Duration::from_secs(60)) {
+                            last_tables_try = Some(Instant::now());
+                            tables = cached_tables(&ue_cache, r).or_else(|| {
+                                status.message = Some("Recherche des structures du jeu (environ une minute)…".into());
+                                let _ = app.emit("live-status", status.clone());
+                                let mut stop = battleye_watch(&mut sys, &cfg.battleye_processes);
+                                let found = ue::Ue::scan(r, &mut stop).ok().map(|(_, t)| t);
+                                if let Some(t) = found.as_ref().and_then(|t| serde_json::to_string(t).ok()) {
+                                    let _ = fs::write(&ue_cache, t);
+                                }
+                                found
+                            });
+                        }
+                        if player.is_none()
+                            && let Some(t) = tables
+                            && last_player_try.is_none_or(|i| i.elapsed() > Duration::from_secs(3))
+                        {
+                            last_player_try = Some(Instant::now());
+                            player = ue::Ue::open(r, t).and_then(|mut u| u.find_player());
+                        }
+                        match player.as_ref().map(|p| p.read(r)) {
+                            Some(Some(s)) => {
+                                pos = Some((s.x, s.y, s.z));
+                                let s = s.rounded();
+                                if last_state.as_ref() != Some(&s) {
+                                    if cfg!(debug_assertions) {
+                                        eprintln!("[personnage] {s:?}");
+                                    }
+                                    let _ = app.emit("player-state", &s);
+                                    last_state = Some(s);
+                                }
+                            }
+                            Some(None) => player = None,
+                            None => {}
+                        }
+                        // Sans personnage trouvé : l'ancienne chaîne de pointeurs, si elle est renseignée.
+                        if pos.is_none()
+                            && let Ok(chain) = cfg.chain()
+                            && !chain.is_empty()
+                        {
+                            pos = r.position(&chain, cfg.coordinates == "f32");
+                        }
                     }
+                    pos
                 };
                 if let Some((x, y, z)) = pos {
                     let _ = app.emit("player-position", Position { x, y, z, at: now_ms() });
@@ -222,12 +294,16 @@ mod memory {
         CreateToolhelp32Snapshot, MODULEENTRY32W, Module32FirstW, Module32NextW, TH32CS_SNAPMODULE,
         TH32CS_SNAPMODULE32,
     };
-    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ};
+    use windows_sys::Win32::System::Memory::{
+        MEM_COMMIT, MEM_IMAGE, MEM_PRIVATE, MEMORY_BASIC_INFORMATION, PAGE_GUARD, PAGE_NOACCESS, VirtualQueryEx,
+    };
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
 
     /// Accès en LECTURE SEULE à la mémoire du jeu (aucun droit d'écriture demandé).
     pub struct Reader {
         handle: HANDLE,
         base: u64,
+        size: u64,
     }
 
     // La poignée n'est utilisée que depuis le fil des modules.
@@ -235,21 +311,18 @@ mod memory {
 
     impl Reader {
         pub fn open(pid: u32, module: &str) -> Result<Self, String> {
-            let base = module_base(pid, module).ok_or("module du jeu introuvable")?;
-            let handle = unsafe { OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+            let (base, size) = module_base(pid, module).ok_or("module du jeu introuvable")?;
+            // PROCESS_QUERY_INFORMATION : nécessaire pour lister les zones (VirtualQueryEx).
+            let handle = unsafe { OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, 0, pid) };
             if handle.is_null() {
                 return Err("accès au jeu refusé".into());
             }
-            Ok(Self { handle, base })
+            Ok(Self { handle, base, size })
         }
 
         fn read<const N: usize>(&self, addr: u64) -> Option<[u8; N]> {
             let mut buf = [0u8; N];
-            let mut read = 0usize;
-            let ok = unsafe {
-                ReadProcessMemory(self.handle, addr as *const _, buf.as_mut_ptr() as *mut _, N, &mut read)
-            };
-            (ok != 0 && read == N).then_some(buf)
+            (crate::ue::Mem::read_into(self, addr, &mut buf) == N).then_some(buf)
         }
 
         pub fn position(&self, chain: &[u64], f32_coords: bool) -> Option<(f64, f64, f64)> {
@@ -273,13 +346,53 @@ mod memory {
         }
     }
 
+    impl crate::ue::Mem for Reader {
+        fn read_into(&self, addr: u64, buf: &mut [u8]) -> usize {
+            let mut read = 0usize;
+            let ok = unsafe {
+                ReadProcessMemory(self.handle, addr as *const _, buf.as_mut_ptr() as *mut _, buf.len(), &mut read)
+            };
+            if ok != 0 { buf.len() } else { read }
+        }
+
+        fn module(&self) -> (u64, u64) {
+            (self.base, self.size)
+        }
+
+        fn regions(&self, heap: bool) -> Vec<(u64, u64)> {
+            let mut out = Vec::new();
+            let mut addr: u64 = 0;
+            while addr < 0x7FFF_FFFF_0000 {
+                let mut mbi: MEMORY_BASIC_INFORMATION = unsafe { std::mem::zeroed() };
+                let n = unsafe {
+                    VirtualQueryEx(self.handle, addr as *const _, &mut mbi, std::mem::size_of::<MEMORY_BASIC_INFORMATION>())
+                };
+                if n == 0 {
+                    break;
+                }
+                let (base, size) = (mbi.BaseAddress as u64, mbi.RegionSize as u64);
+                let readable = mbi.State == MEM_COMMIT && mbi.Protect != 0 && mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD) == 0;
+                let wanted = if heap {
+                    mbi.Type == MEM_PRIVATE
+                } else {
+                    mbi.Type == MEM_IMAGE && base >= self.base && base < self.base + self.size
+                };
+                if readable && wanted {
+                    out.push((base, size));
+                }
+                addr = base.saturating_add(size.max(0x1000));
+            }
+            out
+        }
+    }
+
     impl Drop for Reader {
         fn drop(&mut self) {
             unsafe { CloseHandle(self.handle) };
         }
     }
 
-    fn module_base(pid: u32, module: &str) -> Option<u64> {
+    fn module_base(pid: u32, module: &str) -> Option<(u64, u64)> {
         let snap = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid) };
         if snap == INVALID_HANDLE_VALUE {
             return None;
@@ -291,7 +404,7 @@ mod memory {
             let len = entry.szModule.iter().position(|&c| c == 0).unwrap_or(entry.szModule.len());
             let name = String::from_utf16_lossy(&entry.szModule[..len]);
             if name.eq_ignore_ascii_case(module) {
-                found = Some(entry.modBaseAddr as u64);
+                found = Some((entry.modBaseAddr as u64, entry.modBaseSize as u64));
                 break;
             }
             ok = unsafe { Module32NextW(snap, &mut entry) };
@@ -313,6 +426,18 @@ mod memory {
 
         pub fn position(&self, _chain: &[u64], _f32: bool) -> Option<(f64, f64, f64)> {
             None
+        }
+    }
+
+    impl crate::ue::Mem for Reader {
+        fn read_into(&self, _addr: u64, _buf: &mut [u8]) -> usize {
+            0
+        }
+        fn module(&self) -> (u64, u64) {
+            (0, 0)
+        }
+        fn regions(&self, _heap: bool) -> Vec<(u64, u64)> {
+            Vec::new()
         }
     }
 }
