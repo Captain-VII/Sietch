@@ -43,7 +43,8 @@ Objectif : rendre Sietch utile même en ligne, avec BattlEye.
 
 - 🟡 **Minuteurs prêts à l'emploi** : délais de réapparition des ressources courantes (à relever en jeu ou sur le
   wiki), en un clic depuis le marqueur.
-- 🟢 **Fond de carte** : importer sa propre image par région (capture de la carte du jeu) et la caler sur la grille.
+- ✅ **Fond de carte** : import d'une capture de la carte du jeu par région (2026-10-26), étirée sur la grille ;
+  la calibration en 3 points absorbe le cadrage. La carte s'ouvre sur la région du joueur et le suit en continu.
 - 🟢 **Partage de marqueurs** par code, comme pour les builds (entre amis, en guilde).
 - 🟢 **Overlay personnalisable** : choisir les blocs affichés (heure, Coriolis, minuteurs, secteur), taille.
 - 🟢 **Liens wiki ↔ builds** : un emplacement de build ouvre l'article de l'objet sur awakening.wiki.
