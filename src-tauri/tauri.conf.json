@@ -16,6 +16,7 @@
       {
         "label": "main",
         "create": false,
+        "focus": false,
         "title": "Sietch",
         "url": "index.html",
         "width": 1440,
@@ -28,24 +29,9 @@
         "decorations": false
       },
       {
-        "label": "overlay",
-        "create": false,
-        "title": "Sietch — Overlay",
-        "url": "overlay.html",
-        "width": 340,
-        "height": 520,
-        "minWidth": 260,
-        "minHeight": 320,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "shadow": false,
-        "visible": false
-      },
-      {
         "label": "wiki",
         "create": false,
+        "focus": false,
         "title": "Sietch — Wiki",
         "url": "wiki.html",
         "width": 960,

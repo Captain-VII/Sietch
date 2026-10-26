@@ -45,7 +45,9 @@ Objectif : rendre Sietch utile même en ligne, avec BattlEye.
   wiki), en un clic depuis le marqueur.
 - 🟢 **Fond de carte** : importer sa propre image par région (capture de la carte du jeu) et la caler sur la grille.
 - 🟢 **Partage de marqueurs** par code, comme pour les builds (entre amis, en guilde).
-- 🟢 **Overlay personnalisable** : choisir les blocs affichés (heure, Coriolis, minuteurs, secteur), taille.
+- ✅ **Overlay personnalisable** (2026-10-26) : un widget par élément (heure, Coriolis, secteur, minuteurs),
+  placé à la souris (Ctrl+Maj+L), taille à la molette, plusieurs dispositions (Ctrl+Maj+N), réglages dans
+  Paramètres › Overlay. Reste : l'essai en jeu par l'utilisateur et l'installation de la version de la CI.
 - 🟢 **Liens wiki ↔ builds** : un emplacement de build ouvre l'article de l'objet sur awakening.wiki.
 - 🟢 **Notes par marqueur** enrichies (captures d'écran, liste de choses à récolter).
 

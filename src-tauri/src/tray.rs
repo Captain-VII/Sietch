@@ -16,6 +16,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let edit = MenuItem::with_id(app, "overlay-edit", "Placer les widgets", true, None::<&str>)?;
+    let next = MenuItem::with_id(app, "overlay-next", "Disposition suivante", true, None::<&str>)?;
     let wiki = MenuItem::with_id(app, "wiki", "Ouvrir le wiki", true, None::<&str>)?;
     let timer = MenuItem::with_id(app, "timer", "Nouveau minuteur", true, None::<&str>)?;
     let dnd_item = CheckMenuItem::with_id(app, "dnd", "Ne pas déranger", true, dnd, None::<&str>)?;
@@ -26,7 +27,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(
         app,
         &[
-            &open, &overlay, &edit, &wiki, &timer, &sep1, &dnd_item, &settings, &sep2, &quit,
+            &open, &overlay, &edit, &next, &wiki, &timer, &sep1, &dnd_item, &settings, &sep2, &quit,
         ],
     )?;
     *app.state::<AppState>().dnd_item.lock().unwrap() = Some(dnd_item);
@@ -39,6 +40,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             "open" => windows::show_main(app, None, None),
             "overlay" => windows::toggle_overlay(app),
             "overlay-edit" => windows::toggle_widgets_edit(app),
+            "overlay-next" => windows::next_layout(app),
             "wiki" => windows::show_wiki(app),
             "timer" => shortcuts::run_action(app, "timer"),
             "settings" => windows::show_main(app, Some("parametres"), None),

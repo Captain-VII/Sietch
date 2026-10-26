@@ -29,9 +29,7 @@ export interface Settings {
   dnd: boolean;
   closeToTray: boolean;
   startMinimized: boolean;
-  overlayOpacity: number;
   overlayClickThrough: boolean;
-  overlayPosition: string;
   shortcuts: Record<string, string>;
   liveModules: boolean;
   liveRegion: string;
@@ -142,6 +140,7 @@ export const SHORTCUT_LABELS: Record<string, string> = {
   timer: "Démarrer un minuteur",
   overlay: "Afficher / masquer l'overlay",
   "overlay-edit": "Placer les widgets",
+  "overlay-next": "Disposition suivante",
   wiki: "Recherche wiki",
   map: "Ouvrir la carte",
 };

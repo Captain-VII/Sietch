@@ -27,7 +27,7 @@ https://github.com/Captain-VII/Sietch (licence GPL-3.0-or-later).
 | `src-tauri/src/tray.rs`, `shortcuts.rs`, `windows.rs` | zone de notification, raccourcis globaux, fenêtres (principale, overlay, wiki, web) |
 | `src/main.ts` | coquille de la fenêtre principale, routeur, événements |
 | `src/views/*.ts` | écrans : accueil, carte (Leaflet), minuteurs, builds, wiki, paramètres |
-| `src/overlay.ts`, `src/wiki-window.ts` | fenêtres overlay et wiki |
+| `src/widget.ts`, `src/wiki-window.ts` | widgets de l'overlay (une fenêtre par élément, `windows.rs`) et fenêtre wiki |
 | `src/lib/` | `api.ts` (types + invoke), `data.ts` (marqueurs/builds via plugin-store), `time.ts`, `dom.ts` (`h()`), `wiki*.ts`, `live.ts` + `affine.ts` (position), `mock.ts` (mode navigateur) |
 | `.github/workflows/windows.yml` | compilation Windows à chaque push sur `main` |
 
@@ -38,7 +38,7 @@ npm ci                       # dépendances
 npm run tauri dev            # lancer (Rust + Vite sur le port 1420)
 SIETCH_SIMULATION=1 npm run tauri dev   # simule un jeu sans BattlEye et une position qui bouge
 npx tsc --noEmit -p .        # types
-cd src-tauri && cargo test && cargo clippy   # tests (8) et lint Rust, doit rester à 0 avertissement
+cd src-tauri && cargo test && cargo clippy   # tests (9) et lint Rust, doit rester à 0 avertissement
 npm run tauri build          # installateurs (sous Windows : NSIS + MSI)
 npm run icon                 # regénère toutes les icônes depuis assets/ (et force la recompilation Rust)
 ```
@@ -64,6 +64,11 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
   release (pages embarquées), le front appelle les commandes avant `manage()` → « state not managed ». Invisible en dev.
   Toute nouvelle fenêtre de la config suit la même règle. Une commande Tauri qui crée une fenêtre doit être `async`,
   sinon la fenêtre reste blanche sous Windows (cas de `open_site`, corrigé le 2026-10-26).
+  Les fenêtres de la config ont `"focus": false` : sinon, même cachées, elles prennent le focus au jeu au démarrage.
+- **Widgets de l'overlay** (`windows.rs`) : une fenêtre par élément, créée depuis une tâche de fond (`refresh_widgets`),
+  transparente, toujours devant, avec `WS_EX_NOACTIVATE` (un clic ne doit jamais prendre le focus au jeu ;
+  `focusable(false)` ne suffit pas). Positions enregistrées en sortant du mode édition. En dev, la fenêtre principale
+  reste cachée au démarrage (l'appli redémarre à chaque modification du Rust).
 
 ## État au 2026-10-26 (fin de la session sur le Mac)
 

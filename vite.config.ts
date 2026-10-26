@@ -24,12 +24,11 @@ export default defineConfig(() => ({
       },
     },
   },
-  // Fenêtres : principale, overlay, widgets de l'overlay et wiki.
+  // Fenêtres : principale, widgets de l'overlay et wiki.
   build: {
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, "index.html"),
-        overlay: resolve(import.meta.dirname, "overlay.html"),
         widget: resolve(import.meta.dirname, "widget.html"),
         wiki: resolve(import.meta.dirname, "wiki.html"),
       },

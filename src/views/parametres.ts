@@ -251,7 +251,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           sw("Clic traversant", "Widgets verrouillés : les clics passent à travers, vers le jeu. Le mode édition les rend toujours déplaçables.",
             s.overlayClickThrough, (v) => update({ overlayClickThrough: v })),
         ),
-        h("p", { class: "muted", style: "margin: 0" }, "Un raccourci par disposition arrive bientôt. Choisissez dans l'écran Minuteurs quels minuteurs apparaissent dans le widget Minuteurs."),
+        h("p", { class: "muted", style: "margin: 0" }, `${prettyKeys(s.shortcuts["overlay-next"] ?? "")} passe d'une disposition à l'autre, même en jeu. Choisissez dans l'écran Minuteurs quels minuteurs apparaissent dans le widget Minuteurs.`),
       );
     },
 

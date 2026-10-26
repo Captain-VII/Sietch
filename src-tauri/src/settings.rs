@@ -17,10 +17,8 @@ pub struct Settings {
     pub dnd: bool,
     pub close_to_tray: bool,
     pub start_minimized: bool,
-    pub overlay_opacity: u8,
+    /// Widgets verrouillés : les clics passent à travers, vers le jeu.
     pub overlay_click_through: bool,
-    /// "top-right", "top-left", "bottom-right", "bottom-left" ou "free".
-    pub overlay_position: String,
     /// Action → combinaison, ex. "overlay" → "Ctrl+Shift+O".
     pub shortcuts: BTreeMap<String, String>,
     /// Modules sans BattlEye (position en direct). Désactivés par défaut.
@@ -125,12 +123,21 @@ impl Settings {
     }
 }
 
+impl Settings {
+    /// Identifiant de la disposition qui suit l'active (on revient à la première après la dernière).
+    pub fn next_layout(&self) -> String {
+        let i = self.layouts.iter().position(|l| l.id == self.active_layout).unwrap_or(0);
+        self.layouts[(i + 1) % self.layouts.len()].id.clone()
+    }
+}
+
 /// Raccourcis globaux par défaut : action → combinaison.
-pub const DEFAULT_SHORTCUTS: [(&str, &str); 6] = [
+pub const DEFAULT_SHORTCUTS: [(&str, &str); 7] = [
     ("marker", "Ctrl+Shift+M"),
     ("timer", "Ctrl+Shift+T"),
     ("overlay", "Ctrl+Shift+O"),
     ("overlay-edit", "Ctrl+Shift+L"),
+    ("overlay-next", "Ctrl+Shift+N"),
     ("wiki", "Ctrl+Shift+W"),
     ("map", "Ctrl+Shift+C"),
 ];
@@ -160,9 +167,7 @@ impl Default for Settings {
             dnd: false,
             close_to_tray: true,
             start_minimized: false,
-            overlay_opacity: 85,
             overlay_click_through: false,
-            overlay_position: "top-right".into(),
             shortcuts,
             live_modules: false,
             live_region: "hagga".into(),
@@ -263,5 +268,16 @@ mod tests {
         assert_eq!(s.shortcuts["overlay"], "Ctrl+Alt+O");
         assert_eq!(s.shortcuts["wiki"], "", "combinaison vidée gardée vide");
         assert_eq!(s.shortcuts["overlay-edit"], "Ctrl+Shift+L");
+    }
+
+    #[test]
+    fn next_layout_cycles() {
+        let mut s = Settings {
+            layouts: vec![Layout::default(), Layout { id: "combat".into(), ..Layout::default() }],
+            ..Default::default()
+        };
+        assert_eq!(s.next_layout(), "combat");
+        s.active_layout = "combat".into();
+        assert_eq!(s.next_layout(), "exploration");
     }
 }

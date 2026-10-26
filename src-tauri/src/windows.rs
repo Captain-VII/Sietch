@@ -3,8 +3,7 @@ use serde::Serialize;
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 
 #[derive(Clone, Serialize)]
@@ -48,40 +47,6 @@ pub fn toggle_overlay(app: &AppHandle) {
     }
     state.widgets_on.fetch_xor(true, Ordering::SeqCst);
     refresh_widgets(app);
-    // L'ancien overlay d'un seul bloc n'est plus affiché : il prenait le focus au jeu.
-    if let Some(w) = app.get_webview_window("overlay") {
-        let _ = w.hide();
-    }
-}
-
-/// Applique position, clic traversant et premier plan selon les réglages.
-pub fn apply_overlay(app: &AppHandle, w: &WebviewWindow) {
-    let settings = app.state::<AppState>().settings.lock().unwrap().clone();
-    let _ = w.set_always_on_top(true);
-    let _ = w.set_ignore_cursor_events(settings.overlay_click_through);
-    if settings.overlay_position == "free" {
-        return;
-    }
-    let monitor = w
-        .current_monitor()
-        .ok()
-        .flatten()
-        .or_else(|| w.primary_monitor().ok().flatten());
-    let (Some(monitor), Ok(size)) = (monitor, w.outer_size()) else {
-        return;
-    };
-    let margin = (24.0 * monitor.scale_factor()) as i32;
-    let area = monitor.work_area();
-    let (left, top) = (area.position.x, area.position.y);
-    let right = left + area.size.width as i32 - size.width as i32 - margin;
-    let bottom = top + area.size.height as i32 - size.height as i32 - margin;
-    let (x, y) = match settings.overlay_position.as_str() {
-        "top-left" => (left + margin, top + margin),
-        "bottom-left" => (left + margin, bottom),
-        "bottom-right" => (right, bottom),
-        _ => (right, top + margin),
-    };
-    let _ = w.set_position(PhysicalPosition::new(x, y));
 }
 
 /// Entre ou sort du mode édition des widgets. En sortant, les positions sont enregistrées
@@ -96,6 +61,19 @@ pub fn toggle_widgets_edit(app: &AppHandle) {
         save_widget_positions(app);
     }
     let _ = app.emit("widgets-edit", editing);
+}
+
+/// Passe à la disposition suivante et affiche ses widgets.
+pub fn next_layout(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    if state.widgets_edit.load(Ordering::SeqCst) {
+        // Les positions en cours d'édition appartiennent à la disposition actuelle.
+        toggle_widgets_edit(app);
+    }
+    let mut settings = state.settings.lock().unwrap().clone();
+    settings.active_layout = settings.next_layout();
+    state.widgets_on.store(true, Ordering::SeqCst);
+    crate::set_settings(app.clone(), state, settings);
 }
 
 fn save_widget_positions(app: &AppHandle) {

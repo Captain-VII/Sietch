@@ -115,11 +115,6 @@ fn set_settings(app: AppHandle, state: State<AppState>, mut settings: Settings) 
         let _ = item.set_checked(dnd);
     }
     let errors = shortcuts::register_all(&app);
-    if let Some(w) = app.get_webview_window("overlay")
-        && w.is_visible().unwrap_or(false)
-    {
-        windows::apply_overlay(&app, &w);
-    }
     windows::refresh_widgets(&app);
     let _ = app.emit("settings-changed", settings);
     errors

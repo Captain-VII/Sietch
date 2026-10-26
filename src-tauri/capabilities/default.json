@@ -4,7 +4,6 @@
   "description": "Permissions des fenêtres de Sietch",
   "windows": [
     "main",
-    "overlay",
     "widget-*",
     "wiki"
   ],
