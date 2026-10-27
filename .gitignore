@@ -25,3 +25,6 @@ dist-ssr
 
 # Outil sietch-scan
 tools/sietch-scan/target
+
+# Python (outils)
+__pycache__/

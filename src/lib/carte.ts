@@ -49,14 +49,21 @@ const RESOURCE_KINDS: Record<string, { label: string; color: string; icon: keyof
   Ornithopter: { label: "Ornithoptère", color: "#f1d7ff", icon: "ornithoptere" },
 };
 
+/** Catégories déjà calculées : la mini-carte les demande à chaque image. */
+const kindCache = new Map<string, { key: string; label: string; color: string; path: string; ground: boolean }>();
+
 /** Catégorie d'une ressource (clé de masquage `r:<nom>`), libellé, couleur, pictogramme, et si elle se ramasse au sol. */
 export function resourceKind(name: string) {
+  const cached = kindCache.get(name);
+  if (cached) return cached;
   const ground = name.endsWith("_Pickup");
   const base = name.replace(/_Pickup$/, "");
   // Variantes (« AzuriteOre_Cliffside ») : on garde la ressource de départ.
   const known = Object.keys(RESOURCE_KINDS).filter((n) => base === n || base.startsWith(`${n}_`))[0];
   const k = (known && RESOURCE_KINDS[known]) || { label: base.replace(/([a-z])([A-Z])/g, "$1 $2"), color: "#e9dfc9", icon: "pierre" as const };
-  return { key: `r:${k.label}`, label: k.label, color: k.color, path: RES_ICONS[k.icon], ground };
+  const kind = { key: `r:${k.label}`, label: k.label, color: k.color, path: RES_ICONS[k.icon], ground };
+  kindCache.set(name, kind);
+  return kind;
 }
 
 /** Pastille SVG d'une ressource : fond sombre, contour et pictogramme dans la couleur de la ressource. */

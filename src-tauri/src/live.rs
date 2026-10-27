@@ -321,16 +321,20 @@ pub fn spawn(app: AppHandle) {
                         {
                             last_resources = Some(Instant::now());
                             let region = state.map_data.lock().unwrap().as_ref().map(|m| region_of(&m.layer)).unwrap_or("hagga");
+                            let started = Instant::now();
                             let found = u.resources();
                             if cfg!(debug_assertions) {
-                                eprintln!("[ressources] {} autour du joueur, {} connues", found.len(), seen.len());
+                                eprintln!("[ressources] {} autour du joueur, {} connues, lues en {} ms", found.len(), seen.len(), started.elapsed().as_millis());
                             }
-                            if seen.update(region, found) {
+                            let (added, changed) = seen.update(region, found);
+                            if added {
                                 let _ = fs::write(&seen_file, seen.to_json());
                             }
-                            let list = seen.list();
-                            let _ = app.emit("resources", &list);
-                            *state.resources.lock().unwrap() = list;
+                            if changed {
+                                let list = seen.list();
+                                let _ = app.emit("resources", &list);
+                                *state.resources.lock().unwrap() = list;
+                            }
                         }
                         // Écran « Stats brutes » ouvert : toutes les valeurs d'attributs, à la demande.
                         if state.raw_wanted.swap(false, std::sync::atomic::Ordering::Relaxed)
@@ -395,8 +399,10 @@ impl Seen {
         format!("{}|{}|{}|{}", r.region, r.res.name, (r.res.x / 100.0).round(), (r.res.y / 100.0).round())
     }
 
-    /// Marque les ressources chargées ; renvoie `true` si de nouvelles ont été découvertes.
-    fn update(&mut self, region: &str, found: Vec<ue::Resource>) -> bool {
+    /// Marque les ressources chargées. Renvoie (nouvelles découvertes, liste changée) : on n'enregistre
+    /// le fichier que s'il y a du nouveau, et on ne prévient les fenêtres que si quelque chose a bougé.
+    fn update(&mut self, region: &str, found: Vec<ue::Resource>) -> (bool, bool) {
+        let before: std::collections::BTreeSet<String> = self.0.iter().filter(|(_, r)| r.live).map(|(k, _)| k.clone()).collect();
         for r in self.0.values_mut() {
             r.live = false;
         }
@@ -405,7 +411,8 @@ impl Seen {
             let r = SeenResource { region: region.into(), res, live: true };
             added |= self.0.insert(Self::key(&r), r).is_none();
         }
-        added
+        let after = self.0.iter().filter(|(_, r)| r.live).map(|(k, _)| k);
+        (added, added || !after.eq(before.iter()))
     }
 
     fn len(&self) -> usize {
@@ -581,6 +588,19 @@ mod memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remembers_seen_resources() {
+        let res = |x: f64| ue::Resource { name: "AzuriteOre".into(), x, y: 0.0, z: 0.0, respawn: 1500.0 };
+        let mut seen = Seen::default();
+        assert_eq!(seen.update("hagga", vec![res(0.0), res(10_000.0)]), (true, true));
+        // Même relevé : rien de neuf, rien à envoyer.
+        assert_eq!(seen.update("hagga", vec![res(0.0), res(10_000.0)]), (false, false));
+        // Une ressource n'est plus chargée : gardée, mais plus « en direct ».
+        assert_eq!(seen.update("hagga", vec![res(0.0)]), (false, true));
+        assert_eq!(seen.len(), 2);
+        assert_eq!(seen.list().iter().filter(|r| r.live).count(), 1);
+    }
 
     #[test]
     fn waits_for_several_clean_checks() {
