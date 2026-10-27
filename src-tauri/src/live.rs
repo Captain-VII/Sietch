@@ -277,6 +277,14 @@ pub fn spawn(app: AppHandle) {
                                     {
                                         eprintln!("[carte] {:?}, {} zones, {} points", m.bounds, m.areas.len(), m.pois.len());
                                     }
+                                    // Région automatique : celle du calque de carte lu dans le jeu.
+                                    if let Some(m) = &map {
+                                        let mut s = state.settings.lock().unwrap().clone();
+                                        if s.live_region != region_of(&m.layer) {
+                                            s.live_region = region_of(&m.layer).into();
+                                            crate::set_settings(app.clone(), app.state::<AppState>(), s);
+                                        }
+                                    }
                                     let _ = app.emit("map-data", &map);
                                     *state.map_data.lock().unwrap() = map;
                                 }

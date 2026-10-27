@@ -211,8 +211,14 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     void ctx.saveSettings({ ...s, mapImages: { ...s.mapImages, [region]: fit } }).then(drawBackground);
   });
 
-  void api.mapData().then((m) => { mapData = m; drawGame(); drawLive(); });
-  const stopMapData = on.mapData((m) => { mapData = m; drawGame(); drawLive(); });
+  void api.mapData().then((m) => { mapData = m; followRegion(); drawGame(); drawLive(); });
+  /** Région automatique : la carte suit la région où se trouve le joueur. */
+  const followRegion = () => {
+    if (!mapData || mapRegion(mapData) === region) return;
+    region = lastRegion = mapRegion(mapData);
+    drawRegions(); drawMarkers(); drawPanel(); void drawBackground();
+  };
+  const stopMapData = on.mapData((m) => { mapData = m; followRegion(); drawGame(); drawLive(); });
   void api.resources().then((r) => { resources = r; drawGame(); });
   const stopResources = on.resources((r) => { resources = r; drawGame(); });
 
