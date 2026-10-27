@@ -92,6 +92,7 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   « Événements/Dangers » de la carte du jeu, même zoom (dézoom maximum).
 - **Reste** (en solo, sans BattlEye, sessions longues) : noms des zones (piste dans `docs/carte-en-direct.md`),
   emplacements du sac, durabilité des équipements.
+
 ## État au 2026-10-26 (fin de la session sur le Mac)
 
 Fait et testé dans le navigateur (moteur simulé) : tous les écrans, minuteurs, carte, builds, wiki en ligne,
