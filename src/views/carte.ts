@@ -3,19 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api, on, type MapData } from "../lib/api";
-
-/** Types de points d'intérêt lus dans le jeu (Terrain Blocks), couleurs de la carte. */
-const POI_KINDS: Record<string, { label: string; color: string }> = {
-  station: { label: "Station écologique", color: "#6fb6e8" },
-  base: { label: "Base", color: "#e05a4f" },
-  epave: { label: "Épave", color: "#b9ad93" },
-  mine: { label: "Galerie de mine", color: "#c9a861" },
-  autel: { label: "Autel", color: "#b46be0" },
-  abri: { label: "Abri du Landsraad", color: "#7fd1b9" },
-  moissonneuse: { label: "Moissonneuse", color: "#e8823a" },
-  histoire: { label: "Lieu de l'histoire", color: "#f1d7ff" },
-  evenement: { label: "Événement", color: "#f09a8a" },
-};
+import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -23,7 +11,6 @@ import {
 import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
 import { live, solveAffine, toMap } from "../lib/live";
 
-const SIZE = 900;
 /** Leaflet compte la latitude vers le haut : y (vers le bas) devient -y. */
 const toLatLng = (x: number, y: number) => L.latLng(-y, x);
 const clamp = (v: number) => Math.min(SIZE, Math.max(0, Math.round(v)));
@@ -31,14 +18,7 @@ const clamp = (v: number) => Math.min(SIZE, Math.max(0, Math.round(v)));
 let lastRegion: Region = "hagga";
 const hidden = new Set<MarkerType>();
 /** Catégories de points d'intérêt masquées, gardées d'une session à l'autre. */
-const POI_HIDDEN_KEY = "sietch-carte-poi-masques";
-const hiddenPoi = new Set<string>((() => {
-  try {
-    return JSON.parse(localStorage.getItem(POI_HIDDEN_KEY) ?? "[]") as string[];
-  } catch {
-    return [];
-  }
-})());
+const hiddenPoi = new Set<string>(hiddenPoiKinds());
 
 export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
   let all: Marker[] = [];
@@ -95,14 +75,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   const gameLayer = L.layerGroup().addTo(map);
   let mapData: MapData | null = null;
 
-  /** Région de la carte lue (calque Survival_1 = Bassin de Hagga). */
-  const mapRegion = (m: MapData): Region => (/deep|profond/i.test(m.layer) ? "profond" : "hagga");
-
-  /** Coordonnées du jeu (cm) → carte (0 à 900) ; +y vers le sud, comme la carte du jeu. */
-  function worldToMap(x: number, y: number) {
-    const b = mapData!.bounds;
-    return { x: ((x - b.minX) / (b.maxX - b.minX)) * SIZE, y: ((y - b.minY) / (b.maxY - b.minY)) * SIZE };
-  }
+  const worldToMap = (x: number, y: number) => toWorldMap(mapData!, x, y);
 
   /** Catégories de points d'intérêt à cocher, avec le nombre de points de chacune. */
   function drawPoiChips() {

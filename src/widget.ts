@@ -3,13 +3,14 @@ import "./styles/components.css";
 import "./styles/widget.css";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, on, type PlayerState, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
+import { api, on, type MapData, type PlayerState, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
+import { hiddenPoiKinds, mapRegion, POI_KINDS, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
 import { remaining, startLiveUpdates, syncClock } from "./lib/time";
 
-/** Un widget de l'overlay : une petite fenêtre par élément, ouverte par le moteur (`widget.html?kind=…`). */
+/** Un widget de l'overlay : une petite fenÃªtre par Ã©lÃ©ment, ouverte par le moteur (`widget.html?kind=â€¦`). */
 const kind = new URLSearchParams(location.search).get("kind") as WidgetKind;
 const card = h("div", { class: "widget" });
 let settings: Settings;
@@ -51,22 +52,22 @@ function drawTimers() {
 
 // ---------- Secteur ----------
 
-/** Secteur en direct si la position est connue et la carte calibrée, sinon dernier marqueur. */
+/** Secteur en direct si la position est connue et la carte calibrÃ©e, sinon dernier marqueur. */
 async function drawSector() {
   const p = live.position;
   const t = p ? solveAffine(settings.calibration[settings.liveRegion]) : null;
   if (p && t) {
     const m = toMap(t, p.x, p.y);
     const sector = sectorOf(Math.max(0, Math.min(899, m.x)), Math.max(0, Math.min(899, m.y)));
-    const region = settings.liveRegion === "profond" ? "Désert profond" : "Hagga";
-    mount(card, ...line("Secteur", h("span", { class: "digits w-mid live" }, `${sector} · ${region}`)));
+    const region = settings.liveRegion === "profond" ? "DÃ©sert profond" : "Hagga";
+    mount(card, ...line("Secteur", h("span", { class: "digits w-mid live" }, `${sector} Â· ${region}`)));
     return;
   }
   const last = (await markers.all()).sort((a, b) => b.updatedAt - a.updatedAt)[0];
   mount(
     card,
     ...(last
-      ? line("Dernier marqueur", h("span", { class: "digits w-mid" }, `${sectorOf(last.x, last.y)} · ${last.name}`))
+      ? line("Dernier marqueur", h("span", { class: "digits w-mid" }, `${sectorOf(last.x, last.y)} Â· ${last.name}`))
       : line("Secteur", h("span", { class: "w-soft" }, "Inconnu"))),
   );
 }
@@ -115,7 +116,7 @@ const BARS: Partial<Record<WidgetKind, { label: string; value: (s: PlayerState) 
   health: { label: "Vie", value: (s) => [s.health, s.healthMax] },
   stamina: { label: "Endurance", value: (s) => [s.stamina, s.staminaMax] },
   hydration: { label: "Eau", value: (s) => [s.hydration, s.hydrationMax] },
-  power: { label: "Énergie", value: (s) => [s.power, s.powerMax] },
+  power: { label: "Ã‰nergie", value: (s) => [s.power, s.powerMax] },
   // Le sac s'alerte quand il est presque plein, pas presque vide.
   inventory: { label: "Volume", value: (s) => [s.volume ?? 0, s.volumeMax ?? 0], full: true },
 };
@@ -128,15 +129,135 @@ function drawBar(s: PlayerState | null) {
     card,
     h("div", { class: "w-bar-head" },
       h("span", { class: "w-label" }, bar.label),
-      h("span", { class: "digits w-mid" }, max > 0 ? `${Math.round(cur)} / ${Math.round(max)}` : "—")),
+      h("span", { class: "digits w-mid" }, max > 0 ? `${Math.round(cur)} / ${Math.round(max)}` : "â€”")),
     h("div", { class: `w-bar ${kind}` }, h("span", { style: `width: ${pct.toFixed(1)}%` })),
   );
   card.classList.toggle("low", max > 0 && (bar.full ? pct >= 90 : pct <= 25));
 }
 
-// ---------- Mode édition ----------
+// ---------- Mini-carte ----------
 
-/** Cadre, déplacement à la souris et taille à la molette ; le moteur enregistre les positions en sortant. */
+/** Demi-largeur visible, en unitÃ©s de carte (1 unitÃ© â‰ˆ 9 m dans le Bassin de Hagga) : environ 1 km de large. */
+const VIEW = 60;
+/** Rayon du disque, en pixels CSS (fenÃªtre de 200 Ã— 200 avant l'Ã©chelle). */
+const R = 100;
+const canvas = h("canvas", { class: "w-minimap" }) as HTMLCanvasElement;
+let mapData: MapData | null = null;
+let mapImg: { img: HTMLImageElement; rect: [number, number, number, number] } | null = null;
+let player: PlayerState | null = null;
+
+async function loadMapImage() {
+  mapImg = null;
+  if (!mapData) return;
+  const region = mapRegion(mapData);
+  const url = await api.mapImage(region).catch(() => null);
+  if (!url) return;
+  const img = new Image();
+  img.src = url;
+  await img.decode().catch(() => undefined);
+  mapImg = { img, rect: settings.mapImages[region] ?? [0, 0, SIZE, SIZE] };
+}
+
+/** Nord en haut, joueur au centre ; fond (si importÃ©), zones, lieux et flÃ¨che du joueur. */
+function drawMinimap() {
+  const scale = config(settings)?.scale ?? 1;
+  const dpr = window.devicePixelRatio * scale;
+  if (canvas.width !== Math.round(2 * R * dpr)) canvas.width = canvas.height = Math.round(2 * R * dpr);
+  const g = canvas.getContext("2d")!;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, 2 * R, 2 * R);
+  g.save();
+  g.beginPath();
+  g.arc(R, R, R - 2, 0, Math.PI * 2);
+  g.fillStyle = "rgba(17, 19, 31, 0.6)";
+  g.fill();
+  g.clip();
+
+  const here = player && mapData ? worldToMap(mapData, player.x, player.y) : null;
+  if (here && mapData) {
+    const k = R / VIEW;
+    const px = (x: number) => R + (x - here.x) * k;
+    const py = (y: number) => R + (y - here.y) * k;
+    if (mapImg) {
+      const [x0, y0, x1, y1] = mapImg.rect;
+      g.globalAlpha = 0.85;
+      g.drawImage(mapImg.img, px(x0), py(y0), (x1 - x0) * k, (y1 - y0) * k);
+      g.globalAlpha = 1;
+    }
+    // Lignes des secteurs, pour se repÃ©rer avec la grande carte.
+    g.strokeStyle = "rgba(217, 182, 122, 0.25)";
+    g.lineWidth = 1;
+    for (let i = 0; i <= 9; i++) {
+      g.beginPath();
+      g.moveTo(px(i * 100), py(0));
+      g.lineTo(px(i * 100), py(SIZE));
+      g.moveTo(px(0), py(i * 100));
+      g.lineTo(px(SIZE), py(i * 100));
+      g.stroke();
+    }
+    const unit = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
+    g.strokeStyle = "rgba(201, 168, 97, 0.4)";
+    for (const a of mapData.areas) {
+      for (const [x, y, r] of a.circles) {
+        const p = worldToMap(mapData, x, y);
+        g.beginPath();
+        g.arc(px(p.x), py(p.y), r * unit * k, 0, Math.PI * 2);
+        g.stroke();
+      }
+    }
+    const masked = new Set(hiddenPoiKinds());
+    for (const poi of mapData.pois) {
+      if (masked.has(poi.kind)) continue;
+      const p = worldToMap(mapData, poi.x, poi.y);
+      if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
+      g.beginPath();
+      g.arc(px(p.x), py(p.y), 4, 0, Math.PI * 2);
+      g.fillStyle = POI_KINDS[poi.kind]?.color ?? "#e9dfc9";
+      g.fill();
+      g.lineWidth = 1.5;
+      g.strokeStyle = "#11131F";
+      g.stroke();
+    }
+    // FlÃ¨che du joueur : yaw 0 = vers l'est, comme sur la grande carte.
+    g.save();
+    g.translate(R, R);
+    g.rotate(((player!.yaw + 90) * Math.PI) / 180);
+    g.beginPath();
+    g.moveTo(0, -9);
+    g.lineTo(6.5, 7);
+    g.lineTo(0, 3.5);
+    g.lineTo(-6.5, 7);
+    g.closePath();
+    g.fillStyle = "#b46be0";
+    g.fill();
+    g.lineWidth = 1.5;
+    g.strokeStyle = "#f1d7ff";
+    g.stroke();
+    g.restore();
+  }
+  g.restore();
+
+  // Anneau, nord et secteur.
+  g.beginPath();
+  g.arc(R, R, R - 2, 0, Math.PI * 2);
+  g.lineWidth = 2;
+  g.strokeStyle = "rgba(201, 168, 97, 0.85)";
+  g.stroke();
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.shadowColor = "rgba(4, 5, 10, 0.9)";
+  g.shadowBlur = 3;
+  g.fillStyle = "#f3e7cf";
+  g.font = "600 11px Jost, sans-serif";
+  g.fillText("N", R, 11);
+  g.font = "600 13px Jost, sans-serif";
+  g.fillText(here ? sectorOf(Math.max(0, Math.min(899, here.x)), Math.max(0, Math.min(899, here.y))) : "Position inconnue", R, 2 * R - 16);
+  g.shadowBlur = 0;
+}
+
+// ---------- Mode Ã©dition ----------
+
+/** Cadre, dÃ©placement Ã  la souris et taille Ã  la molette ; le moteur enregistre les positions en sortant. */
 const badge = h("span", { class: "w-badge" });
 
 function setEditing(on: boolean) {
@@ -161,7 +282,7 @@ function editControls() {
   });
 }
 
-// ---------- Démarrage ----------
+// ---------- DÃ©marrage ----------
 
 async function start() {
   [settings, timers] = await Promise.all([api.settings(), api.timers()]);
@@ -195,10 +316,27 @@ async function start() {
       drawBar(await api.playerState());
       await on.playerState(drawBar);
       break;
+    case "minimap": {
+      card.classList.add("minimap");
+      mount(card, canvas);
+      [player, mapData] = await Promise.all([api.playerState(), api.mapData()]);
+      await loadMapImage();
+      drawMinimap();
+      await on.playerState((s) => {
+        player = s;
+        drawMinimap();
+      });
+      await on.mapData(async (m) => {
+        mapData = m;
+        await loadMapImage();
+        drawMinimap();
+      });
+      break;
+    }
     case "sector": {
       void drawSector();
       await startLive();
-      // Le secteur change rarement : on ne redessine qu'à chaque changement.
+      // Le secteur change rarement : on ne redessine qu'Ã  chaque changement.
       let lastKey = sectorKey();
       live.subscribe(() => {
         const key = sectorKey();
@@ -207,7 +345,7 @@ async function start() {
           void drawSector();
         }
       });
-      // Un marqueur a pu être ajouté depuis la fenêtre principale.
+      // Un marqueur a pu Ãªtre ajoutÃ© depuis la fenÃªtre principale.
       window.setInterval(() => {
         if (sectorKey() === "aucun") void drawSector();
       }, 10_000);
@@ -221,10 +359,15 @@ async function start() {
     apply(s);
     await syncClock();
     if (kind === "sector") void drawSector();
+    if (kind === "minimap") {
+      // Fond changÃ© ou rÃ©alignÃ©, Ã©chelle modifiÃ©e.
+      await loadMapImage();
+      drawMinimap();
+    }
   });
 }
 
-/** En développement, hors de Tauri, on simule le moteur pour tester dans un navigateur. */
+/** En dÃ©veloppement, hors de Tauri, on simule le moteur pour tester dans un navigateur. */
 function boot(label: string): Promise<void> {
   const inTauri = "__TAURI_INTERNALS__" in window;
   return import.meta.env.DEV && !inTauri ? import("./lib/mock").then((m) => m.install(label)) : Promise.resolve();

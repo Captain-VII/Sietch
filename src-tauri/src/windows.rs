@@ -102,6 +102,7 @@ fn widget_size(kind: &str) -> (f64, f64) {
         "timers" => (250.0, 170.0),
         "sector" => (250.0, 64.0),
         "coriolis" => (210.0, 64.0),
+        "minimap" => (200.0, 200.0),
         "health" | "stamina" | "hydration" | "power" | "inventory" => (230.0, 52.0),
         _ => (180.0, 64.0),
     }

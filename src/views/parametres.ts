@@ -33,6 +33,7 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   hydration: "Eau",
   power: "Énergie",
   inventory: "Volume du sac",
+  minimap: "Mini-carte",
 };
 
 let lastTab: Tab = "general";

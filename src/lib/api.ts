@@ -45,7 +45,7 @@ export interface Settings {
   activeLayout: string;
 }
 
-export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory";
+export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory" | "minimap";
 
 /** Carte de la région lue dans le jeu : limites (cm), zones (cercles x, y, rayon) et points d'intérêt. */
 export interface MapData {

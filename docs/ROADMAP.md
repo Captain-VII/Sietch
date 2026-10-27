@@ -131,3 +131,4 @@ Objectif : que d'autres joueurs puissent l'utiliser sans friction.
 - ✅ Ctrl+Maj+R relance le dernier minuteur terminé sans ouvrir Sietch (notification silencieuse).
 - ✅ Builds : recherche (nom, équipement, notes) et filtre par usage, affichés à partir de 4 builds.
 - 🟡 À essayer en jeu : le raccourci de relance, une fois la vraie version installée.
+- ✅ Widget Mini-carte (2026-10-27) : nord en haut, centré sur le joueur, fond, zones, lieux, flèche et secteur ; validé en jeu.

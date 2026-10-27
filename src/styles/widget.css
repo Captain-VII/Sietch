@@ -51,6 +51,22 @@ body {
     0 1px 3px rgba(4, 5, 10, 0.8);
 }
 
+/* Mini-carte : disque dessiné dans un canevas, sans marge. */
+.widget.minimap {
+  padding: 0;
+  align-items: stretch;
+}
+
+.editing .widget.minimap {
+  border-radius: 50%;
+}
+
+.w-minimap {
+  display: block;
+  width: 200px;
+  height: 200px;
+}
+
 .w-label {
   font-family: var(--font-label);
   font-weight: 500;
