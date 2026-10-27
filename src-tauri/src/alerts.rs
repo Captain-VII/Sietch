@@ -18,21 +18,23 @@ pub struct AlertSettings {
     pub power: u8,
     /// Sac rempli au-delà de ce pourcentage.
     pub volume: u8,
+    /// Menace du ver au-delà de ce pourcentage du seuil d'attaque.
+    pub worm: u8,
 }
 
 impl Default for AlertSettings {
     fn default() -> Self {
-        Self { water: 25, health: 30, power: 15, volume: 90 }
+        Self { water: 25, health: 30, power: 15, volume: 90, worm: 75 }
     }
 }
 
 /// Écart (en points de pourcentage) à franchir pour réarmer une alerte.
 const MARGIN: f32 = 5.0;
 
-/// Alertes déjà envoyées, dans l'ordre eau, vie, power pack, sac.
+/// Alertes déjà envoyées, dans l'ordre eau, vie, power pack, sac, ver.
 #[derive(Default)]
 pub struct Alerts {
-    sent: [bool; 4],
+    sent: [bool; 5],
 }
 
 impl Alerts {
@@ -51,6 +53,7 @@ impl Alerts {
                 "Sac presque plein",
                 "Videz-le avant de récolter davantage.",
             ),
+            (s.worm_threat, cfg.worm, true, "Le ver approche", "Arrêtez de bouger sur le sable ou gagnez la roche."),
         ];
         let mut out = Vec::new();
         for (i, (value, threshold, above, title, body)) in checks.into_iter().enumerate() {
@@ -104,6 +107,17 @@ mod tests {
         assert!(a.check(&state(28.0, 100.0), &cfg).is_empty(), "pas réarmée sous seuil + marge");
         a.check(&state(40.0, 100.0), &cfg);
         assert_eq!(a.check(&state(25.0, 100.0), &cfg).len(), 1, "réarmée après être remontée");
+    }
+
+    #[test]
+    fn sandworm_alert() {
+        let mut a = Alerts::default();
+        let cfg = AlertSettings::default();
+        let calm = PlayerState { worm_threat: Some(20.0), ..state(80.0, 100.0) };
+        assert!(a.check(&calm, &cfg).is_empty());
+        let near = PlayerState { worm_threat: Some(80.0), ..state(80.0, 100.0) };
+        assert_eq!(a.check(&near, &cfg).iter().map(|x| x.title.as_str()).collect::<Vec<_>>(), ["Le ver approche"]);
+        assert!(a.check(&near, &cfg).is_empty(), "pas de répétition");
     }
 
     #[test]

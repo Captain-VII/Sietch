@@ -33,9 +33,9 @@ const DEFAULT_SETTINGS: Settings = {
   liveModules: false,
   liveRegion: "hagga",
   calibration: {},
-  playerAlerts: { water: 25, health: 30, power: 15, volume: 90 },
+  playerAlerts: { water: 25, health: 30, power: 15, volume: 90, worm: 75 },
   mapImages: {},
-  gaugeRings: ["health", "stamina", "hydration", "power", "inventory"],
+  gaugeRings: ["health", "stamina", "hydration", "power", "inventory", "worm"],
   layouts: [{
     id: "exploration",
     name: "Exploration",
@@ -68,7 +68,7 @@ function simPlayer(): PlayerState {
     heat: 0, heatMax: 100, sunExposure: 0,
     // Une journée du jeu en 4 minutes.
     timeOfDay: Math.floor(((t / 10) % 24) * 60) / 60,
-    volume: 268.5, volumeMax: 1750, slots: 16, slotsMax: 35,
+    volume: 268.5, volumeMax: 1750, slots: 16, slotsMax: 35, wormThreat: 40,
     x: Math.cos(t * 0.15) * 400000 - 50000, y: Math.sin(t * 0.15) * 400000 - 50000, z: 0,
     // Tangente au cercle parcouru.
     yaw: Math.round(((t * 0.15 * 180) / Math.PI + 90) % 360),

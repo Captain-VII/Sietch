@@ -439,6 +439,11 @@ impl<'a> Ue<'a> {
             let b = read::<16>(self.m, items)?;
             (max > 0 && u32_at(&b, 8) <= max && u32_at(&b, 12) >= u32_at(&b, 8)).then_some(Slots { items, max })
         })();
+        // Menace du ver : composant SandwormThreatSource du personnage (valeur courante et seuil d'attaque).
+        let worm = class_named(self, "SandwormThreatSourceComponent").and_then(|c| {
+            let comp = all.iter().find(|a| a.2 == c && a.4 == character)?.0;
+            Some(Worm { comp, value: self.field(c, "m_CurrentThreatBlobValue")?, threshold: self.field(c, "m_CurrentSandwormAttackThreshold")? })
+        });
         let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
         let root_class = ptr(self.m, root + 0x10);
         let mut f = |class: u64, n: &str| self.field(class, n);
@@ -457,7 +462,7 @@ impl<'a> Ue<'a> {
             heat_max: f(hydration_class, "HeatExhaustionMax")?,
             sun: f(hydration_class, "CurrentSunExposure")?,
         };
-        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, slots, sets, fields })
+        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, slots, worm, sets, fields })
     }
 }
 
@@ -599,6 +604,8 @@ pub struct Player {
     backpack: Option<u64>,
     /// Liste interne des objets du sac et nombre d'emplacements.
     slots: Option<Slots>,
+    /// Menace du ver.
+    worm: Option<Worm>,
     /// Jeux d'attributs du personnage : (classe, objet).
     sets: Vec<(String, u64)>,
     fields: Fields,
@@ -609,6 +616,14 @@ struct Slots {
     /// TArray des objets du sac : nombre à +8.
     items: u64,
     max: u32,
+}
+
+/// Composant de menace du ver et offsets de la valeur courante et du seuil d'attaque (f32).
+#[derive(Clone, Copy, Debug)]
+struct Worm {
+    comp: u64,
+    value: u64,
+    threshold: u64,
 }
 
 /// Une valeur de l'écran « Stats brutes ».
@@ -655,6 +670,8 @@ pub struct PlayerState {
     /// Emplacements occupés du sac et leur nombre ; `None` s'ils n'ont pas été trouvés.
     pub slots: Option<u32>,
     pub slots_max: Option<u32>,
+    /// Menace du ver en % du seuil d'attaque (100 = le ver attaque) ; `None` si elle n'a pas été trouvée.
+    pub worm_threat: Option<f32>,
     pub x: f64,
     pub y: f64,
     pub z: f64,
@@ -685,6 +702,8 @@ impl PlayerState {
             volume_max: self.volume_max.map(r),
             slots: self.slots,
             slots_max: self.slots_max,
+            // Au pour cent près.
+            worm_threat: self.worm_threat.map(|v| v.round()),
             x: m(self.x),
             y: m(self.y),
             z: m(self.z),
@@ -733,6 +752,11 @@ impl Player {
             volume_max: self.backpack.and_then(|t| read::<4>(m, t + 0x38).map(f32::from_le_bytes)),
             slots: self.slots.and_then(|s| read::<4>(m, s.items + 8).map(u32::from_le_bytes).filter(|n| *n <= s.max)),
             slots_max: self.slots.map(|s| s.max),
+            worm_threat: self.worm.and_then(|w| {
+                let f = |off: u64| read::<4>(m, w.comp + off).map(f32::from_le_bytes).filter(|v| v.is_finite());
+                let (v, t) = (f(w.value)?, f(w.threshold)?);
+                (t > 0.0).then(|| (v / t * 100.0).max(0.0))
+            }),
             x: v(0),
             y: v(8),
             z: v(16),

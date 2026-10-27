@@ -112,13 +112,15 @@ function drawClock(s: PlayerState | null) {
 
 // ---------- Barres du personnage (vie, endurance, eau) ----------
 
-const BARS: Partial<Record<WidgetKind, { label: string; value: (s: PlayerState) => [number, number]; full?: boolean }>> = {
+const BARS: Partial<Record<WidgetKind, { label: string; value: (s: PlayerState) => [number, number]; full?: boolean; warn?: number }>> = {
   health: { label: "Vie", value: (s) => [s.health, s.healthMax] },
   stamina: { label: "Endurance", value: (s) => [s.stamina, s.staminaMax] },
   hydration: { label: "Eau", value: (s) => [s.hydration, s.hydrationMax] },
   power: { label: "Énergie", value: (s) => [s.power, s.powerMax] },
   // Le sac s'alerte quand il est presque plein, pas presque vide.
   inventory: { label: "Volume", value: (s) => [s.volume ?? 0, s.volumeMax ?? 0], full: true },
+  // Menace du ver, en % du seuil d'attaque : violet dès 75 %.
+  worm: { label: "Ver", value: (s) => [s.wormThreat ?? 0, s.wormThreat == null ? 0 : 100], full: true, warn: 0.75 },
 };
 
 function drawBar(s: PlayerState | null) {
@@ -142,10 +144,10 @@ const RING = 2 * Math.PI * 19;
 /** Deux groupes séparés : fonctions vitales et équipement (un widget chacun). */
 const RING_GROUPS: Partial<Record<WidgetKind, WidgetKind[]>> = {
   gauges: ["health", "stamina", "hydration"],
-  gear: ["power", "inventory"],
+  gear: ["power", "inventory", "worm"],
 };
 const RING_ICONS: Partial<Record<WidgetKind, string>> = {
-  health: "heart", stamina: "run", hydration: "drop", power: "bolt", inventory: "bag",
+  health: "heart", stamina: "run", hydration: "drop", power: "bolt", inventory: "bag", worm: "worm",
 };
 
 function drawGauges(s: PlayerState | null) {
@@ -175,7 +177,7 @@ function drawGauges(s: PlayerState | null) {
       const sub = el.querySelector(".w-ring-sub") ?? el.appendChild(h("span", { class: "w-ring-sub digits" }));
       sub.textContent = s?.slots != null && s.slotsMax ? `${s.slots}/${s.slotsMax}` : "";
     }
-    el.classList.toggle("low", max > 0 && (bar.full ? pct >= 0.9 : pct <= 0.25));
+    el.classList.toggle("low", max > 0 && (bar.full ? pct >= (bar.warn ?? 0.9) : pct <= 0.25));
   }
 }
 

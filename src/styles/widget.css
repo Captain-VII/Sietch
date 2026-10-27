@@ -253,6 +253,7 @@ body {
 .w-ring.hydration { --ring: #6fb6e8; }
 .w-ring.power { --ring: #7fd1b9; }
 .w-ring.inventory { --ring: #b9ad93; }
+.w-ring.worm { --ring: #d98a4a; }
 .w-ring.low { --ring: var(--violet-light); }
 
 .w-ring .fill { stroke: var(--ring); }

@@ -74,6 +74,7 @@ const ICONS: Record<string, string> = {
   drop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
   bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
   bag: '<path d="M6 8h12l1 13H5zM9 8V6a3 3 0 0 1 6 0v2"/>',
+  worm: '<path d="M3 16c3-7 6-7 9 0s6 7 9 0M17 9a5 5 0 0 0-10 0"/>',
 };
 
 /** Icône en trait, couleur du texte. Décorative par défaut. */

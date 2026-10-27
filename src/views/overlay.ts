@@ -15,9 +15,12 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   minimap: "Mini-carte",
   gauges: "Fonctions vitales",
   gear: "Équipement",
+  worm: "Ver",
 };
 /** Valeurs du personnage : en barres (un widget chacune) ou en anneaux (widget Jauges). */
 const STATS: WidgetKind[] = ["health", "stamina", "hydration", "power", "inventory"];
+/** Anneaux possibles (le ver n'existe qu'en anneau). */
+const RINGS: WidgetKind[] = [...STATS, "worm"];
 
 /** Widgets de l'overlay : dispositions, éléments affichés, clic traversant. */
 export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
@@ -67,13 +70,13 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
         else if (STATS.includes(w.kind)) w.shown = !asRings;
       }
     });
-    const ringChips = STATS.map((k) => {
+    const ringChips = RINGS.map((k) => {
       const box = h("input", { type: "checkbox", checked: s.gaugeRings.includes(k) });
       box.addEventListener("change", () => {
         const on = new Set(ctx.settings().gaugeRings);
         if (box.checked) on.add(k);
         else on.delete(k);
-        void update({ gaugeRings: STATS.filter((x) => on.has(x)) });
+        void update({ gaugeRings: RINGS.filter((x) => on.has(x)) });
       });
       return h("label", { class: "chip", style: "border-style: solid" }, box, WIDGET_LABELS[k]);
     });

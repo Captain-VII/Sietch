@@ -41,13 +41,13 @@ export interface Settings {
   /** Anneaux du widget Jauges, dans l'ordre. */
   gaugeRings: WidgetKind[];
   /** Seuils des alertes du personnage, en % (0 = désactivée) ; volume : sac rempli au-delà. */
-  playerAlerts: { water: number; health: number; power: number; volume: number };
+  playerAlerts: { water: number; health: number; power: number; volume: number; worm: number };
   /** Dispositions de widgets de l'overlay (au moins une). */
   layouts: Layout[];
   activeLayout: string;
 }
 
-export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory" | "minimap" | "gauges" | "gear";
+export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory" | "minimap" | "gauges" | "gear" | "worm";
 
 /** Carte de la région lue dans le jeu : limites (cm), zones (cercles x, y, rayon) et points d'intérêt. */
 export interface MapData {
@@ -97,6 +97,8 @@ export interface PlayerState {
   /** Emplacements occupés du sac et leur nombre. */
   slots: number | null;
   slotsMax: number | null;
+  /** Menace du ver en % du seuil d'attaque (100 = attaque). */
+  wormThreat: number | null;
   x: number;
   y: number;
   z: number;

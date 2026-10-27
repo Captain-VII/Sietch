@@ -33,6 +33,10 @@ pub struct Settings {
     pub player_alerts: crate::alerts::AlertSettings,
     /// Anneaux affichés par le widget Jauges (vie, endurance…), dans l'ordre.
     pub gauge_rings: Vec<String>,
+    /// Version de la liste des anneaux : les anneaux ajoutés ensuite (le ver en 1) sont cochés une fois.
+    /// Absente d'un ancien fichier : 0 (et non la valeur par défaut des réglages neufs).
+    #[serde(default)]
+    pub rings_version: u8,
     /// Dispositions de widgets de l'overlay ; il en reste toujours au moins une.
     pub layouts: Vec<Layout>,
     /// Identifiant de la disposition affichée.
@@ -41,7 +45,7 @@ pub struct Settings {
 
 /// Éléments qu'un widget peut afficher.
 /// Valeurs que le widget Jauges peut montrer en anneaux.
-pub const GAUGE_RINGS: [&str; 5] = ["health", "stamina", "hydration", "power", "inventory"];
+pub const GAUGE_RINGS: [&str; 6] = ["health", "stamina", "hydration", "power", "inventory", "worm"];
 
 pub const WIDGET_KINDS: [&str; 12] =
     ["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear"];
@@ -100,6 +104,10 @@ impl Settings {
     /// disposition active existante.
     pub fn normalize(&mut self) {
         // Anneaux du widget Jauges : seulement des valeurs connues, sans doublon.
+        if self.rings_version < 1 {
+            self.gauge_rings.push("worm".into());
+            self.rings_version = 1;
+        }
         let mut rings = std::collections::BTreeSet::new();
         self.gauge_rings.retain(|k| GAUGE_RINGS.contains(&k.as_str()) && rings.insert(k.clone()));
         let mut seen = std::collections::BTreeSet::new();
@@ -190,6 +198,7 @@ impl Default for Settings {
             player_alerts: Default::default(),
             map_images: BTreeMap::new(),
             gauge_rings: GAUGE_RINGS.iter().map(|s| s.to_string()).collect(),
+            rings_version: 1,
             layouts: vec![Layout::default()],
             active_layout: "exploration".into(),
         }
@@ -276,6 +285,17 @@ mod tests {
         s.layouts.clear();
         s.normalize();
         assert_eq!(s.layouts, vec![Layout::default()]);
+    }
+
+    #[test]
+    fn old_rings_get_the_worm_once() {
+        let mut s: Settings = serde_json::from_str(r#"{"gaugeRings":["health","power"]}"#).unwrap();
+        s.normalize();
+        assert_eq!(s.gauge_rings, ["health", "power", "worm"]);
+        // Décoché ensuite par l'utilisateur : il ne revient pas.
+        s.gauge_rings.pop();
+        s.normalize();
+        assert_eq!(s.gauge_rings, ["health", "power"]);
     }
 
     #[test]
