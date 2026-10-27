@@ -140,7 +140,8 @@ Objectif : que d'autres joueurs puissent l'utiliser sans friction.
 - ✅ Carte sans défilement, région automatique, suivi interrompu au déplacement manuel.
 - ✅ Ressources en direct, mémoire des ressources vues, minuteur au clic.
 - ✅ Pictogrammes des lieux et ressources ; 🟡 à rendre plus lisibles.
-- 🟡 Noms des zones, emplacements du sac, durabilité : à faire en solo (recherche en mémoire plus longue).
+- ✅ Emplacements du sac et menace du ver (anneaux + alerte).
+- 🟡 Noms des zones : seul le nom anglais est trouvé ; durabilité : dans le système d'entités du jeu, non lue.
 - 🟡 Installation de la version de la CI : reportée par l'utilisateur.
 
 ## Idées pour plus tard (notées le 2026-10-27, rien de commencé)
@@ -159,7 +160,7 @@ Ordre conseillé : 1 + 2, puis 6, puis 8.
 7. Inventaire réel → « ce qu'il me manque » pour une recette (dépend du décodage de la liste du sac).
 8. Alertes de chaleur et de soleil (valeurs déjà lues).
 9. Journal de session : ressources récoltées, distance, durée.
-12. Alerte du ver : niveau de menace (chance d'attirer le ver selon le bruit, le véhicule, le sable), lu dans le jeu si la valeur existe ; alerte avant l'attaque.
+12. ✅ (2026-10-27) Alerte du ver : niveau de menace (chance d'attirer le ver selon le bruit, le véhicule, le sable), lu dans le jeu si la valeur existe ; alerte avant l'attaque.
 
 **Technique**
 10. Écran de diagnostic dans l'onglet « Sans BattlEye ».
