@@ -90,8 +90,9 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
 - **Fond de carte** (local, jamais dans le dépôt) : captures de l'utilisateur assemblées puis retouchées zone par zone
   (`captures-carte\hagga\retouche-*.webp`). Pour capturer : masquer l'overlay (Ctrl+Maj+O) et les filtres
   « Événements/Dangers » de la carte du jeu, même zoom (dézoom maximum).
-- **Reste** (en solo, sans BattlEye, sessions longues) : noms des zones (piste dans `docs/carte-en-direct.md`),
-  emplacements du sac, durabilité des équipements.
+- **Sac** : emplacements occupés (sous l'anneau du volume). **Ver** : menace en % du seuil d'attaque, anneau + alerte.
+  Relevé des ressources découpé en morceaux (20 000 objets par tick, passage ~5 s en debug) pour ne pas figer la lecture.
+- **Reste** : noms des zones en français (`docs/carte-en-direct.md`), durabilité (système d'entités du jeu).
 
 ## État au 2026-10-26 (fin de la session sur le Mac)
 
