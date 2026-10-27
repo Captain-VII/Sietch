@@ -73,6 +73,26 @@ pub struct LiveStatus {
     pub message: Option<String>,
 }
 
+/// Écran de diagnostic (Paramètres › Sans BattlEye) : où en est la lecture, pour voir vite ce qui manque.
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Diagnostic {
+    /// Tables des noms et des objets d'Unreal Engine trouvées.
+    pub tables: bool,
+    /// Personnage trouvé dans la table des objets.
+    pub character: bool,
+    pub reads: u64,
+    pub failures: u64,
+    pub last_read: Option<i64>,
+    pub last_position: Option<[f64; 3]>,
+    /// "personnage", "chaine" (position.json) ou "" (rien lu).
+    pub source: String,
+    pub armed: Option<bool>,
+    pub in_vehicle: Option<bool>,
+    pub resources_known: usize,
+    pub last_scan_secs: Option<f32>,
+}
+
 #[derive(Clone, Serialize)]
 pub struct Position {
     pub x: f64,
@@ -150,6 +170,7 @@ pub fn spawn(app: AppHandle) {
         let mut sys = System::new();
         let (mut cfg, mut cfg_error) = load_config(&app);
         let mut status = LiveStatus::default();
+        let mut diag = Diagnostic::default();
         let mut reader: Option<memory::Reader> = None;
         let mut tick: u64 = 0;
         let mut game_pid: Option<u32> = None;
@@ -304,7 +325,9 @@ pub fn spawn(app: AppHandle) {
                         match player.as_ref().map(|p| p.read(r)) {
                             Some(Some(s)) => {
                                 pos = Some((s.x, s.y, s.z));
+                                diag.source = "personnage".into();
                                 let s = s.rounded();
+                                (diag.armed, diag.in_vehicle) = (s.armed, s.in_vehicle);
                                 // Disposition automatique : appliquée quand l'état du joueur tient 0,75 s (sortir
                                 // et ranger l'arme d'un geste ne fait pas clignoter l'overlay).
                                 let want = crate::settings::auto_layout(s.armed, s.in_vehicle);
@@ -358,6 +381,7 @@ pub fn spawn(app: AppHandle) {
                         {
                             scanning = false;
                             let took = scan_started.elapsed().as_secs_f32();
+                            diag.last_scan_secs = Some(took);
                             last_resources = Some(Instant::now());
                             let region = state.map_data.lock().unwrap().as_ref().map(|m| region_of(&m.layer)).unwrap_or("hagga");
                             if cfg!(debug_assertions) {
@@ -386,10 +410,19 @@ pub fn spawn(app: AppHandle) {
                             && !chain.is_empty()
                         {
                             pos = r.position(&chain, cfg.coordinates == "f32");
+                            diag.source = "chaine".into();
                         }
                     }
                     pos
                 };
+                if let Some((x, y, z)) = pos {
+                    diag.reads += 1;
+                    diag.last_read = Some(now_ms());
+                    diag.last_position = Some([x, y, z]);
+                } else {
+                    diag.failures += 1;
+                    diag.source.clear();
+                }
                 if let Some((x, y, z)) = pos {
                     let _ = app.emit("player-position", Position { x, y, z, at: now_ms() });
                     let mut trail = state.trail.lock().unwrap();
@@ -402,6 +435,11 @@ pub fn spawn(app: AppHandle) {
                     }
                 }
             }
+
+            diag.tables = tables.is_some();
+            diag.character = player.is_some();
+            diag.resources_known = seen.len();
+            *state.diagnostic.lock().unwrap() = diag.clone();
 
             tick += 1;
             std::thread::sleep(Duration::from_millis(250));

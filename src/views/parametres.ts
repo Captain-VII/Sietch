@@ -4,7 +4,7 @@ import { disable as disableAutostart, enable as enableAutostart, isEnabled as au
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api, prettyKeys, SHORTCUT_LABELS, type Settings, type UpdateInfo } from "../lib/api";
+import { api, prettyKeys, SHORTCUT_LABELS, type Diagnostic, type Settings, type UpdateInfo } from "../lib/api";
 import { builds, getNotes, markers, setNotes, timerTemplates, type Build, type Marker, type TimerTemplate } from "../lib/data";
 import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
 import { durationLabel, pad } from "../lib/time";
@@ -186,6 +186,28 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         h("div", { class: "setting-row" }, h("span", {}, label),
           h("span", { style: `color: ${ok === null ? "var(--text-soft)" : ok ? "var(--info)" : "var(--danger)"}` }, value));
       const regions: [string, string][] = [["hagga", "Bassin de Hagga"], ["profond", "Désert profond"]];
+      // Diagnostic : relu chaque seconde tant que l'onglet est affiché.
+      const diagBox = h("div", { class: "stack", style: "--gap: 8px" });
+      const yesNo = (v: boolean | null, yes: string, no: string) => v === null ? "champ pas encore trouvé" : v ? yes : no;
+      const showDiag = (d: Diagnostic) => {
+        const age = d.lastRead ? Math.round((Date.now() - d.lastRead) / 1000) : null;
+        mount(diagBox,
+          h("span", { class: "label" }, "Diagnostic"),
+          h("div", {},
+            line("Structures du jeu", d.tables ? "trouvées" : "pas encore", d.tables ? true : null),
+            line("Personnage", d.character ? "trouvé" : "pas encore", d.character ? true : null),
+            line("Dernière lecture", age === null ? "aucune" : age < 2 ? "à l'instant" : `il y a ${age} s`, age === null ? null : age < 5),
+            line("Source", d.source === "personnage" ? "noms d'Unreal Engine" : d.source === "chaine" ? "chaîne de pointeurs (position.json)" : "—", d.source ? true : null),
+            line("Lectures réussies / manquées", `${d.reads} / ${d.failures}`, null),
+            d.lastPosition ? line("Position (jeu)", d.lastPosition.map((v) => Math.round(v)).join(" · "), null) : null,
+            line("Arme en main", yesNo(d.armed, "oui", "non"), d.armed === null ? null : true),
+            line("À bord d'un véhicule", yesNo(d.inVehicle, "oui", "non"), d.inVehicle === null ? null : true),
+            line("Ressources connues", d.lastScanSecs === null ? String(d.resourcesKnown) : `${d.resourcesKnown} (relevé en ${d.lastScanSecs.toFixed(1)} s)`, null),
+          ));
+      };
+      const pollDiag = () => api.diagnostic().then((d) => { if (diagBox.isConnected) showDiag(d); else clearInterval(diagTimer); }).catch(() => {});
+      const diagTimer = setInterval(pollDiag, 1000);
+      void pollDiag();
       return card("Modules sans BattlEye",
         h("p", { class: "prose soft", style: "margin: 0" },
           "Depuis la mise à jour 1.5, Dune: Awakening peut se lancer sans BattlEye pour le mode solo et les serveurs privés qui ne l'exigent pas. "
@@ -199,6 +221,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           line("Position", st.active ? (st.source === "simulation" ? "en direct (simulation)" : "en direct") : "inactive", st.active),
           st.message ? line("État", st.message, false) : null,
         ),
+        diagBox,
         h("div", { class: "stack", style: "--gap: 8px" },
           h("span", { class: "label" }, "Alertes du personnage"),
           h("p", { class: "muted", style: "margin: 0" }, "Notification silencieuse quand une valeur franchit son seuil (0 = désactivée). Elle ne se répète pas tant que la valeur n'est pas revenue de l'autre côté."),

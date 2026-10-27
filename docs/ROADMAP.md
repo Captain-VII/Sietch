@@ -29,7 +29,7 @@ Objectif : le point bleu suit vraiment le joueur sur la carte.
 - ✅ Trouver la chaîne de pointeurs : trouvée le 2026-10-26 avec `tools/sietch-scan` (3 niveaux, tient après une
   relance du jeu), position « en direct » dans Sietch. La chaîne reste en local dans `position.json`.
 - 🟢 Calibrer les deux régions (Bassin de Hagga, Désert profond).
-- 🟢 Ajouter un outil de diagnostic dans l'onglet « Sans BattlEye » : dernière valeur lue, nombre d'échecs,
+- ✅ (2026-10-28) Ajouter un outil de diagnostic dans l'onglet « Sans BattlEye » : dernière valeur lue, nombre d'échecs,
   pour comprendre vite pourquoi la position ne vient pas.
 - 🟡 Rendre la chaîne **résistante aux patchs** : retrouver automatiquement le point de départ (recherche d'une
   signature d'octets) au lieu d'un décalage fixe. Gros gain de confort, mais plus technique.
@@ -163,9 +163,10 @@ Ordre conseillé : 1 + 2, puis 6, puis 8.
 12. ✅ (2026-10-27) Alerte du ver : niveau de menace (chance d'attirer le ver selon le bruit, le véhicule, le sable), lu dans le jeu si la valeur existe ; alerte avant l'attaque.
 
 **Technique**
-10. Écran de diagnostic dans l'onglet « Sans BattlEye ».
+10. ✅ (2026-10-28) Écran de diagnostic dans l'onglet « Sans BattlEye ».
 11. ✅ (2026-10-27) Installation de la version de la CI et mises à jour automatiques (quand l'utilisateur le voudra).
 
 Écartés : lecture de l'écran (OCR des barres du jeu), jugée pas assez fiable par l'utilisateur.
 13. ✅ (2026-10-27) Overlay seulement quand le jeu est au premier plan, masqué dans ses menus (curseur affiché).
 14. ✅ (2026-10-27) Temps de jeu (session, jour, 7 jours).
+15. ✅ (2026-10-28) Disposition automatique de l'overlay (arme en main, véhicule), validée en jeu.

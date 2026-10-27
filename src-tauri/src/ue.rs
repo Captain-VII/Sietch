@@ -655,12 +655,10 @@ struct Slots {
     max: u32,
 }
 
-/// Champs candidats du personnage (`BP_DunePlayerCharacter_C` et ses parents), du plus probable au moins probable.
-/// Pas encore confirmés en jeu : la recherche se fait sans BattlEye avec `sietch-scan ue-diff`.
-pub const ARMED_FIELDS: &[&str] =
-    &["m_bIsWeaponDrawn", "bIsWeaponDrawn", "m_bWeaponDrawn", "m_bIsArmed", "m_bIsInCombatStance", "m_EquippedWeapon", "m_CurrentWeapon", "CurrentWeapon"];
-pub const VEHICLE_FIELDS: &[&str] =
-    &["m_bIsInVehicle", "bIsInVehicle", "m_bInVehicle", "m_CurrentVehicle", "CurrentVehicle", "m_Vehicle", "m_CurrentVehicleSeat", "m_MountedVehicle"];
+/// Champs du personnage (`BP_DunePlayerCharacter_C`), confirmés en jeu le 2026-10-28 avec `sietch-scan ue-diff`.
+/// Arme : booléen. Véhicule : siège occupé (pointeur faible, toutes les places), sinon conducteur seul.
+pub const ARMED_FIELDS: &[&str] = &["m_bHasWeaponInHand"];
+pub const VEHICLE_FIELDS: &[&str] = &["m_CurrentSeat", "m_bIsDriving"];
 
 /// Indicateur lu dans un objet : booléen (octet et masque) ou pointeur (non nul = vrai).
 #[derive(Clone, Copy, Debug)]

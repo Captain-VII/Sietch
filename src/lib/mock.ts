@@ -188,6 +188,10 @@ function handle(cmd: string, args: Record<string, any>): unknown {
       return null;
     case "get_clock":
       return { now: Date.now(), serverOffsetMin: state.settings.serverOffsetMin, coriolisNext: nextCoriolis(Date.now(), state.settings) };
+    case "get_diagnostic": {
+      const on = liveStatus().active;
+      return { tables: on, character: on, reads: on ? Math.floor(Date.now() / 250) % 100000 : 0, failures: 0, lastRead: on ? Date.now() : null, lastPosition: on ? [10000, -5000, 1200] : null, source: on ? "personnage" : "", armed: null, inVehicle: null, resourcesKnown: 0, lastScanSecs: null };
+    }
     case "get_live_status":
       return liveStatus();
     case "reload_live_config":

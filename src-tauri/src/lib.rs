@@ -286,6 +286,11 @@ fn get_resources(state: State<AppState>) -> Vec<live::SeenResource> {
 
 /// Trajet de la session (modules sans BattlEye).
 #[tauri::command]
+fn get_diagnostic(state: State<AppState>) -> live::Diagnostic {
+    state.diagnostic.lock().unwrap().clone()
+}
+
+#[tauri::command]
 fn get_trail(state: State<AppState>) -> Vec<Option<[f64; 2]>> {
     state.trail.lock().unwrap().clone()
 }
@@ -455,6 +460,7 @@ pub fn run() {
             get_map_data,
             get_resources,
             get_trail,
+            get_diagnostic,
             clear_trail,
             import_map_image,
             get_map_image,

@@ -17,9 +17,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -51,7 +51,7 @@ jobs:
         run: npx tauri build --config src-tauri/tauri.ci.conf.json
 
       - name: Installateurs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Sietch-installateurs-${{ github.sha }}
           path: |
@@ -60,7 +60,7 @@ jobs:
           if-no-files-found: error
 
       - name: Exécutable seul
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Sietch-exe-${{ github.sha }}
           path: src-tauri/target/release/sietch.exe

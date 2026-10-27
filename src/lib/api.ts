@@ -134,6 +134,21 @@ export interface UpdateInfo {
 /** Trajet de la session, en coordonnées du jeu ; `null` coupe le tracé (téléportation, mort). */
 export type Trail = ([number, number] | null)[];
 
+/** Écran de diagnostic des modules sans BattlEye (`live.rs::Diagnostic`). */
+export interface Diagnostic {
+  tables: boolean;
+  character: boolean;
+  reads: number;
+  failures: number;
+  lastRead: number | null;
+  lastPosition: [number, number, number] | null;
+  source: "personnage" | "chaine" | "";
+  armed: boolean | null;
+  inVehicle: boolean | null;
+  resourcesKnown: number;
+  lastScanSecs: number | null;
+}
+
 /** Un widget de l'overlay : une petite fenêtre à part. */
 export interface Widget {
   kind: WidgetKind;
@@ -219,6 +234,7 @@ export const api = {
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   installUpdate: () => invoke<void>("install_update"),
   clearTrail: () => invoke<void>("clear_trail"),
+  diagnostic: () => invoke<Diagnostic>("get_diagnostic"),
   importMapImage: (region: string, path: string) => invoke<string>("import_map_image", { region, path }),
   mapImage: (region: string) => invoke<string | null>("get_map_image", { region }),
   removeMapImage: (region: string) => invoke<void>("remove_map_image", { region }),

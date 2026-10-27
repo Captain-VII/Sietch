@@ -40,18 +40,19 @@ Les offsets des champs se relisent par réflexion à chaque lancement (`ue-field
 - **Menace du ver** : composant `SandwormThreatSourceComponent` du personnage (outer = personnage) : `m_CurrentThreatBlobValue` / `m_CurrentSandwormAttackThreshold` (1000 par défaut). Sietch affiche le rapport en %, 100 = le ver attaque. Alerte à 75 % (réglable). Lu à 0 dans une base ; **valeurs sur le sable à vérifier**.
 - **Durabilité des équipements** : stockée dans le système d'entités du jeu (`ItemStackAndDurabilityStats`, objets `bUsesFgl`), pas dans des `UObject` : non lue pour l'instant.
 
-## Arme en main, à bord d'un véhicule (disposition automatique) — à trouver
+## Arme en main, à bord d'un véhicule (disposition automatique)
 
-Sietch passe l'overlay en Combat arme en main, en Véhicule à bord, en Exploration sinon (`settings.rs::auto_layout`,
-appliqué dans `live.rs` après 0,75 s d'état stable). Les deux champs ne sont **pas encore confirmés** : `ue.rs` essaie
-les noms de `ARMED_FIELDS` et `VEHICLE_FIELDS` sur le personnage (booléen ou pointeur non nul) et, en dev, écrit
-`[personnage] indicateur …` quand il en trouve un. Sans champ trouvé, `armed` / `inVehicle` restent `null` et la
-disposition ne change pas.
+Confirmés en jeu le 2026-10-28 avec `sietch-scan ue-diff` (champs de `BP_DunePlayerCharacter_C`) :
 
-Recherche (jeu en solo **sans BattlEye**, Sietch fermé ou modules coupés) :
+| Champ | Type | Sens |
+|---|---|---|
+| `m_bHasWeaponInHand` | BoolProperty | arme en main (`m_bServerWantsWeaponInHand` change en même temps) |
+| `m_CurrentSeat` | WeakObjectProperty | non nul = assis dans un véhicule, à toutes les places |
+| `m_bIsDriving` | BoolProperty | conducteur seulement (secours) ; `m_CurrentVehicleSeatName` = `DriverSeat` |
 
-1. Adresse du personnage : `sietch-scan ue-find BP_DunePlayerCharacter_C` (celui dont `MaxHealth` > 0, voir `ue-dump`).
-2. `sietch-scan ue-diff <adresse> 40`, puis dans le jeu : mains vides 5 s, sortir une arme, la ranger, monter dans un
-   véhicule, en descendre. La commande liste chaque champ qui change (personnage et ses composants).
-3. Garder le champ qui suit exactement l'action (vrai/faux, ou pointeur nul/non nul), le mettre en tête de la liste
-   correspondante dans `ue.rs`. S'il est dans un composant (Outer = personnage), ajouter sa lecture comme pour le ver.
+Sietch passe l'overlay en Véhicule à bord, en Combat arme en main, en Exploration sinon (`settings.rs::auto_layout`,
+appliqué dans `live.rs` après 0,75 s d'état stable). Vérifié en jeu : chaque geste change la disposition. À la descente
+du véhicule, le jeu remet parfois l'arme en main : on passe alors en Combat, c'est normal.
+
+Après un patch qui renomme un champ : `sietch-scan ue-fields BP_DunePlayerCharacter_C`, puis `ue-diff <adresse> 60`
+en sortant l'arme et en montant dans un véhicule, et mettre le nouveau nom dans `ARMED_FIELDS` / `VEHICLE_FIELDS` (`ue.rs`).
