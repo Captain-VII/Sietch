@@ -132,3 +132,13 @@ Objectif : que d'autres joueurs puissent l'utiliser sans friction.
 - ✅ Builds : recherche (nom, équipement, notes) et filtre par usage, affichés à partir de 4 builds.
 - 🟡 À essayer en jeu : le raccourci de relance, une fois la vraie version installée.
 - ✅ Widget Mini-carte (2026-10-27) : nord en haut, centré sur le joueur, fond, zones, lieux, flèche et secteur ; validé en jeu.
+
+## Overlay et carte (2026-10-27)
+
+- ✅ Écran Overlay dans la barre de gauche ; overlay affiché au lancement.
+- ✅ Jauges en anneaux avec icônes : fonctions vitales en arc près du viseur, équipement au-dessus de la compétence C ; disposition par défaut réglée en jeu.
+- ✅ Carte sans défilement, région automatique, suivi interrompu au déplacement manuel.
+- ✅ Ressources en direct, mémoire des ressources vues, minuteur au clic.
+- ✅ Pictogrammes des lieux et ressources ; 🟡 à rendre plus lisibles.
+- 🟡 Noms des zones, emplacements du sac, durabilité : à faire en solo (recherche en mémoire plus longue).
+- 🟡 Installation de la version de la CI : reportée par l'utilisateur.

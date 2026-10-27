@@ -26,8 +26,10 @@ https://github.com/Captain-VII/Sietch (licence GPL-3.0-or-later).
 | `src-tauri/src/live.rs` | **modules sans BattlEye** : détection jeu/BattlEye, lecture mémoire (Windows) |
 | `src-tauri/src/tray.rs`, `shortcuts.rs`, `windows.rs` | zone de notification, raccourcis globaux, fenêtres (principale, overlay, wiki, web) |
 | `src/main.ts` | coquille de la fenêtre principale, routeur, événements |
-| `src/views/*.ts` | écrans : accueil, carte (Leaflet), minuteurs, builds, wiki, paramètres |
-| `src/widget.ts`, `src/wiki-window.ts` | widgets de l'overlay (une fenêtre par élément, `windows.rs`) et fenêtre wiki |
+| `src/views/*.ts` | écrans : accueil, overlay (dispositions des widgets), carte (Leaflet), stats brutes, minuteurs, builds, wiki, paramètres |
+| `src/widget.ts`, `src/wiki-window.ts` | widgets de l'overlay (une fenêtre par élément, `windows.rs` ; jauges en anneaux, mini-carte en canevas) et fenêtre wiki |
+| `src/lib/carte.ts` | types de lieux et de ressources (couleurs, pictogrammes dessinés pour Sietch), conversion jeu → carte |
+| `tools/sietch-scan`, `tools/assembler-carte.py` | exploration de la mémoire (lecture seule) ; assemblage des captures de la carte du jeu (local) |
 | `src/lib/` | `api.ts` (types + invoke), `data.ts` (marqueurs/builds via plugin-store), `time.ts`, `dom.ts` (`h()`), `wiki*.ts`, `live.ts` + `affine.ts` (position), `mock.ts` (mode navigateur) |
 | `.github/workflows/windows.yml` | compilation Windows à chaque push sur `main` |
 
@@ -38,7 +40,7 @@ npm ci                       # dépendances
 npm run tauri dev            # lancer (Rust + Vite sur le port 1420)
 SIETCH_SIMULATION=1 npm run tauri dev   # simule un jeu sans BattlEye et une position qui bouge
 npx tsc --noEmit -p .        # types
-cd src-tauri && cargo test && cargo clippy   # tests (16) et lint Rust, doit rester à 0 avertissement
+cd src-tauri && cargo test && cargo clippy   # tests (17) et lint Rust, doit rester à 0 avertissement
 npm run tauri build          # installateurs (sous Windows : NSIS + MSI)
 npm run icon                 # regénère toutes les icônes depuis assets/ (et force la recompilation Rust)
 ```
@@ -71,6 +73,25 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
   `focusable(false)` ne suffit pas). Positions enregistrées en sortant du mode édition. En dev, la fenêtre principale
   reste cachée au démarrage (l'appli redémarre à chaque modification du Rust).
 
+## État au 2026-10-27
+
+Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encore installer la version de la CI.
+
+- **Personnage en direct** (`ue.rs`, lecture par les noms UE) : vie, endurance, eau, énergie, volume du sac, heure du jeu.
+  Plusieurs `BP_DunePlayerCharacter_C` peuvent exister : on garde celui dont `MaxHealth` > 0.
+- **Overlay** : écran à part dans la barre de gauche. Jauges en anneaux (widgets `gauges` = vie/endurance/eau en arc
+  à droite du viseur, `gear` = énergie/sac au-dessus de la compétence C), mini-carte en haut à droite.
+  Disposition par défaut réglée en jeu sur 2560 × 1440, rapportée à l'écran (`windows.rs::default_pos`).
+  L'overlay s'affiche au lancement.
+- **Carte** : sans défilement (pleine hauteur), suivi du joueur arrêté dès qu'on déplace la carte, région automatique
+  (calque de carte lu dans le jeu), lieux et ressources avec pictogrammes. Les pictogrammes restent jugés « vagues » : à reprendre.
+- **Ressources en direct** : générateurs dérivés de `ResourceSpawner`, relus toutes les 15 s ; mémoire des ressources
+  vues dans `%APPDATA%\com.captainvii.sietch\ressources-vues.json` (local). Clic sur une ressource = minuteur de réapparition.
+- **Fond de carte** (local, jamais dans le dépôt) : captures de l'utilisateur assemblées puis retouchées zone par zone
+  (`captures-carte\hagga\retouche-*.webp`). Pour capturer : masquer l'overlay (Ctrl+Maj+O) et les filtres
+  « Événements/Dangers » de la carte du jeu, même zoom (dézoom maximum).
+- **Reste** (en solo, sans BattlEye, sessions longues) : noms des zones (piste dans `docs/carte-en-direct.md`),
+  emplacements du sac, durabilité des équipements.
 ## État au 2026-10-26 (fin de la session sur le Mac)
 
 Fait et testé dans le navigateur (moteur simulé) : tous les écrans, minuteurs, carte, builds, wiki en ligne,
