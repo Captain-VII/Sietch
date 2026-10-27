@@ -156,6 +156,13 @@ function drawGauges(s: PlayerState | null) {
       h("div", { class: `w-ring ${k}`, title: BARS[k]!.label, "data-kind": k },
         svgRing(),
         h("span", { class: "w-ring-in" }, icon(RING_ICONS[k]!, 13), h("span", { class: "digits" })))));
+    // Fonctions vitales en arc de cercle autour du personnage : colonne dont le milieu s'écarte vers la droite.
+    if (kind === "gauges") {
+      const half = (rings.length - 1) / 2 || 1;
+      card.querySelectorAll<HTMLElement>(".w-ring").forEach((el, i) => {
+        el.style.transform = `translateX(${(14 - ((i - half) / half) ** 2 * 28).toFixed(1)}px)`;
+      });
+    }
   }
   for (const el of card.querySelectorAll<HTMLElement>(".w-ring")) {
     const bar = BARS[el.dataset.kind as WidgetKind]!;
@@ -367,6 +374,7 @@ async function start() {
     case "gauges":
     case "gear":
       card.classList.add("gauges");
+      card.classList.toggle("vitals", kind === "gauges");
       drawGauges(await api.playerState());
       await on.playerState(drawGauges);
       break;

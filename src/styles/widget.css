@@ -185,6 +185,12 @@ body {
   gap: 12px;
 }
 
+/* Fonctions vitales : en colonne, en arc autour du personnage. */
+.widget.gauges.vitals {
+  flex-direction: column;
+  gap: 10px;
+}
+
 .w-ring {
   position: relative;
   width: 52px;

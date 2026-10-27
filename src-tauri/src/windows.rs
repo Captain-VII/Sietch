@@ -103,7 +103,7 @@ fn widget_size(kind: &str) -> (f64, f64) {
         "sector" => (250.0, 64.0),
         "coriolis" => (210.0, 64.0),
         "minimap" => (200.0, 200.0),
-        "gauges" => (200.0, 72.0),
+        "gauges" => (110.0, 200.0),
         "gear" => (140.0, 72.0),
         "health" | "stamina" | "hydration" | "power" | "inventory" => (230.0, 52.0),
         _ => (180.0, 64.0),
