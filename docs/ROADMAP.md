@@ -159,6 +159,7 @@ Ordre conseillé : 1 + 2, puis 6, puis 8.
 7. Inventaire réel → « ce qu'il me manque » pour une recette (dépend du décodage de la liste du sac).
 8. Alertes de chaleur et de soleil (valeurs déjà lues).
 9. Journal de session : ressources récoltées, distance, durée.
+12. Alerte du ver : niveau de menace (chance d'attirer le ver selon le bruit, le véhicule, le sable), lu dans le jeu si la valeur existe ; alerte avant l'attaque.
 
 **Technique**
 10. Écran de diagnostic dans l'onglet « Sans BattlEye ».
