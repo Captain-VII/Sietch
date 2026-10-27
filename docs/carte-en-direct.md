@@ -50,3 +50,7 @@ python -I tools/assembler-carte.py <dossier des captures> <image assemblée>
 ```
 
 Les captures et l'image (contenu de Funcom) restent dans `%APPDATA%\com.captainvii.sietch\`, jamais dans le dépôt.
+
+## Noms des zones (piste, 2026-10-27)
+
+Le nom affiché en haut à droite du jeu (« Sud du Bassin de Hagga ») vient du widget `W_MapAreaInformationHUDWidget_C` (instance sous un `WidgetTree`, pas le modèle) : `m_MapAreaName` (`CommonTextBlock`) → `Text` (`FText`). Reste à décoder la chaîne de l'`FText` (`TextData` partagé → chaîne affichée) : la première tentative n'a pas trouvé de `FString` lisible. Autre piste : `FullscreenMapAreasComponent` du `DunePlayerController` (zones découvertes, `MapAreaData.m_AreaId`).
