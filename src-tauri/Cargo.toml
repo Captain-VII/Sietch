@@ -1,6 +1,6 @@
 [package]
 name = "sietch"
-version = "0.1.0"
+version = "0.1.1"
 description = "Compagnon de bureau pour Dune: Awakening"
 authors = ["Captain-VII"]
 edition = "2024"
