@@ -117,6 +117,19 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     }));
   }
 
+  /** Minuteur de réapparition d'une ressource récoltée ; relancé s'il existe déjà pour ce secteur. */
+  async function resourceTimer(r: SeenResource) {
+    if (r.respawn <= 0) return;
+    const k = resourceKind(r.name);
+    const p = worldToMap(r.x, r.y);
+    const name = `${k.label}${k.ground ? " (au sol)" : ""}`;
+    const place = sectorOf(p.x, p.y);
+    const existing = ctx.timers().find((t) => t.name === name && t.place === place);
+    if (existing) await api.restartTimer(existing.id);
+    else await api.saveTimer({ name, place, group: "ressources", durationSecs: Math.round(r.respawn), repeat: false, alarm: true, inOverlay: true });
+    toast("Minuteur lancé", `${name} · ${place} : prêt dans ${Math.round(r.respawn / 60)} min.`);
+  }
+
   function drawGame() {
     gameLayer.clearLayers();
     drawPoiChips();
@@ -149,7 +162,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         opacity: r.live ? 1 : 0.45,
         keyboard: false,
       })
-        .bindTooltip(`${k.label}${k.ground ? " (au sol)" : ""} · ${sectorOf(p.x, p.y)}${respawn}${r.live ? "" : " · déjà vue"}`, { className: "marker-tip", direction: "top", offset: [0, -4] })
+        .bindTooltip(`${k.label}${k.ground ? " (au sol)" : ""} · ${sectorOf(p.x, p.y)}${respawn}${r.live ? "" : " · déjà vue"}${r.respawn > 0 ? "<br>Clic : lancer le minuteur" : ""}`, { className: "marker-tip", direction: "top", offset: [0, -4] })
+        .on("click", () => void resourceTimer(r))
         .addTo(gameLayer);
     }
   }
