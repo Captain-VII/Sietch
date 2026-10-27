@@ -99,6 +99,9 @@ impl Settings {
     /// au moins une disposition, identifiants uniques, un widget par élément connu, valeurs bornées,
     /// disposition active existante.
     pub fn normalize(&mut self) {
+        // Anneaux du widget Jauges : seulement des valeurs connues, sans doublon.
+        let mut rings = std::collections::BTreeSet::new();
+        self.gauge_rings.retain(|k| GAUGE_RINGS.contains(&k.as_str()) && rings.insert(k.clone()));
         let mut seen = std::collections::BTreeSet::new();
         self.layouts.retain_mut(|l| {
             if l.id.trim().is_empty() || !seen.insert(l.id.clone()) {

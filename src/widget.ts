@@ -201,7 +201,7 @@ let mapData: MapData | null = null;
 let mapImg: { img: HTMLImageElement; rect: [number, number, number, number] } | null = null;
 let player: PlayerState | null = null;
 let resources: SeenResource[] = [];
-/** Pictogrammes des ressources, préparés une fois. */
+/** Pictogrammes des lieux et ressources, préparés une fois. */
 const paths = new Map<string, Path2D>();
 
 async function loadMapImage() {
@@ -216,8 +216,29 @@ async function loadMapImage() {
   mapImg = { img, rect: settings.mapImages[region] ?? [0, 0, SIZE, SIZE] };
 }
 
-/** Nord en haut, joueur au centre ; fond (si importé), zones, lieux et flèche du joueur. */
-function drawMinimap() {
+/** Pastille ronde de diamètre `d` centrée en (x, y), avec un pictogramme (grille 24 × 24) de taille `glyph`. */
+function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill: string, ring: string, path: string | undefined, stroke: string, glyph: number) {
+  g.save();
+  g.translate(x, y);
+  g.beginPath();
+  g.arc(0, 0, d / 2, 0, Math.PI * 2);
+  g.fillStyle = fill;
+  g.fill();
+  g.lineWidth = 1.2;
+  g.strokeStyle = ring;
+  g.stroke();
+  if (path) {
+    g.scale(glyph / 24, glyph / 24);
+    g.translate(-12, -12);
+    g.lineWidth = 2.5;
+    g.lineCap = g.lineJoin = "round";
+    g.strokeStyle = stroke;
+    g.stroke(paths.get(path) ?? paths.set(path, new Path2D(path)).get(path)!);
+  }
+  g.restore();
+}
+
+/** Nord en haut, joueur au centre ; fond (si importé), zones, lieux, ressources et flèche du joueur. */function drawMinimap() {
   const scale = config(settings)?.scale ?? 1;
   const dpr = window.devicePixelRatio * scale;
   if (canvas.width !== Math.round(2 * R * dpr)) canvas.width = canvas.height = Math.round(2 * R * dpr);
@@ -233,13 +254,13 @@ function drawMinimap() {
 
   const here = player && mapData ? worldToMap(mapData, player.x, player.y) : null;
   if (here && mapData) {
-    const k = R / VIEW;
-    const px = (x: number) => R + (x - here.x) * k;
-    const py = (y: number) => R + (y - here.y) * k;
+    const zoom = R / VIEW;
+    const px = (x: number) => R + (x - here.x) * zoom;
+    const py = (y: number) => R + (y - here.y) * zoom;
     if (mapImg) {
       const [x0, y0, x1, y1] = mapImg.rect;
       g.globalAlpha = 0.85;
-      g.drawImage(mapImg.img, px(x0), py(y0), (x1 - x0) * k, (y1 - y0) * k);
+      g.drawImage(mapImg.img, px(x0), py(y0), (x1 - x0) * zoom, (y1 - y0) * zoom);
       g.globalAlpha = 1;
     }
     // Lignes des secteurs, pour se repérer avec la grande carte.
@@ -259,7 +280,7 @@ function drawMinimap() {
       for (const [x, y, r] of a.circles) {
         const p = worldToMap(mapData, x, y);
         g.beginPath();
-        g.arc(px(p.x), py(p.y), r * unit * k, 0, Math.PI * 2);
+        g.arc(px(p.x), py(p.y), r * unit * zoom, 0, Math.PI * 2);
         g.stroke();
       }
     }
@@ -269,53 +290,20 @@ function drawMinimap() {
       const p = worldToMap(mapData, poi.x, poi.y);
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
       // Pastille de sa couleur, pictogramme sombre (comme sur la grande carte).
-      const k = POI_KINDS[poi.kind];
-      g.save();
-      g.translate(px(p.x), py(p.y));
-      g.beginPath();
-      g.arc(0, 0, 7.5, 0, Math.PI * 2);
-      g.fillStyle = k?.color ?? "#e9dfc9";
-      g.fill();
-      g.lineWidth = 1.2;
-      g.strokeStyle = "#11131F";
-      g.stroke();
-      if (k) {
-        const s = 10 / 24;
-        g.scale(s, s);
-        g.translate(-12, -12);
-        g.lineWidth = 2.6;
-        g.lineCap = g.lineJoin = "round";
-        g.stroke(paths.get(k.path) ?? paths.set(k.path, new Path2D(k.path)).get(k.path)!);
-      }
-      g.restore();
+      const look = POI_KINDS[poi.kind];
+      pin(g, px(p.x), py(p.y), 15, look?.color ?? "#e9dfc9", "#11131F", look?.path, "#11131F", 10);
     }
-    // Ressources : petits points, pâles si elles ne sont plus chargées.
+    // Ressources : pastille sombre, pictogramme de couleur ; pâles si elles ne sont plus chargées.
     const region = mapRegion(mapData);
     for (const r of resources) {
       if (r.region !== region) continue;
-      const k = resourceKind(r.name);
-      if (masked.has(k.key)) continue;
+      const look = resourceKind(r.name);
+      if (masked.has(look.key)) continue;
       const p = worldToMap(mapData, r.x, r.y);
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
-      // Pastille avec pictogramme, comme sur la grande carte (grille 24 ramenée à la taille voulue).
-      const size = k.ground ? 9 : 13;
+      const size = look.ground ? 9 : 13;
       g.globalAlpha = r.live ? 1 : 0.45;
-      g.save();
-      g.translate(px(p.x), py(p.y));
-      g.beginPath();
-      g.arc(0, 0, size / 2, 0, Math.PI * 2);
-      g.fillStyle = "rgba(17, 19, 31, 0.85)";
-      g.fill();
-      g.lineWidth = 1;
-      g.strokeStyle = k.color;
-      g.stroke();
-      const s = (size * 0.7) / 24;
-      g.scale(s, s);
-      g.translate(-12, -12);
-      g.lineWidth = 2.4;
-      g.lineCap = g.lineJoin = "round";
-      g.stroke(paths.get(k.path) ?? paths.set(k.path, new Path2D(k.path)).get(k.path)!);
-      g.restore();
+      pin(g, px(p.x), py(p.y), size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.7);
     }
     g.globalAlpha = 1;
     // Flèche du joueur : yaw 0 = vers l'est, comme sur la grande carte.

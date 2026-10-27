@@ -629,12 +629,12 @@
   }
 }
 
-/* Ressources du jeu sur la carte : pastille avec pictogramme (voir lib/carte.ts). */
-.res-pin {
+/* Lieux et ressources du jeu sur la carte : pastille avec pictogramme (voir lib/carte.ts). */
+.map-pin {
   background: none;
   border: none;
 }
 
-.res-pin svg {
+.map-pin svg {
   display: block;
 }

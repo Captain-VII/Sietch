@@ -145,7 +145,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       const p = worldToMap(poi.x, poi.y);
       const kind = POI_KINDS[poi.kind] ?? { label: poi.kind, color: "#e9dfc9" };
       L.marker(toLatLng(p.x, p.y), {
-        icon: L.divIcon({ className: "res-pin", html: poiSvg(poi.kind, 24), iconSize: [24, 24], iconAnchor: [12, 12] }),
+        icon: L.divIcon({ className: "map-pin", html: poiSvg(poi.kind, 24), iconSize: [24, 24], iconAnchor: [12, 12] }),
         keyboard: false,
       })
         .bindTooltip(`${kind.label} · ${sectorOf(p.x, p.y)}`, { className: "marker-tip", direction: "top", offset: [0, -6] })
@@ -160,7 +160,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       const respawn = r.respawn > 0 ? ` · réapparaît en ${Math.round(r.respawn / 60)} min` : "";
       const size = k.ground ? 14 : 20;
       L.marker(toLatLng(p.x, p.y), {
-        icon: L.divIcon({ className: "res-pin", html: resourceSvg(k.path, k.color, size), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+        icon: L.divIcon({ className: "map-pin", html: resourceSvg(k.path, k.color, size), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
         opacity: r.live ? 1 : 0.45,
         keyboard: false,
       })
