@@ -31,6 +31,8 @@ pub struct Settings {
     pub map_images: BTreeMap<String, [f64; 4]>,
     /// Seuils des alertes du personnage (modules sans BattlEye).
     pub player_alerts: crate::alerts::AlertSettings,
+    /// Anneaux affichés par le widget Jauges (vie, endurance…), dans l'ordre.
+    pub gauge_rings: Vec<String>,
     /// Dispositions de widgets de l'overlay ; il en reste toujours au moins une.
     pub layouts: Vec<Layout>,
     /// Identifiant de la disposition affichée.
@@ -38,8 +40,11 @@ pub struct Settings {
 }
 
 /// Éléments qu'un widget peut afficher.
-pub const WIDGET_KINDS: [&str; 10] =
-    ["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap"];
+/// Valeurs que le widget Jauges peut montrer en anneaux.
+pub const GAUGE_RINGS: [&str; 5] = ["health", "stamina", "hydration", "power", "inventory"];
+
+pub const WIDGET_KINDS: [&str; 11] =
+    ["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges"];
 
 /// Une disposition : un ensemble de widgets placés à l'écran.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -180,6 +185,7 @@ impl Default for Settings {
             calibration: BTreeMap::new(),
             player_alerts: Default::default(),
             map_images: BTreeMap::new(),
+            gauge_rings: GAUGE_RINGS.iter().map(|s| s.to_string()).collect(),
             layouts: vec![Layout::default()],
             active_layout: "exploration".into(),
         }

@@ -35,10 +35,11 @@ const DEFAULT_SETTINGS: Settings = {
   calibration: {},
   playerAlerts: { water: 25, health: 30, power: 15, volume: 90 },
   mapImages: {},
+  gaugeRings: ["health", "stamina", "hydration", "power", "inventory"],
   layouts: [{
     id: "exploration",
     name: "Exploration",
-    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 100 })),
+    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 100 })),
   }],
   activeLayout: "exploration",
 };

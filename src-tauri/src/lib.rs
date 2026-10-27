@@ -341,6 +341,8 @@ pub fn run() {
             }
             let handle = app.handle().clone();
             tray::create(&handle)?;
+            // L'overlay s'affiche dès le lancement de Sietch.
+            windows::refresh_widgets(&handle);
             for e in shortcuts::register_all(&handle) {
                 eprintln!("Raccourci refusé — {e}");
             }

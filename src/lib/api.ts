@@ -38,6 +38,8 @@ export interface Settings {
   calibration: Record<string, CalibrationPoint[]>;
   /** Capture de la carte du jeu par région : [x0, y0, x1, y1] sur la carte (0 à 900). */
   mapImages: Record<string, [number, number, number, number]>;
+  /** Anneaux du widget Jauges, dans l'ordre. */
+  gaugeRings: WidgetKind[];
   /** Seuils des alertes du personnage, en % (0 = désactivée) ; volume : sac rempli au-delà. */
   playerAlerts: { water: number; health: number; power: number; volume: number };
   /** Dispositions de widgets de l'overlay (au moins une). */
@@ -45,7 +47,7 @@ export interface Settings {
   activeLayout: string;
 }
 
-export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory" | "minimap";
+export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory" | "minimap" | "gauges";
 
 /** Carte de la région lue dans le jeu : limites (cm), zones (cercles x, y, rayon) et points d'intérêt. */
 export interface MapData {

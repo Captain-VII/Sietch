@@ -57,7 +57,7 @@ impl AppState {
             map_data: Mutex::new(None),
             raw_stats: Mutex::new(Vec::new()),
             live_reload: AtomicBool::new(false),
-            widgets_on: AtomicBool::new(false),
+            widgets_on: AtomicBool::new(true),
             widgets_edit: AtomicBool::new(false),
             counter: AtomicU64::new(0),
         }

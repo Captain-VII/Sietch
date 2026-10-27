@@ -13,7 +13,10 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   power: "Énergie",
   inventory: "Volume du sac",
   minimap: "Mini-carte",
+  gauges: "Jauges",
 };
+/** Valeurs du personnage : en barres (un widget chacune) ou en anneaux (widget Jauges). */
+const STATS: WidgetKind[] = ["health", "stamina", "hydration", "power", "inventory"];
 
 /** Widgets de l'overlay : dispositions, éléments affichés, clic traversant. */
 export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
@@ -53,6 +56,25 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
       }));
       return h("label", { class: "chip", style: "border-style: solid" }, box, WIDGET_LABELS[w.kind],
         w.scale !== 1 ? h("span", { class: "muted", style: "font-size: 12px" }, `${Math.round(w.scale * 100)} %`) : null);
+    });
+
+    // Barres ou anneaux : on coche l'un, on décoche l'autre.
+    const rings = layout.widgets.find((w) => w.kind === "gauges")?.shown ?? false;
+    const style = (asRings: boolean) => edit((ls) => {
+      for (const w of current(ls).widgets) {
+        if (w.kind === "gauges") w.shown = asRings;
+        else if (STATS.includes(w.kind)) w.shown = !asRings;
+      }
+    });
+    const ringChips = STATS.map((k) => {
+      const box = h("input", { type: "checkbox", checked: s.gaugeRings.includes(k) });
+      box.addEventListener("change", () => {
+        const on = new Set(ctx.settings().gaugeRings);
+        if (box.checked) on.add(k);
+        else on.delete(k);
+        void update({ gaugeRings: STATS.filter((x) => on.has(x)) });
+      });
+      return h("label", { class: "chip", style: "border-style: solid" }, box, WIDGET_LABELS[k]);
     });
 
     const through = h("button", {
@@ -99,6 +121,12 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
       h("div", { class: "stack", style: "--gap: 8px" },
         h("span", { class: "label" }, "Éléments affichés"),
         h("div", { class: "row wrap", style: "--gap: 8px" }, elements)),
+      h("div", { class: "stack", style: "--gap: 8px" },
+        h("span", { class: "label" }, "Vie, endurance, eau…"),
+        h("div", { class: "segmented", role: "group", "aria-label": "Style des jauges", style: "align-self: flex-start" },
+          h("button", { type: "button", "aria-pressed": String(!rings), onclick: () => style(false) }, "Barres"),
+          h("button", { type: "button", "aria-pressed": String(rings), onclick: () => style(true) }, "Anneaux")),
+        rings ? h("div", { class: "row wrap", style: "--gap: 8px" }, ringChips) : null),
       h("div", { class: "setting-row" },
         h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Clic traversant"),
           h("span", { class: "muted", style: "font-size: 13px" }, "Widgets verrouillés : les clics passent à travers, vers le jeu. Le mode édition les rend toujours déplaçables.")),

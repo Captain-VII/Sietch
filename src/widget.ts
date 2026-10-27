@@ -135,6 +135,45 @@ function drawBar(s: PlayerState | null) {
   card.classList.toggle("low", max > 0 && (bar.full ? pct >= 90 : pct <= 25));
 }
 
+// ---------- Jauges : un anneau par valeur, qui se remplit ----------
+
+const RING = 2 * Math.PI * 19;
+
+function drawGauges(s: PlayerState | null) {
+  const rings = settings.gaugeRings.filter((k) => BARS[k]);
+  if (card.childElementCount !== rings.length || card.dataset.rings !== rings.join()) {
+    card.dataset.rings = rings.join();
+    mount(card, rings.map((k) =>
+      h("div", { class: `w-ring ${k}`, title: BARS[k]!.label, "data-kind": k },
+        svgRing(),
+        h("span", { class: "digits" }))));
+  }
+  for (const el of card.querySelectorAll<HTMLElement>(".w-ring")) {
+    const bar = BARS[el.dataset.kind as WidgetKind]!;
+    const [cur, max] = s ? bar.value(s) : [0, 0];
+    const pct = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0;
+    el.querySelector<SVGCircleElement>(".fill")!.style.strokeDashoffset = String(RING * (1 - pct));
+    el.querySelector("span")!.textContent = max > 0 ? String(Math.round(cur)) : "—";
+    el.classList.toggle("low", max > 0 && (bar.full ? pct >= 0.9 : pct <= 0.25));
+  }
+}
+
+function svgRing() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 44 44");
+  for (const cls of ["track", "fill"]) {
+    const c = document.createElementNS(ns, "circle");
+    c.setAttribute("class", cls);
+    c.setAttribute("cx", "22");
+    c.setAttribute("cy", "22");
+    c.setAttribute("r", "19");
+    if (cls === "fill") c.style.strokeDasharray = String(RING);
+    svg.appendChild(c);
+  }
+  return svg;
+}
+
 // ---------- Mini-carte ----------
 
 /** Demi-largeur visible, en unités de carte (1 unité ≈ 9 m dans le Bassin de Hagga) : environ 1 km de large. */
@@ -316,6 +355,11 @@ async function start() {
       drawBar(await api.playerState());
       await on.playerState(drawBar);
       break;
+    case "gauges":
+      card.classList.add("gauges");
+      drawGauges(await api.playerState());
+      await on.playerState(drawGauges);
+      break;
     case "minimap": {
       card.classList.add("minimap");
       mount(card, canvas);
@@ -359,6 +403,7 @@ async function start() {
     apply(s);
     await syncClock();
     if (kind === "sector") void drawSector();
+    if (kind === "gauges") drawGauges(await api.playerState());
     if (kind === "minimap") {
       // Fond changé ou réaligné, échelle modifiée.
       await loadMapImage();
