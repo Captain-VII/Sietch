@@ -163,6 +163,8 @@ pub fn spawn(app: AppHandle) {
         let mut seen = Seen::load(&seen_file);
         *app.state::<AppState>().resources.lock().unwrap() = seen.list();
         let mut last_resources: Option<Instant> = None;
+        let mut resource_scan = ue::ResourceScan::default();
+        let (mut scanning, mut scan_started) = (false, Instant::now());
         let mut alerts = crate::alerts::Alerts::default();
         let (mut last_tables_try, mut last_player_try): (Option<Instant>, Option<Instant>) = (None, None);
         loop {
@@ -313,18 +315,27 @@ pub fn spawn(app: AppHandle) {
                             Some(None) => player = None,
                             None => {}
                         }
-                        // Ressources autour du joueur : un passage sur la table des objets toutes les 15 s.
-                        if player.is_some()
+                        // Ressources autour du joueur : un passage sur la table des objets toutes les 15 s,
+                        // découpé en morceaux de 20 000 objets par tick pour ne pas figer la lecture du personnage.
+                        if player.is_none() {
+                            // Personnage perdu (relance du jeu…) : les classes connues ne valent plus.
+                            resource_scan = Default::default();
+                            scanning = false;
+                        } else if !scanning && last_resources.is_none_or(|i| i.elapsed() > Duration::from_secs(15)) {
+                            scanning = true;
+                            scan_started = Instant::now();
+                        }
+                        if scanning
                             && let Some(t) = tables
-                            && last_resources.is_none_or(|i| i.elapsed() > Duration::from_secs(15))
                             && let Some(mut u) = ue::Ue::open(r, t)
+                            && let Some(found) = u.resources_step(&mut resource_scan, 20_000)
                         {
+                            scanning = false;
+                            let took = scan_started.elapsed().as_secs_f32();
                             last_resources = Some(Instant::now());
                             let region = state.map_data.lock().unwrap().as_ref().map(|m| region_of(&m.layer)).unwrap_or("hagga");
-                            let started = Instant::now();
-                            let found = u.resources();
                             if cfg!(debug_assertions) {
-                                eprintln!("[ressources] {} autour du joueur, {} connues, lues en {} ms", found.len(), seen.len(), started.elapsed().as_millis());
+                                eprintln!("[ressources] {} autour du joueur, {} connues, passage en ~{took:.1} s", found.len(), seen.len());
                             }
                             let (added, changed) = seen.update(region, found);
                             if added {

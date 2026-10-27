@@ -309,37 +309,51 @@ impl<'a> Ue<'a> {
 
     /// Générateurs de ressources chargés autour du joueur (classes dérivées de `ResourceSpawner`).
     /// Le jeu ne charge que les environs : la mémoire des points déjà vus est tenue par `live.rs`.
-    pub fn resources(&mut self) -> Vec<Resource> {
-        let Some(head) = read::<24>(self.m, self.table) else { return Vec::new() };
-        let mut kinds: HashMap<u64, Option<String>> = HashMap::new();
-        let mut out = Vec::new();
-        for i in 0..u32_at(&head, 20) {
-            let Some(o) = self.object(i) else { continue };
-            let Some(b) = read::<0x28>(self.m, o) else { continue };
-            if u32_at(&b, 0x08) & TEMPLATE != 0 {
-                continue;
+    /// Avance le relevé d'au plus `budget` objets ; renvoie la liste quand la table a été parcourue en entier.
+    /// Découpé pour ne pas bloquer la lecture du personnage (un passage complet coûte ~1 s en debug).
+    pub fn resources_step(&mut self, scan: &mut ResourceScan, budget: u32) -> Option<Vec<Resource>> {
+        let head = read::<24>(self.m, self.table)?;
+        let num = u32_at(&head, 20);
+        let end = scan.next.saturating_add(budget).min(num);
+        for i in scan.next..end {
+            if let Some(r) = self.resource_at(i, &mut scan.kinds) {
+                scan.found.push(r);
             }
-            let class = u64_at(&b, 0x10);
-            let kind = match kinds.get(&class) {
-                Some(k) => k.clone(),
-                None => {
-                    let k = self.resource_class(class);
-                    kinds.insert(class, k.clone());
-                    k
-                }
-            };
-            let Some(name) = kind else { continue };
-            let Some([x, y, z]) = self.location(o, class) else { continue };
-            // Délai de réapparition par défaut, en secondes.
-            let respawn = self
-                .field_cached(class, "m_DefaultRespawnTime")
-                .and_then(|f| read::<4>(self.m, o + f))
-                .map(f32::from_le_bytes)
-                .filter(|t| t.is_finite() && *t >= 0.0)
-                .unwrap_or(0.0);
-            out.push(Resource { name, x, y, z, respawn });
         }
-        out
+        scan.next = end;
+        if end < num {
+            return None;
+        }
+        scan.next = 0;
+        Some(std::mem::take(&mut scan.found))
+    }
+
+    /// Générateur de ressources à l'index `i` de la table des objets, s'il y en a un.
+    fn resource_at(&mut self, i: u32, kinds: &mut HashMap<u64, Option<String>>) -> Option<Resource> {
+        let o = self.object(i)?;
+        let b = read::<0x28>(self.m, o)?;
+        if u32_at(&b, 0x08) & TEMPLATE != 0 {
+            return None;
+        }
+        let class = u64_at(&b, 0x10);
+        let kind = match kinds.get(&class) {
+            Some(k) => k.clone(),
+            None => {
+                let k = self.resource_class(class);
+                kinds.insert(class, k.clone());
+                k
+            }
+        };
+        let name = kind?;
+        let [x, y, z] = self.location(o, class)?;
+        // Délai de réapparition par défaut, en secondes.
+        let respawn = self
+            .field_cached(class, "m_DefaultRespawnTime")
+            .and_then(|f| read::<4>(self.m, o + f))
+            .map(f32::from_le_bytes)
+            .filter(|t| t.is_finite() && *t >= 0.0)
+            .unwrap_or(0.0);
+        Some(Resource { name, x, y, z, respawn })
     }
 
     /// Nom de ressource d'une classe de générateur, ou `None` si la classe n'hérite pas de `ResourceSpawner`.
@@ -462,6 +476,14 @@ pub fn poi_kind(asset: &str) -> Option<&'static str> {
 pub fn resource_name(class: &str) -> String {
     let core = class.trim_start_matches("BP_").trim_end_matches("_C").trim_end_matches("_Spawner");
     core.split('_').filter(|p| !(p.len() == 1 && p.chars().all(|c| c.is_ascii_uppercase()))).collect::<Vec<_>>().join("_")
+}
+
+/// Relevé des ressources en cours, d'un tick à l'autre : prochain index, trouvailles, classes déjà triées.
+#[derive(Default)]
+pub struct ResourceScan {
+    next: u32,
+    found: Vec<Resource>,
+    kinds: HashMap<u64, Option<String>>,
 }
 
 /// Générateur de ressources : nom (voir `resource_name`), position (cm) et délai de réapparition (s).
