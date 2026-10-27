@@ -664,3 +664,8 @@
   border-radius: 2px 2px 0 0;
   background: var(--spice, #c9a861);
 }
+
+/* Avertissement (tempête proche…) : violet, comme les alertes de Sietch. */
+.warn {
+  color: var(--violet-light);
+}

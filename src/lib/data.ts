@@ -141,6 +141,31 @@ export async function setNotes(text: string) {
   await (await db()).set("notes", text);
 }
 
+/** Liste à cocher avant une sortie dans le Désert profond. */
+export interface CheckItem {
+  label: string;
+  done: boolean;
+}
+
+export const DEFAULT_CHECKLIST = [
+  "Eau : distille et literjons pleins",
+  "Carburant du véhicule",
+  "Power pack chargé",
+  "Kits de réparation",
+  "Munitions",
+  "Soins",
+  "Sac vidé avant de partir",
+  "Coffres et véhicules à l'abri avant la tempête",
+];
+
+export async function getChecklist(): Promise<CheckItem[]> {
+  return (await (await db()).get<CheckItem[]>("sortie")) ?? DEFAULT_CHECKLIST.map((label) => ({ label, done: false }));
+}
+
+export async function setChecklist(items: CheckItem[]) {
+  await (await db()).set("sortie", items);
+}
+
 export function newBuild(): Build {
   return {
     id: uid("b"),

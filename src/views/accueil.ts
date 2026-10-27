@@ -1,8 +1,8 @@
 import type { Ctx, ViewHandle } from "../main";
 import { api, on, prettyKeys, SHORTCUT_LABELS, type Playtime, type Timer } from "../lib/api";
-import { builds, getNotes, markers, MARKER_TYPES, REGIONS, sectorOf, setNotes } from "../lib/data";
-import { h, mount } from "../lib/dom";
-import { remaining } from "../lib/time";
+import { builds, DEFAULT_CHECKLIST, getChecklist, getNotes, markers, MARKER_TYPES, REGIONS, sectorOf, setChecklist, setNotes, type CheckItem } from "../lib/data";
+import { h, icon, mount } from "../lib/dom";
+import { coriolisNext, now, remaining } from "../lib/time";
 
 export function timerLine(t: Timer) {
   return h(
@@ -102,6 +102,43 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
   const stopPlay = on.playtime((p) => { play = p; drawPlay(); });
   const playTick = window.setInterval(drawPlay, 30_000);
 
+  // Préparer une sortie dans le Désert profond : liste à cocher et temps restant avant la tempête.
+  const tripBox = h("div", { class: "stack", style: "--gap: 10px" });
+  let trip: CheckItem[] = [];
+  const saveTrip = () => void setChecklist(trip).then(drawTrip);
+  const drawTrip = () => {
+    const left = coriolisNext() - now();
+    const hours = left / 3_600_000;
+    const add = h("input", { class: "input", type: "text", maxlength: "80", placeholder: "Ajouter un élément…", "aria-label": "Ajouter un élément à la liste" });
+    add.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || !add.value.trim()) return;
+      trip.push({ label: add.value.trim(), done: false });
+      saveTrip();
+    });
+    const done = trip.filter((i) => i.done).length;
+    mount(tripBox,
+      Number.isFinite(hours)
+        ? h("p", { class: hours < 12 ? "warn" : "soft", style: "margin: 0" },
+            hours < 12 ? `Attention : la tempête de Coriolis arrive dans ${Math.max(0, Math.floor(hours))} h ${String(Math.floor((left % 3_600_000) / 60_000)).padStart(2, "0")}.` : `Tempête de Coriolis dans ${Math.floor(hours / 24)} j ${Math.floor(hours % 24)} h : vous avez le temps.`)
+        : null,
+      h("div", { class: "stack", style: "--gap: 4px" },
+        trip.map((item, i) => {
+          const box = h("input", { type: "checkbox", checked: item.done });
+          box.addEventListener("change", () => { item.done = box.checked; saveTrip(); });
+          return h("div", { class: "row spread", style: "--gap: 8px" },
+            h("label", { class: "check grow" }, box, item.label),
+            h("button", { class: "icon-btn", type: "button", "aria-label": `Retirer « ${item.label} »`, title: "Retirer", onclick: () => { trip.splice(i, 1); saveTrip(); } }, icon("close", 14)));
+        })),
+      add,
+      h("div", { class: "row wrap spread" },
+        h("span", { class: "muted", style: "white-space: nowrap" }, `${done}/${trip.length} prêt${done > 1 ? "s" : ""}`),
+        h("div", { class: "row wrap", style: "--gap: 8px" },
+          h("button", { class: "btn", type: "button", onclick: () => { trip.forEach((i) => (i.done = false)); saveTrip(); } }, "Tout décocher"),
+          h("button", { class: "btn", type: "button", onclick: () => { trip = DEFAULT_CHECKLIST.map((label) => ({ label, done: false })); saveTrip(); } }, "Liste d'origine"))),
+    );
+  };
+  void getChecklist().then((l) => { trip = l; drawTrip(); });
+
   const notes = h("textarea", { class: "textarea", rows: "5", "aria-label": "Notes rapides", placeholder: "Coordonnées, rendez-vous de guilde, achats à faire…" });
   void getNotes().then((t) => (notes.value = t));
   let notesTimer = 0;
@@ -161,6 +198,10 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     ),
 
     h("div", { class: "grid-auto", style: "--min: 320px" },
+      h("section", { class: "card", "aria-labelledby": "sortie-titre" },
+        h("h2", { class: "section-title", id: "sortie-titre" }, "Préparer une sortie"),
+        tripBox,
+      ),
       h("section", { class: "card", "aria-labelledby": "br-titre" },
         h("div", { class: "row spread" },
           h("h2", { class: "section-title", id: "br-titre" }, "Builds récents"),
