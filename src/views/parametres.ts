@@ -203,7 +203,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           h("span", { class: "label" }, "Alertes du personnage"),
           h("p", { class: "muted", style: "margin: 0" }, "Notification silencieuse quand une valeur franchit son seuil (0 = désactivée). Elle ne se répète pas tant que la valeur n'est pas revenue de l'autre côté."),
           h("div", { class: "grid-auto", style: "--min: 160px; gap: 12px" },
-            ([["water", "Eau sous (%)"], ["health", "Vie sous (%)"], ["power", "Power pack sous (%)"], ["volume", "Sac plein au-delà de (%)"], ["worm", "Ver au-delà de (% du seuil)"]] as const).map(([key, label]) => {
+            ([["water", "Eau sous (%)"], ["health", "Vie sous (%)"], ["power", "Power pack sous (%)"], ["volume", "Sac plein au-delà de (%)"], ["worm", "Ver au-delà de (% du seuil)"], ["heat", "Chaleur au-delà de (% du coup de chaleur)"]] as const).map(([key, label]) => {
               const input = h("input", { class: "input", id: `p-al-${key}`, type: "number", min: "0", max: "100", value: String(s.playerAlerts[key]) });
               input.addEventListener("change", () => {
                 const v = Math.max(0, Math.min(100, Math.round(Number(input.value) || 0)));

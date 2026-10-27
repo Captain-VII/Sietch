@@ -2,7 +2,7 @@ import L from "leaflet";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api, on, type MapData, type SeenResource } from "../lib/api";
+import { api, on, type MapData, type SeenResource, type Trail } from "../lib/api";
 import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, poiSvg, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
@@ -132,6 +132,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   function drawGame() {
     gameLayer.clearLayers();
     drawPoiChips();
+    drawTrail();
     if (!mapData || mapRegion(mapData) !== region) return;
     const scale = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
     for (const a of mapData.areas) {
@@ -238,6 +239,27 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   void api.resources().then((r) => { resources = r; drawGame(); });
   const stopResources = on.resources((r) => { resources = r; drawGame(); });
 
+  // ---------- Trajet de la session ----------
+  let trail: Trail = [];
+  const trailLine = L.polyline([], { color: "#f1d7ff", weight: 2, opacity: 0.75, dashArray: "3 5", interactive: false }).addTo(map);
+  function drawTrail() {
+    const segs: L.LatLng[][] = [[]];
+    if (mapData && mapRegion(mapData) === region) {
+      for (const p of trail) {
+        if (!p) {
+          segs.push([]);
+          continue;
+        }
+        const m = worldToMap(p[0], p[1]);
+        segs[segs.length - 1].push(toLatLng(m.x, m.y));
+      }
+    }
+    trailLine.setLatLngs(segs.filter((s) => s.length > 1));
+  }
+  void api.trail().then((t) => { trail = t; drawTrail(); });
+  const stopTrail = on.trail((t) => { trail = t; drawTrail(); });
+  const stopTrailPoint = on.trailPoint((t) => { trail.push(...t); drawTrail(); });
+
   const layer = L.layerGroup().addTo(map);
 
   map.on("contextmenu", (e: L.LeafletMouseEvent) => startDraft(clamp(e.latlng.lng), clamp(-e.latlng.lat)));
@@ -334,6 +356,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           drawLive();
         }, follow),
         btn("Marqueur ici", () => startDraft(clamp(pt.x), clamp(pt.y))),
+        btn("Effacer le trajet", () => void api.clearTrail()),
         ...(mapData ? [] : [btn("Recalibrer", () => void saveCalibration([]))]),
       );
     }
@@ -667,6 +690,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       stopLive();
       void stopMapData.then((un) => un());
       void stopResources.then((un) => un());
+      void stopTrail.then((un) => un());
+      void stopTrailPoint.then((un) => un());
       void stopYaw.then((un) => un());
       map.remove();
     },

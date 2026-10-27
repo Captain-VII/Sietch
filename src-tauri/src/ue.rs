@@ -461,6 +461,7 @@ impl<'a> Ue<'a> {
             heat: f(hydration_class, "HeatExhaustion")?,
             heat_max: f(hydration_class, "HeatExhaustionMax")?,
             sun: f(hydration_class, "CurrentSunExposure")?,
+            heatstroke: f(hydration_class, "HeatstrokeThreshold")?,
         };
         Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, slots, worm, sets, fields })
     }
@@ -588,6 +589,7 @@ pub struct Fields {
     heat: u64,
     heat_max: u64,
     sun: u64,
+    heatstroke: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -662,6 +664,8 @@ pub struct PlayerState {
     pub heat: f32,
     pub heat_max: f32,
     pub sun_exposure: f32,
+    /// Chaleur à partir de laquelle survient le coup de chaleur.
+    pub heatstroke: f32,
     /// Heure du jeu, en heures (7.5 = 07:30) ; `None` si elle n'a pas été trouvée.
     pub time_of_day: Option<f32>,
     /// Volume du sac et son maximum ; `None` s'il n'a pas été trouvé.
@@ -696,6 +700,7 @@ impl PlayerState {
             heat: r(self.heat),
             heat_max: r(self.heat_max),
             sun_exposure: r(self.sun_exposure),
+            heatstroke: r(self.heatstroke),
             // À la minute du jeu près.
             time_of_day: self.time_of_day.map(|t| (t * 60.0).floor() / 60.0),
             volume: self.volume.map(r),
@@ -744,6 +749,7 @@ impl Player {
             heat: attr(self.hydration, f.heat)?,
             heat_max: attr(self.hydration, f.heat_max)?,
             sun_exposure: attr(self.hydration, f.sun)?,
+            heatstroke: attr(self.hydration, f.heatstroke)?,
             time_of_day: self
                 .time_of_day
                 .and_then(|w| read::<4>(m, w.obj + w.offset).map(f32::from_le_bytes))

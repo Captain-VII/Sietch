@@ -92,6 +92,9 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   « Événements/Dangers » de la carte du jeu, même zoom (dézoom maximum).
 - **Sac** : emplacements occupés (sous l'anneau du volume). **Ver** : menace en % du seuil d'attaque, anneau + alerte.
   **Bandeau des alertes** (`widget-banner`, hors dispositions) : en haut au centre, affiche chaque alerte 8 s ; suit l'overlay.
+  **Chaleur** : alerte à 70 % de `HeatstrokeThreshold` (100 en jeu), texte « plein soleil » si `CurrentSunExposure` > 0.
+  **Trajet** de la session (`state.trail`, un point tous les 20 m, coupé après un saut de 500 m, vidé au changement
+  de région) : pointillés sur la carte et la mini-carte, bouton « Effacer le trajet ».
   Relevé des ressources découpé en morceaux (20 000 objets par tick, passage ~5 s en debug) pour ne pas figer la lecture.
 - **Reste** : noms des zones en français (`docs/carte-en-direct.md`), durabilité (système d'entités du jeu).
 

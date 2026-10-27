@@ -3,7 +3,7 @@ import "./styles/components.css";
 import "./styles/widget.css";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, on, type MapData, type PlayerState, type SeenResource, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
+import { api, on, type MapData, type PlayerState, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
 import { hiddenPoiKinds, mapRegion, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
@@ -245,7 +245,34 @@ function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill:
   g.restore();
 }
 
-/** Nord en haut, joueur au centre ; fond (si importé), zones, lieux, ressources et flèche du joueur. */function drawMinimap() {
+/** Trajet de la session (coordonnées du jeu) ; `null` coupe le tracé. */
+let trail: Trail = [];
+
+/** Trajet de la session, jusqu'à la position actuelle. */
+function drawTrail(g: CanvasRenderingContext2D, m: MapData, px: (x: number) => number, py: (y: number) => number, here: { x: number; y: number }) {
+  g.beginPath();
+  let open = false;
+  for (const p of trail) {
+    if (!p) {
+      open = false;
+      continue;
+    }
+    const q = worldToMap(m, p[0], p[1]);
+    if (open) g.lineTo(px(q.x), py(q.y));
+    else g.moveTo(px(q.x), py(q.y));
+    open = true;
+  }
+  if (open) g.lineTo(px(here.x), py(here.y));
+  g.setLineDash([3, 4]);
+  g.lineWidth = 2;
+  g.lineCap = "round";
+  g.strokeStyle = "rgba(241, 215, 255, 0.75)";
+  g.stroke();
+  g.setLineDash([]);
+}
+
+/** Nord en haut, joueur au centre ; fond (si importé), zones, trajet, lieux, ressources et flèche du joueur. */
+function drawMinimap() {
   const scale = config(settings)?.scale ?? 1;
   const dpr = window.devicePixelRatio * scale;
   if (canvas.width !== Math.round(2 * R * dpr)) canvas.width = canvas.height = Math.round(2 * R * dpr);
@@ -291,6 +318,7 @@ function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill:
         g.stroke();
       }
     }
+    drawTrail(g, mapData, px, py, here);
     const masked = new Set(hiddenPoiKinds());
     for (const poi of mapData.pois) {
       if (masked.has(poi.kind)) continue;
@@ -443,7 +471,10 @@ async function start() {
     case "minimap": {
       card.classList.add("minimap");
       mount(card, canvas);
-      [player, mapData, resources] = await Promise.all([api.playerState(), api.mapData(), api.resources()]);
+      [player, mapData, resources, trail] = await Promise.all([api.playerState(), api.mapData(), api.resources(), api.trail()]);
+      // Pas de redessin ici : la position suivante (4 par seconde au plus) le fera.
+      await on.trail((t) => (trail = t));
+      await on.trailPoint((t) => trail.push(...t));
       await on.resources((r) => {
         resources = r;
         drawMinimap();

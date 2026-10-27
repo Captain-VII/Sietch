@@ -284,6 +284,9 @@ pub fn spawn(app: AppHandle) {
                                         let mut s = state.settings.lock().unwrap().clone();
                                         if s.live_region != region_of(&m.layer) {
                                             s.live_region = region_of(&m.layer).into();
+                                            // Le trajet de l'autre région n'a plus de sens sur cette carte.
+                                            state.trail.lock().unwrap().clear();
+                                            let _ = app.emit("trail", Vec::<Option<[f64; 2]>>::new());
                                             crate::set_settings(app.clone(), app.state::<AppState>(), s);
                                         }
                                     }
@@ -366,6 +369,14 @@ pub fn spawn(app: AppHandle) {
                 };
                 if let Some((x, y, z)) = pos {
                     let _ = app.emit("player-position", Position { x, y, z, at: now_ms() });
+                    let mut trail = state.trail.lock().unwrap();
+                    if let Some(step) = trail_step(&trail, [x, y]) {
+                        if trail.len() >= TRAIL_MAX {
+                            trail.drain(..TRAIL_MAX / 4);
+                        }
+                        trail.extend(step.iter().copied());
+                        let _ = app.emit("trail-point", step);
+                    }
                 }
             }
 
@@ -373,6 +384,21 @@ pub fn spawn(app: AppHandle) {
             std::thread::sleep(Duration::from_millis(250));
         }
     });
+}
+
+/// Points gardés au plus pour le trajet (~80 km à un point tous les 20 m).
+const TRAIL_MAX: usize = 4000;
+
+/// Points à ajouter au trajet pour cette position : un point tous les 20 m, et une coupure (`None`)
+/// avant un saut de plus de 500 m (téléportation, réapparition après la mort).
+fn trail_step(trail: &[Option<[f64; 2]>], p: [f64; 2]) -> Option<Vec<Option<[f64; 2]>>> {
+    let Some(Some(last)) = trail.last() else { return Some(vec![Some(p)]) };
+    let d = (p[0] - last[0]).hypot(p[1] - last[1]);
+    match d {
+        d if d < 2_000.0 => None,
+        d if d > 50_000.0 => Some(vec![None, Some(p)]),
+        _ => Some(vec![Some(p)]),
+    }
 }
 
 /// Région de Sietch d'après le calque de carte du jeu (calque Survival_1 = Bassin de Hagga).
@@ -599,6 +625,16 @@ mod memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trail_keeps_a_point_every_20_m_and_cuts_jumps() {
+        let mut t = vec![];
+        t.extend(trail_step(&t, [0.0, 0.0]).unwrap());
+        assert!(trail_step(&t, [1_000.0, 0.0]).is_none(), "moins de 20 m");
+        t.extend(trail_step(&t, [2_500.0, 0.0]).unwrap());
+        assert_eq!(trail_step(&t, [90_000.0, 0.0]).unwrap(), vec![None, Some([90_000.0, 0.0])]);
+        assert_eq!(t.len(), 2);
+    }
 
     #[test]
     fn remembers_seen_resources() {

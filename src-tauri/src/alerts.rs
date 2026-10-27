@@ -20,21 +20,23 @@ pub struct AlertSettings {
     pub volume: u8,
     /// Menace du ver au-delà de ce pourcentage du seuil d'attaque.
     pub worm: u8,
+    /// Chaleur au-delà de ce pourcentage du seuil du coup de chaleur.
+    pub heat: u8,
 }
 
 impl Default for AlertSettings {
     fn default() -> Self {
-        Self { water: 25, health: 30, power: 15, volume: 90, worm: 75 }
+        Self { water: 25, health: 30, power: 15, volume: 90, worm: 75, heat: 70 }
     }
 }
 
 /// Écart (en points de pourcentage) à franchir pour réarmer une alerte.
 const MARGIN: f32 = 5.0;
 
-/// Alertes déjà envoyées, dans l'ordre eau, vie, power pack, sac, ver.
+/// Alertes déjà envoyées, dans l'ordre eau, vie, power pack, sac, ver, chaleur.
 #[derive(Default)]
 pub struct Alerts {
-    sent: [bool; 5],
+    sent: [bool; 6],
 }
 
 impl Alerts {
@@ -54,6 +56,13 @@ impl Alerts {
                 "Videz-le avant de récolter davantage.",
             ),
             (s.worm_threat, cfg.worm, true, "Le ver approche", "Arrêtez de bouger sur le sable ou gagnez la roche."),
+            (
+                pct(s.heat, if s.heatstroke > 0.0 { s.heatstroke } else { s.heat_max }),
+                cfg.heat,
+                true,
+                "Coup de chaleur proche",
+                if s.sun_exposure > 0.0 { "Vous êtes en plein soleil : gagnez l'ombre." } else { "Mettez-vous à l'abri et reposez-vous." },
+            ),
         ];
         let mut out = Vec::new();
         for (i, (value, threshold, above, title, body)) in checks.into_iter().enumerate() {
@@ -118,6 +127,17 @@ mod tests {
         let near = PlayerState { worm_threat: Some(80.0), ..state(80.0, 100.0) };
         assert_eq!(a.check(&near, &cfg).iter().map(|x| x.title.as_str()).collect::<Vec<_>>(), ["Le ver approche"]);
         assert!(a.check(&near, &cfg).is_empty(), "pas de répétition");
+    }
+
+    #[test]
+    fn heat_alert_mentions_the_sun() {
+        let mut a = Alerts::default();
+        let cfg = AlertSettings::default();
+        let hot = PlayerState { heat: 40.0, heat_max: 100.0, heatstroke: 50.0, sun_exposure: 1.0, ..state(80.0, 100.0) };
+        let out = a.check(&hot, &cfg);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].title, "Coup de chaleur proche");
+        assert!(out[0].body.contains("soleil"));
     }
 
     #[test]

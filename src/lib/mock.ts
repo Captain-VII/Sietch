@@ -33,7 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   liveModules: false,
   liveRegion: "hagga",
   calibration: {},
-  playerAlerts: { water: 25, health: 30, power: 15, volume: 90, worm: 75 },
+  playerAlerts: { water: 25, health: 30, power: 15, volume: 90, worm: 75, heat: 70 },
   mapImages: {},
   gaugeRings: ["health", "stamina", "hydration", "power", "inventory", "worm"],
   layouts: [{
@@ -65,7 +65,7 @@ function simPlayer(): PlayerState {
     stamina: r(60 + Math.sin(t / 2) * 40), staminaMax: 100,
     power: 150, powerMax: 150,
     hydration: r(100 - ((t / 3) % 100)), hydrationMax: 100,
-    heat: 0, heatMax: 100, sunExposure: 0,
+    heat: 0, heatMax: 100, sunExposure: 0, heatstroke: 100,
     // Une journée du jeu en 4 minutes.
     timeOfDay: Math.floor(((t / 10) % 24) * 60) / 60,
     volume: 268.5, volumeMax: 1750, slots: 16, slotsMax: 35, wormThreat: 40,
@@ -198,6 +198,19 @@ function handle(cmd: string, args: Record<string, any>): unknown {
       return null;
     case "get_resources":
       return [];
+    case "get_trail": {
+      // Les 20 dernières secondes du cercle parcouru par le joueur simulé (voir simPlayer).
+      const t = Date.now() / 1000;
+      return state.settings.liveModules
+        ? Array.from({ length: 40 }, (_, i) => {
+            const a = (t - 20 + i * 0.5) * 0.15;
+            return [Math.cos(a) * 400000 - 50000, Math.sin(a) * 400000 - 50000];
+          })
+        : [];
+    }
+    case "clear_trail":
+      void emit("trail", []);
+      return null;
     case "get_map_data":
       return state.settings.liveModules ? simMap() : null;
     case "get_player_state":

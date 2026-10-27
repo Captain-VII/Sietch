@@ -281,6 +281,18 @@ fn get_resources(state: State<AppState>) -> Vec<live::SeenResource> {
     state.resources.lock().unwrap().clone()
 }
 
+/// Trajet de la session (modules sans BattlEye).
+#[tauri::command]
+fn get_trail(state: State<AppState>) -> Vec<Option<[f64; 2]>> {
+    state.trail.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn clear_trail(app: AppHandle, state: State<AppState>) {
+    state.trail.lock().unwrap().clear();
+    let _ = app.emit("trail", Vec::<Option<[f64; 2]>>::new());
+}
+
 /// Demande une relecture de tous les attributs et renvoie la dernière lecture.
 #[tauri::command]
 fn request_raw_stats(state: State<AppState>) -> Vec<ue::RawStat> {
@@ -406,6 +418,8 @@ pub fn run() {
             request_raw_stats,
             get_map_data,
             get_resources,
+            get_trail,
+            clear_trail,
             import_map_image,
             get_map_image,
             remove_map_image,

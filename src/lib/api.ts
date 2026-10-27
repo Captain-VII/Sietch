@@ -41,7 +41,7 @@ export interface Settings {
   /** Anneaux du widget Jauges, dans l'ordre. */
   gaugeRings: WidgetKind[];
   /** Seuils des alertes du personnage, en % (0 = désactivée) ; volume : sac rempli au-delà. */
-  playerAlerts: { water: number; health: number; power: number; volume: number; worm: number };
+  playerAlerts: { water: number; health: number; power: number; volume: number; worm: number; heat: number };
   /** Dispositions de widgets de l'overlay (au moins une). */
   layouts: Layout[];
   activeLayout: string;
@@ -89,6 +89,7 @@ export interface PlayerState {
   heat: number;
   heatMax: number;
   sunExposure: number;
+  heatstroke: number;
   /** Heure du jeu en heures (7.5 = 07:30), null si elle n'a pas été trouvée. */
   timeOfDay: number | null;
   /** Volume du sac et son maximum, null s'ils n'ont pas été trouvés. */
@@ -105,6 +106,9 @@ export interface PlayerState {
   /** Orientation en degrés : 0 = est, 90 = sud (sens de la carte). */
   yaw: number;
 }
+
+/** Trajet de la session, en coordonnées du jeu ; `null` coupe le tracé (téléportation, mort). */
+export type Trail = ([number, number] | null)[];
 
 /** Un widget de l'overlay : une petite fenêtre à part. */
 export interface Widget {
@@ -184,6 +188,8 @@ export const api = {
   requestRawStats: () => invoke<RawStat[]>("request_raw_stats"),
   mapData: () => invoke<MapData | null>("get_map_data"),
   resources: () => invoke<SeenResource[]>("get_resources"),
+  trail: () => invoke<Trail>("get_trail"),
+  clearTrail: () => invoke<void>("clear_trail"),
   importMapImage: (region: string, path: string) => invoke<string>("import_map_image", { region, path }),
   mapImage: (region: string) => invoke<string | null>("get_map_image", { region }),
   removeMapImage: (region: string) => invoke<void>("remove_map_image", { region }),
@@ -198,6 +204,9 @@ export const on = {
   liveStatus: (fn: (s: LiveStatus) => void) => listen<LiveStatus>("live-status", (e) => fn(e.payload)),
   mapData: (fn: (m: MapData | null) => void) => listen<MapData | null>("map-data", (e) => fn(e.payload)),
   resources: (fn: (r: SeenResource[]) => void) => listen<SeenResource[]>("resources", (e) => fn(e.payload)),
+  // Trajet remplacé (effacé, changement de région) ou prolongé de quelques points.
+  trail: (fn: (t: Trail) => void) => listen<Trail>("trail", (e) => fn(e.payload)),
+  trailPoint: (fn: (t: Trail) => void) => listen<Trail>("trail-point", (e) => fn(e.payload)),
   playerState: (fn: (s: PlayerState) => void) => listen<PlayerState>("player-state", (e) => fn(e.payload)),
   position: (fn: (p: PlayerPosition) => void) => listen<PlayerPosition>("player-position", (e) => fn(e.payload)),
   widgetsEdit: (fn: (editing: boolean) => void) => listen<boolean>("widgets-edit", (e) => fn(e.payload)),

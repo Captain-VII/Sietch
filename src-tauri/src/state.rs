@@ -29,6 +29,8 @@ pub struct AppState {
     pub map_data: Mutex<Option<crate::ue::MapData>>,
     /// Ressources vues (chargées en ce moment ou déjà croisées), pour la carte et la mini-carte.
     pub resources: Mutex<Vec<crate::live::SeenResource>>,
+    /// Trajet de la session (coordonnées du jeu) ; `None` coupe le tracé (téléportation, mort).
+    pub trail: Mutex<Vec<Option<[f64; 2]>>>,
     pub raw_stats: Mutex<Vec<crate::ue::RawStat>>,
     /// Demande de relecture de position.json par le fil des modules.
     pub live_reload: AtomicBool,
@@ -58,6 +60,7 @@ impl AppState {
             raw_wanted: AtomicBool::new(false),
             map_data: Mutex::new(None),
             resources: Mutex::new(Vec::new()),
+            trail: Mutex::new(Vec::new()),
             raw_stats: Mutex::new(Vec::new()),
             live_reload: AtomicBool::new(false),
             widgets_on: AtomicBool::new(true),
