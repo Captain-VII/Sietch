@@ -150,8 +150,13 @@ const RING_ICONS: Partial<Record<WidgetKind, string>> = {
   health: "heart", stamina: "run", hydration: "drop", power: "bolt", inventory: "bag",
 };
 
-/** Menace du ver, au-dessus du viseur : grand anneau et pourcentage lisible d'un coup d'œil.
- *  Discrète à 0 %, violette et pulsante dès le seuil de l'alerte. */
+/** Dernière fois que la menace du ver était au-dessus de 0 (le joueur est sur le sable). */
+let threatSeen = 0;
+/** Le widget reste affiché ce temps après le retour à 0 (arrêt sur le sable, avant de gagner la roche). */
+const THREAT_LINGER = 15_000;
+
+/** Menace du ver, à droite de l'endurance : grand anneau et pourcentage lisible d'un coup d'œil.
+ *  Affichée seulement sur le sable (menace au-dessus de 0), violette et pulsante dès le seuil de l'alerte. */
 function drawThreat(s: PlayerState | null) {
   if (!card.firstChild) {
     mount(card,
@@ -163,9 +168,16 @@ function drawThreat(s: PlayerState | null) {
   card.querySelector<SVGCircleElement>(".fill")!.style.strokeDashoffset = String(RING * (1 - pct));
   card.querySelector(".w-big")!.textContent = v == null ? "—" : `${Math.round(v)} %`;
   const warn = settings.playerAlerts.worm || 75;
+  if (v) threatSeen = Date.now();
+  const onSand = Date.now() - threatSeen < THREAT_LINGER;
+  card.classList.toggle("off", !onSand);
   card.classList.toggle("calm", !v);
   card.classList.toggle("danger", v != null && v >= warn);
+  // Sans nouvel état du joueur (immobile), le widget doit quand même s'effacer au bout du délai.
+  window.clearTimeout(threatHide);
+  if (onSand) threatHide = window.setTimeout(() => drawThreat(s), THREAT_LINGER);
 }
+let threatHide = 0;
 
 function drawGauges(s: PlayerState | null) {
   const rings = settings.gaugeRings.filter((k) => RING_GROUPS[kind]!.includes(k));

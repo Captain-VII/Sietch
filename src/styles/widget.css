@@ -317,6 +317,16 @@ body {
   opacity: 0.55;
 }
 
+/* Hors du sable (menace à 0 depuis un moment) : le widget s'efface. */
+.widget.threat.off {
+  opacity: 0;
+}
+
+/* Mode édition : toujours visible, pour pouvoir le placer. */
+.editing .widget.threat.off {
+  opacity: 0.55;
+}
+
 .widget.threat.danger .w-ring {
   --ring: var(--violet-light);
 }
