@@ -196,6 +196,8 @@ function handle(cmd: string, args: Record<string, any>): unknown {
     case "import_map_image":
     case "remove_map_image":
       return null;
+    case "get_resources":
+      return [];
     case "get_map_data":
       return state.settings.liveModules ? simMap() : null;
     case "get_player_state":

@@ -3,8 +3,8 @@ import "./styles/components.css";
 import "./styles/widget.css";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, on, type MapData, type PlayerState, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
-import { hiddenPoiKinds, mapRegion, POI_KINDS, SIZE, worldToMap } from "./lib/carte";
+import { api, on, type MapData, type PlayerState, type SeenResource, type Settings, type Timer, type Widget, type WidgetKind } from "./lib/api";
+import { hiddenPoiKinds, mapRegion, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
@@ -200,6 +200,7 @@ const canvas = h("canvas", { class: "w-minimap" }) as HTMLCanvasElement;
 let mapData: MapData | null = null;
 let mapImg: { img: HTMLImageElement; rect: [number, number, number, number] } | null = null;
 let player: PlayerState | null = null;
+let resources: SeenResource[] = [];
 
 async function loadMapImage() {
   mapImg = null;
@@ -273,6 +274,21 @@ function drawMinimap() {
       g.strokeStyle = "#11131F";
       g.stroke();
     }
+    // Ressources : petits points, pâles si elles ne sont plus chargées.
+    const region = mapRegion(mapData);
+    for (const r of resources) {
+      if (r.region !== region) continue;
+      const k = resourceKind(r.name);
+      if (masked.has(k.key)) continue;
+      const p = worldToMap(mapData, r.x, r.y);
+      if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
+      g.globalAlpha = r.live ? 0.95 : 0.4;
+      g.beginPath();
+      g.arc(px(p.x), py(p.y), k.ground ? 1.8 : 2.8, 0, Math.PI * 2);
+      g.fillStyle = k.color;
+      g.fill();
+    }
+    g.globalAlpha = 1;
     // Flèche du joueur : yaw 0 = vers l'est, comme sur la grande carte.
     g.save();
     g.translate(R, R);
@@ -381,7 +397,11 @@ async function start() {
     case "minimap": {
       card.classList.add("minimap");
       mount(card, canvas);
-      [player, mapData] = await Promise.all([api.playerState(), api.mapData()]);
+      [player, mapData, resources] = await Promise.all([api.playerState(), api.mapData(), api.resources()]);
+      await on.resources((r) => {
+        resources = r;
+        drawMinimap();
+      });
       await loadMapImage();
       drawMinimap();
       await on.playerState((s) => {

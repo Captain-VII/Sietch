@@ -27,6 +27,8 @@ pub struct AppState {
     pub raw_wanted: AtomicBool,
     /// Carte de la région (limites, zones, points d'intérêt), relue quand le personnage est retrouvé.
     pub map_data: Mutex<Option<crate::ue::MapData>>,
+    /// Ressources vues (chargées en ce moment ou déjà croisées), pour la carte et la mini-carte.
+    pub resources: Mutex<Vec<crate::live::SeenResource>>,
     pub raw_stats: Mutex<Vec<crate::ue::RawStat>>,
     /// Demande de relecture de position.json par le fil des modules.
     pub live_reload: AtomicBool,
@@ -55,6 +57,7 @@ impl AppState {
             player_state: Mutex::new(None),
             raw_wanted: AtomicBool::new(false),
             map_data: Mutex::new(None),
+            resources: Mutex::new(Vec::new()),
             raw_stats: Mutex::new(Vec::new()),
             live_reload: AtomicBool::new(false),
             widgets_on: AtomicBool::new(true),

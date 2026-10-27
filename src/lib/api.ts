@@ -57,6 +57,18 @@ export interface MapData {
   pois: { kind: string; name: string; x: number; y: number; z: number }[];
 }
 
+/** Générateur de ressources vu dans le jeu ; `live` s'il est chargé autour du joueur en ce moment. */
+export interface SeenResource {
+  region: string;
+  name: string;
+  x: number;
+  y: number;
+  z: number;
+  /** Délai de réapparition, en secondes. */
+  respawn: number;
+  live: boolean;
+}
+
 /** Une valeur d'attribut du personnage (écran « Stats brutes »). */
 export interface RawStat {
   set: string;
@@ -166,6 +178,7 @@ export const api = {
   /** Demande une relecture de tous les attributs du personnage ; renvoie la dernière lecture. */
   requestRawStats: () => invoke<RawStat[]>("request_raw_stats"),
   mapData: () => invoke<MapData | null>("get_map_data"),
+  resources: () => invoke<SeenResource[]>("get_resources"),
   importMapImage: (region: string, path: string) => invoke<string>("import_map_image", { region, path }),
   mapImage: (region: string) => invoke<string | null>("get_map_image", { region }),
   removeMapImage: (region: string) => invoke<void>("remove_map_image", { region }),
@@ -179,6 +192,7 @@ export const on = {
   alarm: (fn: (a: Alarm) => void) => listen<Alarm>("alarm", (e) => fn(e.payload)),
   liveStatus: (fn: (s: LiveStatus) => void) => listen<LiveStatus>("live-status", (e) => fn(e.payload)),
   mapData: (fn: (m: MapData | null) => void) => listen<MapData | null>("map-data", (e) => fn(e.payload)),
+  resources: (fn: (r: SeenResource[]) => void) => listen<SeenResource[]>("resources", (e) => fn(e.payload)),
   playerState: (fn: (s: PlayerState) => void) => listen<PlayerState>("player-state", (e) => fn(e.payload)),
   position: (fn: (p: PlayerPosition) => void) => listen<PlayerPosition>("player-position", (e) => fn(e.payload)),
   widgetsEdit: (fn: (editing: boolean) => void) => listen<boolean>("widgets-edit", (e) => fn(e.payload)),

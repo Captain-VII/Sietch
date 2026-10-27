@@ -17,6 +17,29 @@ export const POI_KINDS: Record<string, { label: string; color: string }> = {
   evenement: { label: "Événement", color: "#f09a8a" },
 };
 
+/** Ressources lues dans le jeu (générateurs), d'après leur nom interne. Les noms français du jeu peuvent différer. */
+const RESOURCE_KINDS: Record<string, { label: string; color: string }> = {
+  AzuriteOre: { label: "Azurite", color: "#4f8fe0" },
+  Azurite: { label: "Azurite", color: "#4f8fe0" },
+  RhyoliteStone: { label: "Rhyolite", color: "#a99a86" },
+  ScrapMetal: { label: "Ferraille", color: "#9aa3ad" },
+  ScrapElectronics: { label: "Électronique", color: "#6fd1e8" },
+  ImpureFuel: { label: "Carburant", color: "#e8823a" },
+  BurroBush: { label: "Buisson", color: "#8fbf5a" },
+  Primrose: { label: "Primevère", color: "#e6a6d0" },
+  Ornithopter: { label: "Ornithoptère", color: "#f1d7ff" },
+};
+
+/** Catégorie d'une ressource (clé de masquage `r:<nom>`), libellé, couleur, et si elle se ramasse au sol. */
+export function resourceKind(name: string) {
+  const ground = name.endsWith("_Pickup");
+  const base = name.replace(/_Pickup$/, "");
+  // Variantes (« AzuriteOre_Cliffside ») : on garde la ressource de départ.
+  const known = Object.keys(RESOURCE_KINDS).filter((n) => base === n || base.startsWith(`${n}_`))[0];
+  const k = (known && RESOURCE_KINDS[known]) || { label: base.replace(/([a-z])([A-Z])/g, "$1 $2"), color: "#e9dfc9" };
+  return { key: `r:${k.label}`, label: k.label, color: k.color, ground };
+}
+
 /** Catégories de points d'intérêt masquées, partagées par la carte et la mini-carte. */
 export const POI_HIDDEN_KEY = "sietch-carte-poi-masques";
 

@@ -307,6 +307,57 @@ impl<'a> Ue<'a> {
         Some(Poi { kind: kind.into(), name: name.trim_start_matches("CB_").into(), x, y, z })
     }
 
+    /// Générateurs de ressources chargés autour du joueur (classes dérivées de `ResourceSpawner`).
+    /// Le jeu ne charge que les environs : la mémoire des points déjà vus est tenue par `live.rs`.
+    pub fn resources(&mut self) -> Vec<Resource> {
+        let Some(head) = read::<24>(self.m, self.table) else { return Vec::new() };
+        let mut kinds: HashMap<u64, Option<String>> = HashMap::new();
+        let mut out = Vec::new();
+        for i in 0..u32_at(&head, 20) {
+            let Some(o) = self.object(i) else { continue };
+            let Some(b) = read::<0x28>(self.m, o) else { continue };
+            if u32_at(&b, 0x08) & TEMPLATE != 0 {
+                continue;
+            }
+            let class = u64_at(&b, 0x10);
+            let kind = match kinds.get(&class) {
+                Some(k) => k.clone(),
+                None => {
+                    let k = self.resource_class(class);
+                    kinds.insert(class, k.clone());
+                    k
+                }
+            };
+            let Some(name) = kind else { continue };
+            let Some([x, y, z]) = self.location(o, class) else { continue };
+            // Délai de réapparition par défaut, en secondes.
+            let respawn = self
+                .field_cached(class, "m_DefaultRespawnTime")
+                .and_then(|f| read::<4>(self.m, o + f))
+                .map(f32::from_le_bytes)
+                .filter(|t| t.is_finite() && *t >= 0.0)
+                .unwrap_or(0.0);
+            out.push(Resource { name, x, y, z, respawn });
+        }
+        out
+    }
+
+    /// Nom de ressource d'une classe de générateur, ou `None` si la classe n'hérite pas de `ResourceSpawner`.
+    fn resource_class(&mut self, class: u64) -> Option<String> {
+        let name = self.name_at(class + 0x18)?;
+        let mut c = ptr(self.m, class + 0x40);
+        for _ in 0..8 {
+            if c == 0 {
+                break;
+            }
+            if self.name_at(c + 0x18).as_deref() == Some("ResourceSpawner") {
+                return Some(resource_name(&name));
+            }
+            c = ptr(self.m, c + 0x40);
+        }
+        None
+    }
+
     /// Le personnage du joueur et ses jeux d'attributs, en un seul passage sur la table des objets.
     pub fn find_player(&mut self) -> Option<Player> {
         let head = read::<24>(self.m, self.table)?;
@@ -404,6 +455,23 @@ pub fn poi_kind(asset: &str) -> Option<&'static str> {
         ("base", "base"),
     ];
     KINDS.iter().find(|(k, _)| n.contains(k)).map(|&(_, v)| v)
+}
+
+/// Nom de ressource d'après la classe du générateur : `BP_AzuriteOre_A_Spawner_C` → `AzuriteOre`,
+/// `BP_Azurite_Pickup_B_Spawner_C` → `Azurite_Pickup` (ramassable au sol).
+pub fn resource_name(class: &str) -> String {
+    let core = class.trim_start_matches("BP_").trim_end_matches("_C").trim_end_matches("_Spawner");
+    core.split('_').filter(|p| !(p.len() == 1 && p.chars().all(|c| c.is_ascii_uppercase()))).collect::<Vec<_>>().join("_")
+}
+
+/// Générateur de ressources : nom (voir `resource_name`), position (cm) et délai de réapparition (s).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Resource {
+    pub name: String,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub respawn: f32,
 }
 
 /// Limites de la carte de la région, en cm.
@@ -661,6 +729,9 @@ mod tests {
         assert_eq!(poi_kind("CB_Arrakis_WreckedShip_02"), Some("epave"));
         assert_eq!(poi_kind("CB_Arrakis_Generic_12"), None, "relief ignoré");
         assert_eq!(poi_kind("CB_ShieldW_CliffFormation_1"), None);
+        assert_eq!(resource_name("BP_AzuriteOre_A_Spawner_C"), "AzuriteOre");
+        assert_eq!(resource_name("BP_Azurite_Pickup_B_Spawner_C"), "Azurite_Pickup");
+        assert_eq!(resource_name("BP_ImpureFuel_Spawner_C"), "ImpureFuel");
     }
 
     #[test]

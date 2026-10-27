@@ -158,6 +158,11 @@ pub fn spawn(app: AppHandle) {
         let mut tables: Option<ue::Tables> = None;
         let mut player: Option<ue::Player> = None;
         let mut last_state: Option<ue::PlayerState> = None;
+        // Ressources déjà croisées, gardées d'une session à l'autre (fichier local).
+        let seen_file = app.state::<AppState>().dir.join("ressources-vues.json");
+        let mut seen = Seen::load(&seen_file);
+        *app.state::<AppState>().resources.lock().unwrap() = seen.list();
+        let mut last_resources: Option<Instant> = None;
         let mut alerts = crate::alerts::Alerts::default();
         let (mut last_tables_try, mut last_player_try): (Option<Instant>, Option<Instant>) = (None, None);
         loop {
@@ -300,6 +305,25 @@ pub fn spawn(app: AppHandle) {
                             Some(None) => player = None,
                             None => {}
                         }
+                        // Ressources autour du joueur : un passage sur la table des objets toutes les 15 s.
+                        if player.is_some()
+                            && let Some(t) = tables
+                            && last_resources.is_none_or(|i| i.elapsed() > Duration::from_secs(15))
+                            && let Some(mut u) = ue::Ue::open(r, t)
+                        {
+                            last_resources = Some(Instant::now());
+                            let region = state.map_data.lock().unwrap().as_ref().map(|m| region_of(&m.layer)).unwrap_or("hagga");
+                            let found = u.resources();
+                            if cfg!(debug_assertions) {
+                                eprintln!("[ressources] {} autour du joueur, {} connues", found.len(), seen.len());
+                            }
+                            if seen.update(region, found) {
+                                let _ = fs::write(&seen_file, seen.to_json());
+                            }
+                            let list = seen.list();
+                            let _ = app.emit("resources", &list);
+                            *state.resources.lock().unwrap() = list;
+                        }
                         // Écran « Stats brutes » ouvert : toutes les valeurs d'attributs, à la demande.
                         if state.raw_wanted.swap(false, std::sync::atomic::Ordering::Relaxed)
                             && let (Some(p), Some(t)) = (player.as_ref(), tables)
@@ -326,6 +350,68 @@ pub fn spawn(app: AppHandle) {
             std::thread::sleep(Duration::from_millis(250));
         }
     });
+}
+
+/// Région de Sietch d'après le calque de carte du jeu (calque Survival_1 = Bassin de Hagga).
+fn region_of(layer: &str) -> &'static str {
+    if layer.to_lowercase().contains("deep") { "profond" } else { "hagga" }
+}
+
+/// Ressource vue : `live` si elle est chargée autour du joueur en ce moment.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeenResource {
+    pub region: String,
+    #[serde(flatten)]
+    pub res: ue::Resource,
+    #[serde(default)]
+    pub live: bool,
+}
+
+/// Mémoire des ressources croisées, une entrée par générateur (région, nom, position au mètre).
+#[derive(Default)]
+struct Seen(std::collections::BTreeMap<String, SeenResource>);
+
+impl Seen {
+    fn load(path: &std::path::Path) -> Self {
+        let list: Vec<SeenResource> = fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let mut s = Self::default();
+        for mut r in list {
+            r.live = false;
+            s.0.insert(Self::key(&r), r);
+        }
+        s
+    }
+
+    fn key(r: &SeenResource) -> String {
+        format!("{}|{}|{}|{}", r.region, r.res.name, (r.res.x / 100.0).round(), (r.res.y / 100.0).round())
+    }
+
+    /// Marque les ressources chargées ; renvoie `true` si de nouvelles ont été découvertes.
+    fn update(&mut self, region: &str, found: Vec<ue::Resource>) -> bool {
+        for r in self.0.values_mut() {
+            r.live = false;
+        }
+        let mut added = false;
+        for res in found {
+            let r = SeenResource { region: region.into(), res, live: true };
+            added |= self.0.insert(Self::key(&r), r).is_none();
+        }
+        added
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn list(&self) -> Vec<SeenResource> {
+        self.0.values().cloned().collect()
+    }
+
+    fn to_json(&self) -> String {
+        let list: Vec<_> = self.0.values().map(|r| SeenResource { live: false, ..r.clone() }).collect();
+        serde_json::to_string(&list).unwrap_or_default()
+    }
 }
 
 #[cfg(windows)]

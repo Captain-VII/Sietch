@@ -2,8 +2,8 @@ import L from "leaflet";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api, on, type MapData } from "../lib/api";
-import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, SIZE, worldToMap as toWorldMap } from "../lib/carte";
+import { api, on, type MapData, type SeenResource } from "../lib/api";
+import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, resourceKind, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -74,15 +74,24 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   // ---------- Carte lue dans le jeu : zones et points d'intérêt de la région ----------
   const gameLayer = L.layerGroup().addTo(map);
   let mapData: MapData | null = null;
+  let resources: SeenResource[] = [];
 
   const worldToMap = (x: number, y: number) => toWorldMap(mapData!, x, y);
 
   /** Catégories de points d'intérêt à cocher, avec le nombre de points de chacune. */
   function drawPoiChips() {
     const counts = new Map<string, number>();
+    const looks = new Map<string, { label: string; color: string }>();
     if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
-    mount(poiChips, [...counts].sort((a, b) => b[1] - a[1]).map(([kind, n]) => {
-      const k = POI_KINDS[kind] ?? { label: kind, color: "#e9dfc9" };
+    // Ressources : une catégorie par ressource, au sol ou non.
+    for (const r of resources) {
+      if (r.region !== region) continue;
+      const k = resourceKind(r.name);
+      counts.set(k.key, (counts.get(k.key) ?? 0) + 1);
+      looks.set(k.key, k);
+    }
+    mount(poiChips, [...counts].sort((a, b) => Number(a[0].startsWith("r:")) - Number(b[0].startsWith("r:")) || b[1] - a[1]).map(([kind, n]) => {
+      const k = looks.get(kind) ?? POI_KINDS[kind] ?? { label: kind, color: "#e9dfc9" };
       return h("button", {
         class: "chip", type: "button", "aria-pressed": String(!hiddenPoi.has(kind)),
         onclick: () => {
@@ -117,6 +126,17 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       const kind = POI_KINDS[poi.kind] ?? { label: poi.kind, color: "#e9dfc9" };
       L.circleMarker(toLatLng(p.x, p.y), { radius: 5, color: "#11131F", weight: 2, fillColor: kind.color, fillOpacity: 1 })
         .bindTooltip(`${kind.label} · ${sectorOf(p.x, p.y)}`, { className: "marker-tip", direction: "top", offset: [0, -6] })
+        .addTo(gameLayer);
+    }
+    // Ressources : petits points sans contour ; pâles quand elles ne sont plus chargées (déjà vues).
+    for (const r of resources) {
+      if (r.region !== region) continue;
+      const k = resourceKind(r.name);
+      if (hiddenPoi.has(k.key)) continue;
+      const p = worldToMap(r.x, r.y);
+      const respawn = r.respawn > 0 ? ` · réapparaît en ${Math.round(r.respawn / 60)} min` : "";
+      L.circleMarker(toLatLng(p.x, p.y), { radius: k.ground ? 2.5 : 4, stroke: false, fillColor: k.color, fillOpacity: r.live ? 0.95 : 0.4 })
+        .bindTooltip(`${k.label}${k.ground ? " (au sol)" : ""} · ${sectorOf(p.x, p.y)}${respawn}${r.live ? "" : " · déjà vue"}`, { className: "marker-tip", direction: "top", offset: [0, -4] })
         .addTo(gameLayer);
     }
   }
@@ -180,6 +200,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   void api.mapData().then((m) => { mapData = m; drawGame(); drawLive(); });
   const stopMapData = on.mapData((m) => { mapData = m; drawGame(); drawLive(); });
+  void api.resources().then((r) => { resources = r; drawGame(); });
+  const stopResources = on.resources((r) => { resources = r; drawGame(); });
 
   const layer = L.layerGroup().addTo(map);
 
@@ -599,6 +621,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       resize.disconnect();
       stopLive();
       void stopMapData.then((un) => un());
+      void stopResources.then((un) => un());
       void stopYaw.then((un) => un());
       map.remove();
     },

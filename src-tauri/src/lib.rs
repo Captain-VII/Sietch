@@ -275,6 +275,12 @@ fn get_map_data(state: State<AppState>) -> Option<ue::MapData> {
     state.map_data.lock().unwrap().clone()
 }
 
+/// Ressources vues (modules sans BattlEye).
+#[tauri::command]
+fn get_resources(state: State<AppState>) -> Vec<live::SeenResource> {
+    state.resources.lock().unwrap().clone()
+}
+
 /// Demande une relecture de tous les attributs et renvoie la dernière lecture.
 #[tauri::command]
 fn request_raw_stats(state: State<AppState>) -> Vec<ue::RawStat> {
@@ -399,6 +405,7 @@ pub fn run() {
             get_player_state,
             request_raw_stats,
             get_map_data,
+            get_resources,
             import_map_image,
             get_map_image,
             remove_map_image,
