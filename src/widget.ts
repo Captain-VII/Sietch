@@ -264,12 +264,11 @@ function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill:
   g.strokeStyle = ring;
   g.stroke();
   if (path) {
+    // Silhouette pleine (voir lib/carte.ts), découpes en evenodd.
     g.scale(glyph / 24, glyph / 24);
     g.translate(-12, -12);
-    g.lineWidth = 2.5;
-    g.lineCap = g.lineJoin = "round";
-    g.strokeStyle = stroke;
-    g.stroke(paths.get(path) ?? paths.set(path, new Path2D(path)).get(path)!);
+    g.fillStyle = stroke;
+    g.fill(paths.get(path) ?? paths.set(path, new Path2D(path)).get(path)!, "evenodd");
   }
   g.restore();
 }
@@ -355,7 +354,7 @@ function drawMinimap() {
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
       // Pastille de sa couleur, pictogramme sombre (comme sur la grande carte).
       const look = POI_KINDS[poi.kind];
-      pin(g, px(p.x), py(p.y), 15, look?.color ?? "#e9dfc9", "#11131F", look?.path, "#11131F", 10);
+      pin(g, px(p.x), py(p.y), 16, look?.color ?? "#e9dfc9", "#11131F", look?.path, "#11131F", 11);
     }
     // Ressources : pastille sombre, pictogramme de couleur ; pâles si elles ne sont plus chargées.
     const region = mapRegion(mapData);
