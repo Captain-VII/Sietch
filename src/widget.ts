@@ -3,7 +3,7 @@ import "./styles/components.css";
 import "./styles/widget.css";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, on, type MapData, type PlayerState, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
+import { api, on, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
 import { hiddenPoiKinds, mapRegion, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
@@ -400,11 +400,12 @@ function drawMinimap() {
 /** Cadre, déplacement à la souris et taille à la molette ; le moteur enregistre les positions en sortant. */
 const badge = h("span", { class: "w-badge" });
 
-/** Menu du jeu ouvert : le widget s'efface (sauf en mode édition, ou si le réglage est coupé). */
-let inMenu = false;
+/** Hors du jeu ou dans un de ses menus : le widget s'efface (sauf en mode édition, ou si les réglages sont coupés). */
+let focus: GameFocus = { foreground: true, menu: false };
 function applyMenu() {
   const root = document.documentElement;
-  root.classList.toggle("in-menu", inMenu && settings.overlayHideInMenus && !root.classList.contains("editing"));
+  const hidden = (settings.overlayOnlyInGame && !focus.foreground) || (settings.overlayHideInMenus && focus.menu);
+  root.classList.toggle("in-menu", hidden && !root.classList.contains("editing"));
 }
 
 function setEditing(on: boolean) {
@@ -462,10 +463,10 @@ async function start() {
   editControls();
   setEditing(await api.widgetsEdit());
   await on.widgetsEdit(setEditing);
-  inMenu = await api.gameMenu();
+  focus = await api.gameFocus();
   applyMenu();
-  await on.gameMenu((open) => {
-    inMenu = open;
+  await on.gameFocus((f) => {
+    focus = f;
     applyMenu();
   });
 

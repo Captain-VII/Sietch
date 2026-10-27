@@ -21,6 +21,8 @@ pub struct Settings {
     pub overlay_click_through: bool,
     /// Widgets masqués quand un menu du jeu est ouvert (inventaire, carte, Échap…).
     pub overlay_hide_in_menus: bool,
+    /// Widgets affichés seulement quand le jeu est au premier plan.
+    pub overlay_only_in_game: bool,
     /// Action → combinaison, ex. "overlay" → "Ctrl+Shift+O".
     pub shortcuts: BTreeMap<String, String>,
     /// Modules sans BattlEye (position en direct). Désactivés par défaut.
@@ -199,6 +201,7 @@ impl Default for Settings {
             start_minimized: false,
             overlay_click_through: false,
             overlay_hide_in_menus: true,
+            overlay_only_in_game: true,
             shortcuts,
             live_modules: false,
             live_region: "hagga".into(),

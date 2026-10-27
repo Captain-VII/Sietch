@@ -90,6 +90,14 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
         void update({ overlayClickThrough: v });
       },
     });
+    const inGame = h("button", {
+      class: "switch", type: "button", role: "switch", "aria-checked": String(s.overlayOnlyInGame), "aria-label": "Seulement quand le jeu est au premier plan",
+      onclick: () => {
+        const v = inGame.getAttribute("aria-checked") !== "true";
+        inGame.setAttribute("aria-checked", String(v));
+        void update({ overlayOnlyInGame: v });
+      },
+    });
     const menus = h("button", {
       class: "switch", type: "button", role: "switch", "aria-checked": String(s.overlayHideInMenus), "aria-label": "Masquer dans les menus du jeu",
       onclick: () => {
@@ -150,6 +158,10 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
         h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Clic traversant"),
           h("span", { class: "muted", style: "font-size: 13px" }, "Widgets verrouillés : les clics passent à travers, vers le jeu. Le mode édition les rend toujours déplaçables.")),
         through),
+      h("div", { class: "setting-row" },
+        h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Seulement quand le jeu est au premier plan"),
+          h("span", { class: "muted", style: "font-size: 13px" }, "Les widgets s'effacent quand vous passez sur une autre fenêtre (Alt+Tab) ou quand le jeu est fermé. Le mode édition les affiche toujours.")),
+        inGame),
       h("div", { class: "setting-row" },
         h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Masquer dans les menus du jeu"),
           h("span", { class: "muted", style: "font-size: 13px" }, "Inventaire, carte, menu Échap… : les widgets s'effacent tant que le curseur de la souris est affiché. Le bandeau des alertes reste visible.")),

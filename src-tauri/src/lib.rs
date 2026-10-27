@@ -329,10 +329,10 @@ fn test_alarm(app: AppHandle, state: State<AppState>) {
     );
 }
 
-/// Un menu du jeu est-il ouvert ? (`menu.rs`)
+/// Jeu au premier plan, menu ouvert ? (`menu.rs`)
 #[tauri::command]
-fn get_game_menu(state: State<AppState>) -> bool {
-    state.game_menu.load(std::sync::atomic::Ordering::Relaxed)
+fn get_game_focus(state: State<AppState>) -> menu::GameFocus {
+    *state.game_focus.lock().unwrap()
 }
 
 // ---------- Mises à jour ----------
@@ -458,7 +458,7 @@ pub fn run() {
             get_live_status,
             reload_live_config,
             test_alarm,
-            get_game_menu,
+            get_game_focus,
             get_update,
             check_update,
             install_update,

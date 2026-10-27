@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS: Settings = {
   startMinimized: false,
   overlayClickThrough: false,
   overlayHideInMenus: true,
+  overlayOnlyInGame: true,
   shortcuts: {
     marker: "Ctrl+Shift+M",
     timer: "Ctrl+Shift+T",
@@ -209,8 +210,8 @@ function handle(cmd: string, args: Record<string, any>): unknown {
           })
         : [];
     }
-    case "get_game_menu":
-      return false;
+    case "get_game_focus":
+      return { foreground: true, menu: false };
     case "get_update":
     case "check_update":
     case "install_update":
