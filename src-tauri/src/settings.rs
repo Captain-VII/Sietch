@@ -45,10 +45,13 @@ pub struct Settings {
 
 /// Éléments qu'un widget peut afficher.
 /// Valeurs que le widget Jauges peut montrer en anneaux.
-pub const GAUGE_RINGS: [&str; 6] = ["health", "stamina", "hydration", "power", "inventory", "worm"];
+pub const GAUGE_RINGS: [&str; 5] = ["health", "stamina", "hydration", "power", "inventory"];
 
-pub const WIDGET_KINDS: [&str; 12] =
-    ["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear"];
+/// `threat` : menace du ver, widget à part près du viseur (avant : un anneau du widget Équipement).
+pub const WIDGET_KINDS: [&str; 13] = [
+    "clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear",
+    "threat",
+];
 
 /// Une disposition : un ensemble de widgets placés à l'écran.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -104,10 +107,9 @@ impl Settings {
     /// disposition active existante.
     pub fn normalize(&mut self) {
         // Anneaux du widget Jauges : seulement des valeurs connues, sans doublon.
-        if self.rings_version < 1 {
-            self.gauge_rings.push("worm".into());
-            self.rings_version = 1;
-        }
+        // L'anneau du ver (version 1) est devenu le widget `threat` : affiché dans les dispositions existantes.
+        let show_threat = self.rings_version < 2;
+        self.rings_version = 2;
         let mut rings = std::collections::BTreeSet::new();
         self.gauge_rings.retain(|k| GAUGE_RINGS.contains(&k.as_str()) && rings.insert(k.clone()));
         let mut seen = std::collections::BTreeSet::new();
@@ -126,6 +128,9 @@ impl Settings {
                 });
                 w.scale = if w.scale.is_finite() { w.scale.clamp(0.5, 2.0) } else { 1.0 };
                 w.opacity = w.opacity.clamp(20, 100);
+                if show_threat && kind == "threat" {
+                    w.shown = true;
+                }
                 widgets.push(w);
             }
             l.widgets = widgets;
@@ -198,7 +203,7 @@ impl Default for Settings {
             player_alerts: Default::default(),
             map_images: BTreeMap::new(),
             gauge_rings: GAUGE_RINGS.iter().map(|s| s.to_string()).collect(),
-            rings_version: 1,
+            rings_version: 2,
             layouts: vec![Layout::default()],
             active_layout: "exploration".into(),
         }
@@ -288,14 +293,17 @@ mod tests {
     }
 
     #[test]
-    fn old_rings_get_the_worm_once() {
-        let mut s: Settings = serde_json::from_str(r#"{"gaugeRings":["health","power"]}"#).unwrap();
-        s.normalize();
-        assert_eq!(s.gauge_rings, ["health", "power", "worm"]);
-        // Décoché ensuite par l'utilisateur : il ne revient pas.
-        s.gauge_rings.pop();
+    fn worm_ring_becomes_the_threat_widget_once() {
+        let mut s: Settings =
+            serde_json::from_str(r#"{"gaugeRings":["health","power","worm"],"ringsVersion":1}"#).unwrap();
         s.normalize();
         assert_eq!(s.gauge_rings, ["health", "power"]);
+        let threat = |s: &Settings| s.layouts[0].widgets.iter().find(|w| w.kind == "threat").unwrap().shown;
+        assert!(threat(&s));
+        // Décoché ensuite par l'utilisateur : il ne revient pas.
+        s.layouts[0].widgets.iter_mut().find(|w| w.kind == "threat").unwrap().shown = false;
+        s.normalize();
+        assert!(!threat(&s));
     }
 
     #[test]

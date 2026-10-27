@@ -105,6 +105,7 @@ fn widget_size(kind: &str) -> (f64, f64) {
         "minimap" => (200.0, 200.0),
         "gauges" => (110.0, 200.0),
         "gear" => (200.0, 72.0),
+        "threat" => (170.0, 70.0),
         "health" | "stamina" | "hydration" | "power" | "inventory" => (230.0, 52.0),
         _ => (180.0, 64.0),
     }
@@ -125,6 +126,8 @@ fn default_pos(kind: &str, sw: f64, sh: f64) -> (f64, f64) {
         "timers" => right(2270.0, 440.0),
         "gauges" => center(1480.0, 620.0),
         "gear" => bottom(1490.0, 1248.0),
+        // Menace du ver : centrée juste au-dessus du viseur, là où se porte le regard.
+        "threat" => center(1195.0, 560.0),
         // Barres (cachées par défaut, remplacées par les anneaux) : en colonne à droite du viseur.
         "health" => center(1560.0, 800.0),
         "stamina" => center(1560.0, 852.0),

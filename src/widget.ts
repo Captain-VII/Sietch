@@ -144,11 +144,28 @@ const RING = 2 * Math.PI * 19;
 /** Deux groupes séparés : fonctions vitales et équipement (un widget chacun). */
 const RING_GROUPS: Partial<Record<WidgetKind, WidgetKind[]>> = {
   gauges: ["health", "stamina", "hydration"],
-  gear: ["power", "inventory", "worm"],
+  gear: ["power", "inventory"],
 };
 const RING_ICONS: Partial<Record<WidgetKind, string>> = {
-  health: "heart", stamina: "run", hydration: "drop", power: "bolt", inventory: "bag", worm: "worm",
+  health: "heart", stamina: "run", hydration: "drop", power: "bolt", inventory: "bag",
 };
+
+/** Menace du ver, au-dessus du viseur : grand anneau et pourcentage lisible d'un coup d'œil.
+ *  Discrète à 0 %, violette et pulsante dès le seuil de l'alerte. */
+function drawThreat(s: PlayerState | null) {
+  if (!card.firstChild) {
+    mount(card,
+      h("div", { class: "w-ring worm" }, svgRing(), h("span", { class: "w-ring-in" }, icon("worm", 22))),
+      h("div", { class: "w-threat-text" }, h("span", { class: "w-label" }, "Ver"), h("span", { class: "digits w-big" })));
+  }
+  const v = s?.wormThreat;
+  const pct = v == null ? 0 : Math.max(0, Math.min(1, v / 100));
+  card.querySelector<SVGCircleElement>(".fill")!.style.strokeDashoffset = String(RING * (1 - pct));
+  card.querySelector(".w-big")!.textContent = v == null ? "—" : `${Math.round(v)} %`;
+  const warn = settings.playerAlerts.worm || 75;
+  card.classList.toggle("calm", !v);
+  card.classList.toggle("danger", v != null && v >= warn);
+}
 
 function drawGauges(s: PlayerState | null) {
   const rings = settings.gaugeRings.filter((k) => RING_GROUPS[kind]!.includes(k));
@@ -467,6 +484,11 @@ async function start() {
       card.classList.toggle("vitals", kind === "gauges");
       drawGauges(await api.playerState());
       await on.playerState(drawGauges);
+      break;
+    case "threat":
+      card.classList.add("threat");
+      drawThreat(await api.playerState());
+      await on.playerState(drawThreat);
       break;
     case "minimap": {
       card.classList.add("minimap");

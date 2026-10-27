@@ -80,7 +80,8 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
 - **Personnage en direct** (`ue.rs`, lecture par les noms UE) : vie, endurance, eau, énergie, volume du sac, heure du jeu.
   Plusieurs `BP_DunePlayerCharacter_C` peuvent exister : on garde celui dont `MaxHealth` > 0.
 - **Overlay** : écran à part dans la barre de gauche. Jauges en anneaux (widgets `gauges` = vie/endurance/eau en arc
-  à droite du viseur, `gear` = énergie/sac au-dessus de la compétence C), mini-carte en haut à droite.
+  à droite du viseur, `gear` = énergie/sac au-dessus de la compétence C), menace du ver (`threat`, grand anneau + %, juste au-dessus du
+  viseur, violet et pulsant dès le seuil d'alerte), mini-carte en haut à droite.
   Disposition par défaut réglée en jeu sur 2560 × 1440, rapportée à l'écran (`windows.rs::default_pos`).
   L'overlay s'affiche au lancement.
 - **Carte** : sans défilement (pleine hauteur), suivi du joueur arrêté dès qu'on déplace la carte, région automatique

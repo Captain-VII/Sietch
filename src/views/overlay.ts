@@ -15,12 +15,13 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   minimap: "Mini-carte",
   gauges: "Fonctions vitales",
   gear: "Équipement",
+  threat: "Menace du ver",
   worm: "Ver",
 };
 /** Valeurs du personnage : en barres (un widget chacune) ou en anneaux (widget Jauges). */
 const STATS: WidgetKind[] = ["health", "stamina", "hydration", "power", "inventory"];
 /** Anneaux possibles (le ver n'existe qu'en anneau). */
-const RINGS: WidgetKind[] = [...STATS, "worm"];
+const RINGS: WidgetKind[] = STATS;
 
 /** Widgets de l'overlay : dispositions, éléments affichés, clic traversant. */
 export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
