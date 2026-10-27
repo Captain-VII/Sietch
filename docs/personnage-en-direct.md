@@ -36,6 +36,6 @@ Les offsets des champs se relisent par réflexion à chaque lancement (`ue-field
 
 ## Ajouts du 2026-10-27
 
-- **Emplacements du sac** : `m_BackpackInventoryComponent` → `m_Inventory` (`ItemInventory`) : liste interne des objets (`TArray` d'identifiants de 8 octets), non reflétée, placée juste avant `m_ClientMonitors` (offset de `m_ClientMonitors` − 0x18 ; nombre à +8). Capacité : `m_InitialMaxItemCount` de l'inventaire. Le sous-inventaire (200 places, vide) n'est pas compté. Lu : 9/35 ; **à confirmer contre l'écran Inventaire du jeu**.
+- **Emplacements du sac** : `m_BackpackInventoryComponent` → `m_Inventory` (`ItemInventory`) : liste interne des objets (`TArray` d'identifiants de 8 octets), non reflétée, placée juste avant `m_ClientMonitors` (offset de `m_ClientMonitors` − 0x18 ; nombre à +8). Capacité : `m_InitialMaxItemCount` de l'inventaire. Le sous-inventaire (200 places, vide) n'est pas compté. Lu : 9/35, **confirmé dans le jeu** (2026-10-27).
 - **Menace du ver** : composant `SandwormThreatSourceComponent` du personnage (outer = personnage) : `m_CurrentThreatBlobValue` / `m_CurrentSandwormAttackThreshold` (1000 par défaut). Sietch affiche le rapport en %, 100 = le ver attaque. Alerte à 75 % (réglable). Lu à 0 dans une base ; **valeurs sur le sable à vérifier**.
 - **Durabilité des équipements** : stockée dans le système d'entités du jeu (`ItemStackAndDurabilityStats`, objets `bUsesFgl`), pas dans des `UObject` : non lue pour l'instant.
