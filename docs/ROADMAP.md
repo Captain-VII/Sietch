@@ -142,3 +142,26 @@ Objectif : que d'autres joueurs puissent l'utiliser sans friction.
 - ✅ Pictogrammes des lieux et ressources ; 🟡 à rendre plus lisibles.
 - 🟡 Noms des zones, emplacements du sac, durabilité : à faire en solo (recherche en mémoire plus longue).
 - 🟡 Installation de la version de la CI : reportée par l'utilisateur.
+
+## Idées pour plus tard (notées le 2026-10-27, rien de commencé)
+
+Ordre conseillé : 1 + 2, puis 6, puis 8.
+
+**Utiles aussi en ligne (aucune lecture du jeu)**
+1. Calculateur d'artisanat : chaîne complète des matériaux d'un objet (minerai → lingot → pièce), recettes tirées d'awakening.wiki (CC BY-NC-SA, source citée).
+2. Liste de courses d'un build : total des matériaux des pièces d'un build (relie Builds au calculateur).
+3. Préparer une sortie dans le Désert profond : liste à cocher (eau, carburant, munitions, réparations), temps avant Coriolis, minuteurs utiles.
+4. Minuteurs prêts à l'emploi : entretien de base, impôts, réapparitions courantes.
+5. Partage de marqueurs par code (amis, guilde), comme les builds.
+
+**En solo, sans BattlEye**
+6. Trace du trajet de la session sur la carte et la mini-carte.
+7. Inventaire réel → « ce qu'il me manque » pour une recette (dépend du décodage de la liste du sac).
+8. Alertes de chaleur et de soleil (valeurs déjà lues).
+9. Journal de session : ressources récoltées, distance, durée.
+
+**Technique**
+10. Écran de diagnostic dans l'onglet « Sans BattlEye ».
+11. Installation de la version de la CI et mises à jour automatiques (quand l'utilisateur le voudra).
+
+Écartés : lecture de l'écran (OCR des barres du jeu), jugée pas assez fiable par l'utilisateur.
