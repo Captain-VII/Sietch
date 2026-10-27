@@ -10,7 +10,8 @@ https://github.com/Captain-VII/Sietch (licence GPL-3.0-or-later).
 
 - Parle français : interface, commentaires, commits et réponses en français.
 - Veut aller vite : un push sur `main` suffit au quotidien (la CI produit le `.exe`, sans paquet de mise à jour).
-  Les **releases** (depuis le 2026-10-27) se font sur demande, voir « Release et mises à jour ».
+  Les **releases** (depuis le 2026-10-27) se font sur demande, voir « Release et mises à jour » : jamais un tag par
+  petit changement ; on accumule en dev, et la release ne part que quand l'utilisateur a tout validé.
 - Les **overlays et widgets** se testent par-dessus le jeu, sur l'écran principal (sans jamais voler son focus) ;
   le reste de Sietch s'ouvre sur l'écran secondaire.
 - Ne veut **aucun son** : les alertes passent par la notification système (silencieuse) et un toast dans l'app.
