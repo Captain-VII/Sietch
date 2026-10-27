@@ -109,6 +109,12 @@ export interface PlayerState {
   yaw: number;
 }
 
+/** Sessions de jeu : (début, fin) en ms ; `current` = début de la session en cours. */
+export interface Playtime {
+  sessions: [number, number][];
+  current: number | null;
+}
+
 /** Jeu au premier plan, menu du jeu ouvert (curseur affiché). */
 export interface GameFocus {
   foreground: boolean;
@@ -204,6 +210,7 @@ export const api = {
   resources: () => invoke<SeenResource[]>("get_resources"),
   trail: () => invoke<Trail>("get_trail"),
   gameFocus: () => invoke<GameFocus>("get_game_focus"),
+  playtime: () => invoke<Playtime>("get_playtime"),
   update: () => invoke<UpdateInfo | null>("get_update"),
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   installUpdate: () => invoke<void>("install_update"),
@@ -222,6 +229,7 @@ export const on = {
   liveStatus: (fn: (s: LiveStatus) => void) => listen<LiveStatus>("live-status", (e) => fn(e.payload)),
   mapData: (fn: (m: MapData | null) => void) => listen<MapData | null>("map-data", (e) => fn(e.payload)),
   resources: (fn: (r: SeenResource[]) => void) => listen<SeenResource[]>("resources", (e) => fn(e.payload)),
+  playtime: (fn: (p: Playtime) => void) => listen<Playtime>("playtime", (e) => fn(e.payload)),
   gameFocus: (fn: (f: GameFocus) => void) => listen<GameFocus>("game-focus", (e) => fn(e.payload)),
   // Trajet remplacé (effacé, changement de région) ou prolongé de quelques points.
   trail: (fn: (t: Trail) => void) => listen<Trail>("trail", (e) => fn(e.payload)),

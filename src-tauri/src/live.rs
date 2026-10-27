@@ -195,6 +195,10 @@ pub fn spawn(app: AppHandle) {
                 }
                 clean_checks = next_clean_checks(clean_checks, battleye, game, game_pid);
                 game_pid = game;
+                // Temps de jeu : seulement le processus du jeu, avec ou sans BattlEye (pas en simulation).
+                if state.playtime.lock().unwrap().update(game.is_some() && !sim, now_ms()) {
+                    let _ = app.emit("playtime", &*state.playtime.lock().unwrap());
+                }
                 // Le personnage se retrouve par les noms d'Unreal Engine : plus besoin de chaîne de pointeurs.
                 let configured = sim || cfg!(windows);
                 let waiting = !sim && clean_checks < CLEAN_CHECKS;

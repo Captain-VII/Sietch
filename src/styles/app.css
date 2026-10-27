@@ -638,3 +638,29 @@
 .map-pin svg {
   display: block;
 }
+
+/* Temps de jeu : une barre par jour, aujourd'hui à droite. */
+.play-bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  height: 64px;
+}
+
+.play-bars > span {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted, #9a927f);
+}
+
+.play-bars i {
+  display: block;
+  width: 100%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--spice, #c9a861);
+}

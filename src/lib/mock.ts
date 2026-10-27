@@ -210,6 +210,11 @@ function handle(cmd: string, args: Record<string, any>): unknown {
           })
         : [];
     }
+    case "get_playtime": {
+      // Une session en cours depuis 50 min et quelques soirées passées.
+      const now = Date.now(), day = 86_400_000;
+      return { current: now - 50 * 60_000, sessions: [1, 2, 4, 5].map((d) => [now - d * day, now - d * day + (40 + d * 25) * 60_000]) };
+    }
     case "get_game_focus":
       return { foreground: true, menu: false };
     case "get_update":

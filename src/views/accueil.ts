@@ -1,5 +1,5 @@
 import type { Ctx, ViewHandle } from "../main";
-import { api, prettyKeys, SHORTCUT_LABELS, type Timer } from "../lib/api";
+import { api, on, prettyKeys, SHORTCUT_LABELS, type Playtime, type Timer } from "../lib/api";
 import { builds, getNotes, markers, MARKER_TYPES, REGIONS, sectorOf, setNotes } from "../lib/data";
 import { h, mount } from "../lib/dom";
 import { remaining } from "../lib/time";
@@ -69,6 +69,39 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     );
   });
 
+  // Temps de jeu : session en cours, aujourd'hui et les 7 derniers jours (heure locale).
+  const playBox = h("div", { class: "stack", style: "--gap: 14px" });
+  let play: Playtime | null = null;
+  const drawPlay = () => {
+    if (!play) return;
+    const now = Date.now();
+    const spans: [number, number][] = [...play.sessions, ...(play.current != null ? [[play.current, now] as [number, number]] : [])];
+    const day0 = new Date(now).setHours(0, 0, 0, 0);
+    // Minutes jouées le jour `i` (0 = aujourd'hui, 6 = il y a 6 jours).
+    const perDay = Array.from({ length: 7 }, (_, i) => {
+      const from = new Date(day0).setDate(new Date(day0).getDate() - i), to = new Date(from).setDate(new Date(from).getDate() + 1);
+      return spans.reduce((n, [a, b]) => n + Math.max(0, Math.min(b, to) - Math.max(a, from)), 0) / 60_000;
+    });
+    const fmt = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h ${String(Math.round(min % 60)).padStart(2, "0")}` : `${Math.round(min)} min`);
+    const max = Math.max(...perDay, 1);
+    const days = ["D", "L", "M", "M", "J", "V", "S"];
+    mount(playBox,
+      h("div", { class: "row spread", style: "align-items: baseline" },
+        h("span", { class: "soft" }, play.current != null ? "Session en cours" : "Jeu fermé"),
+        h("span", { class: "digits", style: "font-size: 22px" }, play.current != null ? fmt((now - play.current) / 60_000) : "—")),
+      h("div", { class: "row spread" }, h("span", { class: "soft" }, "Aujourd'hui"), h("span", { class: "digits" }, fmt(perDay[0]))),
+      h("div", { class: "row spread" }, h("span", { class: "soft" }, "7 derniers jours"), h("span", { class: "digits" }, fmt(perDay.reduce((a, b) => a + b, 0)))),
+      h("div", { class: "play-bars", "aria-hidden": "true" },
+        perDay.slice().reverse().map((m, i) =>
+          h("span", { title: fmt(m) },
+            h("i", { style: `height: ${Math.round((m / max) * 100)}%` }),
+            days[new Date(day0 - (6 - i) * 86_400_000).getDay()]))),
+    );
+  };
+  void api.playtime().then((p) => { play = p; drawPlay(); });
+  const stopPlay = on.playtime((p) => { play = p; drawPlay(); });
+  const playTick = window.setInterval(drawPlay, 30_000);
+
   const notes = h("textarea", { class: "textarea", rows: "5", "aria-label": "Notes rapides", placeholder: "Coordonnées, rendez-vous de guilde, achats à faire…" });
   void getNotes().then((t) => (notes.value = t));
   let notesTimer = 0;
@@ -115,6 +148,10 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
         ),
         markerBox,
       ),
+      h("section", { class: "card", "aria-labelledby": "jeu-titre" },
+        h("h2", { class: "section-title", id: "jeu-titre" }, "Temps de jeu"),
+        playBox,
+      ),
       h("section", { class: "card", "aria-labelledby": "rac-titre" },
         h("h2", { class: "section-title", id: "rac-titre" }, "Raccourcis globaux"),
         Object.entries(SHORTCUT_LABELS).slice(0, 4).map(([action, label]) =>
@@ -135,12 +172,18 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
         h("h2", { class: "section-title", id: "notes-titre" }, "Notes rapides"),
         notes,
         h("div", { class: "row wrap spread" },
-          h("span", { class: "badge" }, "Ne lit pas la mémoire du jeu · compatible BattlEye"),
+          h("span", { class: "badge" }, "Compatible BattlEye · lecture du jeu seulement sans BattlEye"),
           h("button", { class: "btn", type: "button", onclick: () => api.toggleOverlay() }, "Overlay"),
         ),
       ),
     ),
   );
 
-  return { onTimers: drawTimers };
+  return {
+    onTimers: drawTimers,
+    dispose: () => {
+      window.clearInterval(playTick);
+      void stopPlay.then((un) => un());
+    },
+  };
 }

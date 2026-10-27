@@ -31,6 +31,8 @@ pub struct AppState {
     pub resources: Mutex<Vec<crate::live::SeenResource>>,
     /// Trajet de la session (coordonnées du jeu) ; `None` coupe le tracé (téléportation, mort).
     pub trail: Mutex<Vec<Option<[f64; 2]>>>,
+    /// Sessions de jeu (`playtime.rs`).
+    pub playtime: Mutex<crate::playtime::Playtime>,
     /// Jeu au premier plan, menu ouvert (`menu.rs`).
     pub game_focus: Mutex<crate::menu::GameFocus>,
     /// Dernière mise à jour trouvée (`update.rs`).
@@ -55,6 +57,7 @@ impl AppState {
                 s.normalize();
                 s
             }),
+            playtime: Mutex::new(crate::playtime::Playtime::load(dir.join("temps-de-jeu.json"))),
             dir,
             shortcuts: Mutex::new(Vec::new()),
             coriolis_sent: Mutex::new(HashSet::new()),

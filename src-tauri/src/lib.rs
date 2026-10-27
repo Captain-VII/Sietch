@@ -2,6 +2,7 @@ mod alerts;
 mod engine;
 mod live;
 mod menu;
+mod playtime;
 mod settings;
 mod shortcuts;
 mod state;
@@ -329,6 +330,12 @@ fn test_alarm(app: AppHandle, state: State<AppState>) {
     );
 }
 
+/// Sessions de jeu (`playtime.rs`).
+#[tauri::command]
+fn get_playtime(state: State<AppState>) -> playtime::Playtime {
+    state.playtime.lock().unwrap().clone()
+}
+
 /// Jeu au premier plan, menu ouvert ? (`menu.rs`)
 #[tauri::command]
 fn get_game_focus(state: State<AppState>) -> menu::GameFocus {
@@ -459,6 +466,7 @@ pub fn run() {
             reload_live_config,
             test_alarm,
             get_game_focus,
+            get_playtime,
             get_update,
             check_update,
             install_update,
