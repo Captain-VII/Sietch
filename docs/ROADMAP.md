@@ -156,9 +156,9 @@ Ordre conseillé : 1 + 2, puis 6, puis 8.
 5. Partage de marqueurs par code (amis, guilde), comme les builds.
 
 **En solo, sans BattlEye**
-6. Trace du trajet de la session sur la carte et la mini-carte.
+6. ✅ (2026-10-27) Trace du trajet de la session sur la carte et la mini-carte.
 7. Inventaire réel → « ce qu'il me manque » pour une recette (dépend du décodage de la liste du sac).
-8. Alertes de chaleur et de soleil (valeurs déjà lues).
+8. ✅ (2026-10-27) Alertes de chaleur et de soleil (valeurs déjà lues).
 9. Journal de session : ressources récoltées, distance, durée.
 12. ✅ (2026-10-27) Alerte du ver : niveau de menace (chance d'attirer le ver selon le bruit, le véhicule, le sable), lu dans le jeu si la valeur existe ; alerte avant l'attaque.
 
