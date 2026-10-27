@@ -242,6 +242,12 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   const liveHalo = L.circleMarker([0, 0], { radius: 18, color: "#4FA3D9", weight: 2, fill: false, className: "live-halo", interactive: false });
   const liveBar = h("div", { class: "live-bar", role: "status", "aria-live": "polite" });
   let follow = true;
+  // Déplacer la carte à la main arrête le suivi ; le bouton « Suivre » le reprend.
+  map.on("dragstart", () => {
+    if (!follow) return;
+    follow = false;
+    drawLive();
+  });
   let calibrating = false;
   let liveBarKey = "";
 
@@ -300,7 +306,11 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     } else {
       text = `Vous : ${sectorOf(pt.x, pt.y)}${st.source === "simulation" ? " (simulation)" : ""}`;
       actions.push(
-        btn("Suivre", () => { follow = !follow; drawLive(); }, follow),
+        btn("Suivre", () => {
+          follow = !follow;
+          if (follow) map.panTo(toLatLng(pt.x, pt.y), { animate: true });
+          drawLive();
+        }, follow),
         btn("Marqueur ici", () => startDraft(clamp(pt.x), clamp(pt.y))),
         ...(mapData ? [] : [btn("Recalibrer", () => void saveCalibration([]))]),
       );
