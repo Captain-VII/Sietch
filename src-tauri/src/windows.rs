@@ -126,8 +126,8 @@ fn default_pos(kind: &str, sw: f64, sh: f64) -> (f64, f64) {
         "timers" => right(2270.0, 440.0),
         "gauges" => center(1480.0, 620.0),
         "gear" => bottom(1490.0, 1248.0),
-        // Menace du ver : centrée juste au-dessus du viseur, là où se porte le regard.
-        "threat" => center(1195.0, 560.0),
+        // Menace du ver : à droite de l'endurance (anneau du milieu de l'arc), à la même hauteur.
+        "threat" => center(1610.0, 685.0),
         // Barres (cachées par défaut, remplacées par les anneaux) : en colonne à droite du viseur.
         "health" => center(1560.0, 800.0),
         "stamina" => center(1560.0, 852.0),
