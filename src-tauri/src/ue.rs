@@ -323,9 +323,18 @@ impl<'a> Ue<'a> {
         let player_class = class_named(self, "BP_DunePlayerCharacter_C")?;
         let stats_class = class_named(self, "DuneCharacterAttributeSet")?;
         let hydration_class = class_named(self, "DuneHydrationAttributeSet")?;
-        let &(character, _, _, _, _, index) = all.iter().find(|a| a.2 == player_class && a.1 & TEMPLATE == 0)?;
-        let owned = |class: u64| all.iter().find(|a| a.2 == class && a.4 == character).map(|a| a.0);
-        let (stats, hydration) = (owned(stats_class)?, owned(hydration_class)?);
+        // Plusieurs personnages peuvent exister (aperçu du menu, perso en cours de chargement…) : on garde
+        // le premier dont la vie maximale est lue (> 0).
+        let max_health = self.field(stats_class, "MaxHealth")?;
+        let owned = |character: u64, class: u64| all.iter().find(|a| a.2 == class && a.4 == character).map(|a| a.0);
+        let (character, index, stats, hydration) = all
+            .iter()
+            .filter(|a| a.2 == player_class && a.1 & TEMPLATE == 0)
+            .find_map(|a| {
+                let stats = owned(a.0, stats_class)?;
+                let max = read::<4>(self.m, stats + max_health + 0xC).map(f32::from_le_bytes)?;
+                (max > 0.0).then_some((a.0, a.5, stats, owned(a.0, hydration_class)?))
+            })?;
         // Heure du jeu (en heures, 0 à 24) : TimeOfDayComponent de l'état de la partie. Facultative.
         let time_of_day = class_named(self, "TimeOfDayComponent").and_then(|c| {
             let a = all.iter().find(|a| a.2 == c && a.1 & TEMPLATE == 0)?;
