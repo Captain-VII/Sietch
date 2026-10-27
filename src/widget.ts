@@ -10,7 +10,7 @@ import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
 import { remaining, startLiveUpdates, syncClock } from "./lib/time";
 
-/** Un widget de l'overlay : une petite fenÃªtre par Ã©lÃ©ment, ouverte par le moteur (`widget.html?kind=â€¦`). */
+/** Un widget de l'overlay : une petite fenêtre par élément, ouverte par le moteur (`widget.html?kind=…`). */
 const kind = new URLSearchParams(location.search).get("kind") as WidgetKind;
 const card = h("div", { class: "widget" });
 let settings: Settings;
@@ -52,22 +52,22 @@ function drawTimers() {
 
 // ---------- Secteur ----------
 
-/** Secteur en direct si la position est connue et la carte calibrÃ©e, sinon dernier marqueur. */
+/** Secteur en direct si la position est connue et la carte calibrée, sinon dernier marqueur. */
 async function drawSector() {
   const p = live.position;
   const t = p ? solveAffine(settings.calibration[settings.liveRegion]) : null;
   if (p && t) {
     const m = toMap(t, p.x, p.y);
     const sector = sectorOf(Math.max(0, Math.min(899, m.x)), Math.max(0, Math.min(899, m.y)));
-    const region = settings.liveRegion === "profond" ? "DÃ©sert profond" : "Hagga";
-    mount(card, ...line("Secteur", h("span", { class: "digits w-mid live" }, `${sector} Â· ${region}`)));
+    const region = settings.liveRegion === "profond" ? "Désert profond" : "Hagga";
+    mount(card, ...line("Secteur", h("span", { class: "digits w-mid live" }, `${sector} · ${region}`)));
     return;
   }
   const last = (await markers.all()).sort((a, b) => b.updatedAt - a.updatedAt)[0];
   mount(
     card,
     ...(last
-      ? line("Dernier marqueur", h("span", { class: "digits w-mid" }, `${sectorOf(last.x, last.y)} Â· ${last.name}`))
+      ? line("Dernier marqueur", h("span", { class: "digits w-mid" }, `${sectorOf(last.x, last.y)} · ${last.name}`))
       : line("Secteur", h("span", { class: "w-soft" }, "Inconnu"))),
   );
 }
@@ -116,7 +116,7 @@ const BARS: Partial<Record<WidgetKind, { label: string; value: (s: PlayerState) 
   health: { label: "Vie", value: (s) => [s.health, s.healthMax] },
   stamina: { label: "Endurance", value: (s) => [s.stamina, s.staminaMax] },
   hydration: { label: "Eau", value: (s) => [s.hydration, s.hydrationMax] },
-  power: { label: "Ã‰nergie", value: (s) => [s.power, s.powerMax] },
+  power: { label: "Énergie", value: (s) => [s.power, s.powerMax] },
   // Le sac s'alerte quand il est presque plein, pas presque vide.
   inventory: { label: "Volume", value: (s) => [s.volume ?? 0, s.volumeMax ?? 0], full: true },
 };
@@ -129,7 +129,7 @@ function drawBar(s: PlayerState | null) {
     card,
     h("div", { class: "w-bar-head" },
       h("span", { class: "w-label" }, bar.label),
-      h("span", { class: "digits w-mid" }, max > 0 ? `${Math.round(cur)} / ${Math.round(max)}` : "â€”")),
+      h("span", { class: "digits w-mid" }, max > 0 ? `${Math.round(cur)} / ${Math.round(max)}` : "—")),
     h("div", { class: `w-bar ${kind}` }, h("span", { style: `width: ${pct.toFixed(1)}%` })),
   );
   card.classList.toggle("low", max > 0 && (bar.full ? pct >= 90 : pct <= 25));
@@ -137,9 +137,9 @@ function drawBar(s: PlayerState | null) {
 
 // ---------- Mini-carte ----------
 
-/** Demi-largeur visible, en unitÃ©s de carte (1 unitÃ© â‰ˆ 9 m dans le Bassin de Hagga) : environ 1 km de large. */
+/** Demi-largeur visible, en unités de carte (1 unité ≈ 9 m dans le Bassin de Hagga) : environ 1 km de large. */
 const VIEW = 60;
-/** Rayon du disque, en pixels CSS (fenÃªtre de 200 Ã— 200 avant l'Ã©chelle). */
+/** Rayon du disque, en pixels CSS (fenêtre de 200 × 200 avant l'échelle). */
 const R = 100;
 const canvas = h("canvas", { class: "w-minimap" }) as HTMLCanvasElement;
 let mapData: MapData | null = null;
@@ -158,7 +158,7 @@ async function loadMapImage() {
   mapImg = { img, rect: settings.mapImages[region] ?? [0, 0, SIZE, SIZE] };
 }
 
-/** Nord en haut, joueur au centre ; fond (si importÃ©), zones, lieux et flÃ¨che du joueur. */
+/** Nord en haut, joueur au centre ; fond (si importé), zones, lieux et flèche du joueur. */
 function drawMinimap() {
   const scale = config(settings)?.scale ?? 1;
   const dpr = window.devicePixelRatio * scale;
@@ -184,7 +184,7 @@ function drawMinimap() {
       g.drawImage(mapImg.img, px(x0), py(y0), (x1 - x0) * k, (y1 - y0) * k);
       g.globalAlpha = 1;
     }
-    // Lignes des secteurs, pour se repÃ©rer avec la grande carte.
+    // Lignes des secteurs, pour se repérer avec la grande carte.
     g.strokeStyle = "rgba(217, 182, 122, 0.25)";
     g.lineWidth = 1;
     for (let i = 0; i <= 9; i++) {
@@ -218,7 +218,7 @@ function drawMinimap() {
       g.strokeStyle = "#11131F";
       g.stroke();
     }
-    // FlÃ¨che du joueur : yaw 0 = vers l'est, comme sur la grande carte.
+    // Flèche du joueur : yaw 0 = vers l'est, comme sur la grande carte.
     g.save();
     g.translate(R, R);
     g.rotate(((player!.yaw + 90) * Math.PI) / 180);
@@ -255,9 +255,9 @@ function drawMinimap() {
   g.shadowBlur = 0;
 }
 
-// ---------- Mode Ã©dition ----------
+// ---------- Mode édition ----------
 
-/** Cadre, dÃ©placement Ã  la souris et taille Ã  la molette ; le moteur enregistre les positions en sortant. */
+/** Cadre, déplacement à la souris et taille à la molette ; le moteur enregistre les positions en sortant. */
 const badge = h("span", { class: "w-badge" });
 
 function setEditing(on: boolean) {
@@ -282,7 +282,7 @@ function editControls() {
   });
 }
 
-// ---------- DÃ©marrage ----------
+// ---------- Démarrage ----------
 
 async function start() {
   [settings, timers] = await Promise.all([api.settings(), api.timers()]);
@@ -336,7 +336,7 @@ async function start() {
     case "sector": {
       void drawSector();
       await startLive();
-      // Le secteur change rarement : on ne redessine qu'Ã  chaque changement.
+      // Le secteur change rarement : on ne redessine qu'à chaque changement.
       let lastKey = sectorKey();
       live.subscribe(() => {
         const key = sectorKey();
@@ -345,7 +345,7 @@ async function start() {
           void drawSector();
         }
       });
-      // Un marqueur a pu Ãªtre ajoutÃ© depuis la fenÃªtre principale.
+      // Un marqueur a pu être ajouté depuis la fenêtre principale.
       window.setInterval(() => {
         if (sectorKey() === "aucun") void drawSector();
       }, 10_000);
@@ -360,14 +360,14 @@ async function start() {
     await syncClock();
     if (kind === "sector") void drawSector();
     if (kind === "minimap") {
-      // Fond changÃ© ou rÃ©alignÃ©, Ã©chelle modifiÃ©e.
+      // Fond changé ou réaligné, échelle modifiée.
       await loadMapImage();
       drawMinimap();
     }
   });
 }
 
-/** En dÃ©veloppement, hors de Tauri, on simule le moteur pour tester dans un navigateur. */
+/** En développement, hors de Tauri, on simule le moteur pour tester dans un navigateur. */
 function boot(label: string): Promise<void> {
   const inTauri = "__TAURI_INTERNALS__" in window;
   return import.meta.env.DEV && !inTauri ? import("./lib/mock").then((m) => m.install(label)) : Promise.resolve();

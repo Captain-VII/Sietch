@@ -557,7 +557,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     h("div", { class: "row wrap" }, h("label", { class: "sr-only", for: "recherche-carte" }, "Rechercher sur la carte"), search, h("span", { class: "label" }, "Mes marqueurs"), chipsBox),
       poiRow,
     liveBar,
-    h("div", { class: "columns" },
+    h("div", { class: "columns map-columns" },
       h("div", { class: "map-wrap" },
         mapEl,
         h("div", { class: "row spread muted", style: "font-size: 13px" }, h("span", {}, "Molette : zoom · Clic droit : nouveau marqueur"), countEl),
@@ -572,6 +572,9 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     map.invalidateSize();
     map.fitBounds(bounds, { padding: [8, 8] });
   });
+  // La carte suit la taille de la fenêtre (elle prend toute la hauteur restante).
+  const resize = new ResizeObserver(() => map.invalidateSize());
+  resize.observe(mapEl);
   void store.all().then((list) => {
     all = list;
     drawMarkers();
@@ -593,6 +596,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   return {
     onSettings: drawLive,
     dispose: () => {
+      resize.disconnect();
       stopLive();
       void stopMapData.then((un) => un());
       void stopYaw.then((un) => un());

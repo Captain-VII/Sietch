@@ -285,6 +285,37 @@
   min-width: 0;
 }
 
+/* Écran Carte : tout tient dans la fenêtre, la carte prend la hauteur restante (pas de défilement). */
+.main:has(> .map-columns) {
+  overflow: hidden;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  gap: 12px;
+}
+
+.map-columns {
+  flex: 1 1 0;
+  min-height: 0;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+
+.map-columns .map-wrap {
+  min-height: 0;
+}
+
+.map-columns .map {
+  flex: 1 1 0;
+  aspect-ratio: auto;
+  max-height: none;
+  min-height: 0;
+}
+
+.map-columns .side-panel {
+  flex: 0 1 320px;
+  overflow-y: auto;
+}
+
 /* ---------- Builds ---------- */
 
 .slots {
