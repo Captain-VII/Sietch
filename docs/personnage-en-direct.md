@@ -39,3 +39,19 @@ Les offsets des champs se relisent par réflexion à chaque lancement (`ue-field
 - **Emplacements du sac** : `m_BackpackInventoryComponent` → `m_Inventory` (`ItemInventory`) : liste interne des objets (`TArray` d'identifiants de 8 octets), non reflétée, placée juste avant `m_ClientMonitors` (offset de `m_ClientMonitors` − 0x18 ; nombre à +8). Capacité : `m_InitialMaxItemCount` de l'inventaire. Le sous-inventaire (200 places, vide) n'est pas compté. Lu : 9/35, **confirmé dans le jeu** (2026-10-27).
 - **Menace du ver** : composant `SandwormThreatSourceComponent` du personnage (outer = personnage) : `m_CurrentThreatBlobValue` / `m_CurrentSandwormAttackThreshold` (1000 par défaut). Sietch affiche le rapport en %, 100 = le ver attaque. Alerte à 75 % (réglable). Lu à 0 dans une base ; **valeurs sur le sable à vérifier**.
 - **Durabilité des équipements** : stockée dans le système d'entités du jeu (`ItemStackAndDurabilityStats`, objets `bUsesFgl`), pas dans des `UObject` : non lue pour l'instant.
+
+## Arme en main, à bord d'un véhicule (disposition automatique) — à trouver
+
+Sietch passe l'overlay en Combat arme en main, en Véhicule à bord, en Exploration sinon (`settings.rs::auto_layout`,
+appliqué dans `live.rs` après 0,75 s d'état stable). Les deux champs ne sont **pas encore confirmés** : `ue.rs` essaie
+les noms de `ARMED_FIELDS` et `VEHICLE_FIELDS` sur le personnage (booléen ou pointeur non nul) et, en dev, écrit
+`[personnage] indicateur …` quand il en trouve un. Sans champ trouvé, `armed` / `inVehicle` restent `null` et la
+disposition ne change pas.
+
+Recherche (jeu en solo **sans BattlEye**, Sietch fermé ou modules coupés) :
+
+1. Adresse du personnage : `sietch-scan ue-find BP_DunePlayerCharacter_C` (celui dont `MaxHealth` > 0, voir `ue-dump`).
+2. `sietch-scan ue-diff <adresse> 40`, puis dans le jeu : mains vides 5 s, sortir une arme, la ranger, monter dans un
+   véhicule, en descendre. La commande liste chaque champ qui change (personnage et ses composants).
+3. Garder le champ qui suit exactement l'action (vrai/faux, ou pointeur nul/non nul), le mettre en tête de la liste
+   correspondante dans `ue.rs`. S'il est dans un composant (Outer = personnage), ajouter sa lecture comme pour le ver.

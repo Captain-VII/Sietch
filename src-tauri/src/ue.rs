@@ -156,6 +156,12 @@ impl<'a> Ue<'a> {
 
     /// Offset d'un champ dans une classe ou ses parents.
     fn field(&mut self, class: u64, wanted: &str) -> Option<u64> {
+        let f = self.field_ptr(class, wanted)?;
+        read::<4>(self.m, f + 0x4C).map(|b| u32::from_le_bytes(b) as u64)
+    }
+
+    /// Le FField d'un champ (classe et parents), pour lire son type et, pour un booléen, son masque.
+    fn field_ptr(&mut self, class: u64, wanted: &str) -> Option<u64> {
         let mut c = class;
         for _ in 0..32 {
             if c == 0 {
@@ -167,13 +173,35 @@ impl<'a> Ue<'a> {
                     break;
                 }
                 if read::<4>(self.m, f + 0x28).map(u32::from_le_bytes).and_then(|i| self.name(i)).as_deref() == Some(wanted) {
-                    return read::<4>(self.m, f + 0x4C).map(|b| u32::from_le_bytes(b) as u64);
+                    return Some(f);
                 }
                 f = ptr(self.m, f + 0x20);
             }
             c = ptr(self.m, c + 0x40);
         }
         None
+    }
+
+    /// Premier des champs `names` de l'objet qui existe, lu comme un indicateur : booléen (FBoolProperty :
+    /// ByteOffset +0x79, FieldMask +0x7B), ou pointeur d'objet (non nul = vrai).
+    fn flag(&mut self, class: u64, obj: u64, names: &[&str]) -> Option<Flag> {
+        names.iter().find_map(|n| {
+            let f = self.field_ptr(class, n)?;
+            let off = read::<4>(self.m, f + 0x4C).map(u32::from_le_bytes)? as u64;
+            let kind = self.name_at(ptr(self.m, f + 0x08))?;
+            let flag = match kind.as_str() {
+                "BoolProperty" => {
+                    let b = read::<4>(self.m, f + 0x78)?;
+                    Flag::Bool { at: obj + off + b[1] as u64, mask: b[3] }
+                }
+                "ObjectProperty" | "WeakObjectProperty" => Flag::Ptr { at: obj + off },
+                _ => return None,
+            };
+            if cfg!(debug_assertions) {
+                eprintln!("[personnage] indicateur {n} ({kind})");
+            }
+            Some(flag)
+        })
     }
 
     /// Toutes les valeurs d'attributs (GameplayAttributeData et dérivées) des jeux du personnage.
@@ -444,6 +472,10 @@ impl<'a> Ue<'a> {
             let comp = all.iter().find(|a| a.2 == c && a.4 == character)?.0;
             Some(Worm { comp, value: self.field(c, "m_CurrentThreatBlobValue")?, threshold: self.field(c, "m_CurrentSandwormAttackThreshold")? })
         });
+        // Arme en main, à bord d'un véhicule : pour choisir la disposition de l'overlay. Noms candidats, à confirmer
+        // en jeu avec `sietch-scan ue-diff` (docs/personnage-en-direct.md) ; aucun trouvé = pas de changement automatique.
+        let armed = self.flag(player_class, character, ARMED_FIELDS);
+        let vehicle = self.flag(player_class, character, VEHICLE_FIELDS);
         let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
         let root_class = ptr(self.m, root + 0x10);
         let mut f = |class: u64, n: &str| self.field(class, n);
@@ -463,7 +495,7 @@ impl<'a> Ue<'a> {
             sun: f(hydration_class, "CurrentSunExposure")?,
             heatstroke: f(hydration_class, "HeatstrokeThreshold")?,
         };
-        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, slots, worm, sets, fields })
+        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, slots, worm, armed, vehicle, sets, fields })
     }
 }
 
@@ -608,6 +640,9 @@ pub struct Player {
     slots: Option<Slots>,
     /// Menace du ver.
     worm: Option<Worm>,
+    /// Arme en main, à bord d'un véhicule.
+    armed: Option<Flag>,
+    vehicle: Option<Flag>,
     /// Jeux d'attributs du personnage : (classe, objet).
     sets: Vec<(String, u64)>,
     fields: Fields,
@@ -618,6 +653,29 @@ struct Slots {
     /// TArray des objets du sac : nombre à +8.
     items: u64,
     max: u32,
+}
+
+/// Champs candidats du personnage (`BP_DunePlayerCharacter_C` et ses parents), du plus probable au moins probable.
+/// Pas encore confirmés en jeu : la recherche se fait sans BattlEye avec `sietch-scan ue-diff`.
+pub const ARMED_FIELDS: &[&str] =
+    &["m_bIsWeaponDrawn", "bIsWeaponDrawn", "m_bWeaponDrawn", "m_bIsArmed", "m_bIsInCombatStance", "m_EquippedWeapon", "m_CurrentWeapon", "CurrentWeapon"];
+pub const VEHICLE_FIELDS: &[&str] =
+    &["m_bIsInVehicle", "bIsInVehicle", "m_bInVehicle", "m_CurrentVehicle", "CurrentVehicle", "m_Vehicle", "m_CurrentVehicleSeat", "m_MountedVehicle"];
+
+/// Indicateur lu dans un objet : booléen (octet et masque) ou pointeur (non nul = vrai).
+#[derive(Clone, Copy, Debug)]
+enum Flag {
+    Bool { at: u64, mask: u8 },
+    Ptr { at: u64 },
+}
+
+impl Flag {
+    fn read(self, m: &dyn Mem) -> Option<bool> {
+        match self {
+            Flag::Bool { at, mask } => read::<1>(m, at).map(|b| b[0] & mask != 0),
+            Flag::Ptr { at } => read::<8>(m, at).map(|b| u64::from_le_bytes(b) != 0),
+        }
+    }
 }
 
 /// Composant de menace du ver et offsets de la valeur courante et du seuil d'attaque (f32).
@@ -676,6 +734,9 @@ pub struct PlayerState {
     pub slots_max: Option<u32>,
     /// Menace du ver en % du seuil d'attaque (100 = le ver attaque) ; `None` si elle n'a pas été trouvée.
     pub worm_threat: Option<f32>,
+    /// Arme en main, à bord d'un véhicule ; `None` tant que le champ n'est pas connu.
+    pub armed: Option<bool>,
+    pub in_vehicle: Option<bool>,
     pub x: f64,
     pub y: f64,
     pub z: f64,
@@ -709,6 +770,8 @@ impl PlayerState {
             slots_max: self.slots_max,
             // Au pour cent près.
             worm_threat: self.worm_threat.map(|v| v.round()),
+            armed: self.armed,
+            in_vehicle: self.in_vehicle,
             x: m(self.x),
             y: m(self.y),
             z: m(self.z),
@@ -763,6 +826,8 @@ impl Player {
                 let (v, t) = (f(w.value)?, f(w.threshold)?);
                 (t > 0.0).then(|| (v / t * 100.0).max(0.0))
             }),
+            armed: self.armed.and_then(|f| f.read(m)),
+            in_vehicle: self.vehicle.and_then(|f| f.read(m)),
             x: v(0),
             y: v(8),
             z: v(16),

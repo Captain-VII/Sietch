@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: Settings = {
   overlayClickThrough: false,
   overlayHideInMenus: true,
   overlayOnlyInGame: true,
+  autoLayout: true,
   shortcuts: {
     marker: "Ctrl+Shift+M",
     timer: "Ctrl+Shift+T",
@@ -76,7 +77,7 @@ function simPlayer(): PlayerState {
     heat: 0, heatMax: 100, sunExposure: 0, heatstroke: 100,
     // Une journée du jeu en 4 minutes.
     timeOfDay: Math.floor(((t / 10) % 24) * 60) / 60,
-    volume: 268.5, volumeMax: 1750, slots: 16, slotsMax: 35, wormThreat: 40,
+    volume: 268.5, volumeMax: 1750, slots: 16, slotsMax: 35, wormThreat: 40, armed: null, inVehicle: null,
     x: Math.cos(t * 0.15) * 400000 - 50000, y: Math.sin(t * 0.15) * 400000 - 50000, z: 0,
     // Tangente au cercle parcouru.
     yaw: Math.round(((t * 0.15 * 180) / Math.PI + 90) % 360),

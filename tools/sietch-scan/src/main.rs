@@ -79,6 +79,7 @@ Structures d'Unreal Engine (noms et objets du jeu) :
   ue-find <texte> [n]        objets dont le nom ou la classe contient le texte (40 par défaut)
   ue-fields <Classe>         champs d'une classe ou structure (offset, type, nom), parents compris
   ue-dump <n|adresse>        valeurs des champs d'un objet (numéro de ue-find ou adresse)
+  ue-diff <n|adresse> [s]    champs qui changent (objet et ses composants) pendant s secondes (30)
   ue-classes [Outer] [n]     classes les plus nombreuses parmi les objets de l'Outer (PersistentLevel)
   raw <adresse> [octets]    contenu brut (hexadécimal, flottants, doubles), 128 octets par défaut";
 
@@ -433,7 +434,7 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             }
         }
         let mut list: Vec<_> = counts.into_iter().collect();
-        list.sort_by(|a, b| b.1.cmp(&a.1));
+        list.sort_by_key(|a| std::cmp::Reverse(a.1));
         for (class, count) in list.into_iter().take(n) {
             println!("{count:>6}  {class}");
         }
@@ -533,6 +534,58 @@ Structures d'Unreal Engine (noms et objets du jeu) :
         Ok(())
     }
 
+    /// Surveille un objet et ses composants (objets dont il est l'Outer) pendant `secs` secondes et affiche
+    /// chaque champ qui change, avec l'heure. Pour trouver un état (arme en main, à bord d'un véhicule) :
+    /// lancer, puis faire l'action dans le jeu et la défaire.
+    fn ue_diff(target: &str, secs: u64) -> Result<(), String> {
+        let mut g = Game::open()?;
+        let ue = Ue::load(&mut g)?;
+        let n = parse_num(target)?;
+        let obj = if n < ue.num as u64 { ue.object(&g, n as u32).ok_or("emplacement vide")? } else { n };
+        let mut watched = vec![obj];
+        for i in 0..ue.num {
+            g.guard();
+            if let Some(o) = ue.object(&g, i)
+                && ue.ptr(&g, o + 0x20) == obj
+            {
+                watched.push(o);
+            }
+        }
+        // Champs à valeur simple seulement (les structures n'affichent que leur type).
+        let plan: Vec<(u64, String, Vec<Field>)> = watched
+            .iter()
+            .map(|&o| {
+                let fields = ue.fields(&g, ue.ptr(&g, o + 0x10)).into_iter().flat_map(|(_, l)| l).filter(|f| f.kind != "StructProperty").collect();
+                (o, format!("{} {}", ue.class_of(&g, o), ue.name_of(&g, o)), fields)
+            })
+            .collect();
+        println!("{} objets surveillés pendant {secs} s : faites l'action dans le jeu, puis défaites-la.", plan.len());
+        let snap = |g: &Game| -> Vec<Vec<Option<String>>> { plan.iter().map(|(o, _, l)| l.iter().map(|f| ue.value(g, *o, f)).collect()).collect() };
+        let mut last = snap(&g);
+        let start = std::time::Instant::now();
+        while start.elapsed().as_secs() < secs {
+            g.guard();
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            let now = snap(&g);
+            for (i, (_, who, fields)) in plan.iter().enumerate() {
+                for (j, f) in fields.iter().enumerate() {
+                    if now[i][j] != last[i][j] {
+                        println!(
+                            "{:>5.1} s  {who} · {} ({}) : {} → {}",
+                            start.elapsed().as_secs_f32(),
+                            f.name,
+                            f.kind,
+                            last[i][j].as_deref().unwrap_or("?"),
+                            now[i][j].as_deref().unwrap_or("?")
+                        );
+                    }
+                }
+            }
+            last = now;
+        }
+        Ok(())
+    }
+
     pub fn run(args: &[String]) -> Result<(), String> {
         let cmd = args.first().map(String::as_str).unwrap_or("");
         let arg = |i: usize| args.get(i).map(String::as_str);
@@ -572,6 +625,7 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             "ue-find" => ue_find(arg(1).ok_or("texte manquant")?, arg(2).map(parse_num).transpose()?.unwrap_or(40) as usize),
             "ue-fields" => ue_fields(arg(1).ok_or("nom de classe manquant")?),
             "ue-dump" => ue_dump(arg(1).ok_or("numéro ou adresse manquant")?),
+            "ue-diff" => ue_diff(arg(1).ok_or("numéro ou adresse manquant")?, arg(2).map(parse_num).transpose()?.unwrap_or(30)),
             "ue-classes" => ue_classes(arg(1).unwrap_or("PersistentLevel"), arg(2).map(parse_num).transpose()?.unwrap_or(80) as usize),
             "find-text" => find_text(arg(1).ok_or("texte manquant")?),
             "strings" => strings(

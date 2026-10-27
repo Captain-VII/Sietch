@@ -44,7 +44,7 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
   }
 
   /** Interrupteur d'un réglage booléen, avec son libellé et son explication. */
-  function toggle(key: "overlayClickThrough" | "overlayOnlyInGame" | "overlayHideInMenus", label: string, hint: string) {
+  function toggle(key: "overlayClickThrough" | "overlayOnlyInGame" | "overlayHideInMenus" | "autoLayout", label: string, hint: string) {
     const sw = h("button", {
       class: "switch", type: "button", role: "switch", "aria-checked": String(ctx.settings()[key]), "aria-label": label,
       onclick: () => {
@@ -161,6 +161,7 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     // ---------- Comportement ----------
     const behaviourCard = h("section", { class: "card", "aria-labelledby": "o-comp-titre" },
       h("h2", { class: "section-title", id: "o-comp-titre" }, "Comportement"),
+      toggle("autoLayout", "Disposition automatique", "Combat arme en main, Véhicule à bord, Exploration sinon. Seulement sans BattlEye (lecture du jeu) ; avec BattlEye, la disposition reste celle choisie."),
       toggle("overlayOnlyInGame", "Seulement avec le jeu au premier plan", "Les widgets s'effacent avec Alt+Tab ou quand le jeu est fermé."),
       toggle("overlayHideInMenus", "Masqués dans les menus du jeu", "Inventaire, carte, Échap… : effacés tant que le curseur est affiché. Le bandeau des alertes reste visible."),
       toggle("overlayClickThrough", "Clic traversant", "Les clics passent à travers les widgets, vers le jeu."),

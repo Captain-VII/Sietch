@@ -166,6 +166,8 @@ pub fn spawn(app: AppHandle) {
         let mut resource_scan = ue::ResourceScan::default();
         let (mut scanning, mut scan_started) = (false, Instant::now());
         let mut alerts = crate::alerts::Alerts::default();
+        // Disposition automatique : voulue (depuis quand), dernière appliquée.
+        let (mut auto_want, mut auto_applied): (Option<(&str, Instant)>, Option<&str>) = (None, None);
         let (mut last_tables_try, mut last_player_try): (Option<Instant>, Option<Instant>) = (None, None);
         loop {
             let state = app.state::<AppState>();
@@ -303,6 +305,23 @@ pub fn spawn(app: AppHandle) {
                             Some(Some(s)) => {
                                 pos = Some((s.x, s.y, s.z));
                                 let s = s.rounded();
+                                // Disposition automatique : appliquée quand l'état du joueur tient 0,75 s (sortir
+                                // et ranger l'arme d'un geste ne fait pas clignoter l'overlay).
+                                let want = crate::settings::auto_layout(s.armed, s.in_vehicle);
+                                if want != auto_want.map(|(w, _)| w) {
+                                    auto_want = want.map(|w| (w, Instant::now()));
+                                }
+                                if let Some((w, since)) = auto_want
+                                    && auto_applied != Some(w)
+                                    && since.elapsed() > Duration::from_millis(750)
+                                {
+                                    auto_applied = Some(w);
+                                    let mut set = state.settings.lock().unwrap().clone();
+                                    if set.auto_layout && set.active_layout != w && set.layouts.iter().any(|l| l.id == w) {
+                                        set.active_layout = w.into();
+                                        crate::set_settings(app.clone(), app.state::<AppState>(), set);
+                                    }
+                                }
                                 if last_state.as_ref() != Some(&s) {
                                     if cfg!(debug_assertions) {
                                         eprintln!("[personnage] {s:?}");

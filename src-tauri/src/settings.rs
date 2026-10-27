@@ -23,6 +23,8 @@ pub struct Settings {
     pub overlay_hide_in_menus: bool,
     /// Widgets affichés seulement quand le jeu est au premier plan.
     pub overlay_only_in_game: bool,
+    /// Disposition choisie d'après l'état du joueur (Combat, Véhicule, Exploration ; sans BattlEye).
+    pub auto_layout: bool,
     /// Action → combinaison, ex. "overlay" → "Ctrl+Shift+O".
     pub shortcuts: BTreeMap<String, String>,
     /// Modules sans BattlEye (position en direct). Désactivés par défaut.
@@ -78,6 +80,17 @@ pub const PRESETS: [(&str, &str, &[&str]); 3] = [
     // Se repérer et surveiller le ver ; le personnage compte moins.
     ("vehicule", "Véhicule", &["clock", "coriolis", "sector", "minimap", "threat"]),
 ];
+
+/// Disposition préfaite voulue d'après l'état du joueur (modules sans BattlEye) : Véhicule à bord, Combat arme en
+/// main, Exploration sinon. `None` tant qu'aucun des deux états n'est connu (BattlEye, champs pas trouvés).
+pub fn auto_layout(armed: Option<bool>, in_vehicle: Option<bool>) -> Option<&'static str> {
+    match (armed, in_vehicle) {
+        (_, Some(true)) => Some("vehicule"),
+        (Some(true), _) => Some("combat"),
+        (None, None) => None,
+        _ => Some("exploration"),
+    }
+}
 
 impl Layout {
     /// Disposition préfaite `id` (Exploration par défaut).
@@ -242,6 +255,7 @@ impl Default for Settings {
             overlay_click_through: false,
             overlay_hide_in_menus: true,
             overlay_only_in_game: true,
+            auto_layout: true,
             shortcuts,
             live_modules: false,
             live_region: "hagga".into(),
@@ -303,6 +317,15 @@ mod tests {
         let ids: Vec<_> = s.layouts.iter().map(|l| l.id.as_str()).collect();
         assert_eq!(ids, ["exploration", "combat", "vehicule"]);
         assert_eq!(s.active_layout, "exploration");
+    }
+
+    #[test]
+    fn layout_follows_the_player() {
+        assert_eq!(auto_layout(None, None), None, "rien de connu : on ne touche à rien");
+        assert_eq!(auto_layout(Some(false), None), Some("exploration"));
+        assert_eq!(auto_layout(Some(true), Some(false)), Some("combat"));
+        assert_eq!(auto_layout(Some(true), Some(true)), Some("vehicule"), "véhicule d'abord (arme d'un véhicule)");
+        assert_eq!(auto_layout(None, Some(true)), Some("vehicule"));
     }
 
     #[test]

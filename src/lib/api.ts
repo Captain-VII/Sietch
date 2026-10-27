@@ -34,6 +34,7 @@ export interface Settings {
   overlayClickThrough: boolean;
   overlayHideInMenus: boolean;
   overlayOnlyInGame: boolean;
+  autoLayout: boolean;
   shortcuts: Record<string, string>;
   liveModules: boolean;
   liveRegion: string;
@@ -102,6 +103,9 @@ export interface PlayerState {
   slotsMax: number | null;
   /** Menace du ver en % du seuil d'attaque (100 = attaque). */
   wormThreat: number | null;
+  /** Arme en main, à bord d'un véhicule ; null tant que le champ n'est pas connu. */
+  armed: boolean | null;
+  inVehicle: boolean | null;
   x: number;
   y: number;
   z: number;
