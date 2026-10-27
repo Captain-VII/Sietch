@@ -1,5 +1,6 @@
 import type { Ctx, ViewHandle } from "../main";
 import { api, GROUPS, prettyKeys, type Timer, type TimerGroup, type TimerInput } from "../lib/api";
+import { resourceKind } from "../lib/carte";
 import { timerTemplates, uid } from "../lib/data";
 import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
 import { durationLabel, timerStatus } from "../lib/time";
@@ -150,6 +151,29 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   }
   void drawTemplates();
 
+  // ---------- Prêts à l'emploi : réapparition des ressources, délais relevés dans le jeu ----------
+  const readyBox = h("div", { class: "row wrap", style: "--gap: 8px" });
+  /** Délais relevés en jeu le 2026-10-27 (m_DefaultRespawnTime), si Sietch n'a encore rien vu lui-même. */
+  const KNOWN: [string, number][] = [
+    ["Azurite", 1500], ["Rhyolite", 1500], ["Ferraille", 1500], ["Électronique", 1500], ["Carburant", 1500], ["Primevère", 1500], ["Buisson", 180],
+  ];
+  async function drawReady() {
+    const seen = await api.resources().catch(() => []);
+    const ready = new Map<string, number>();
+    for (const r of seen) {
+      if (r.respawn <= 0) continue;
+      const k = resourceKind(r.name);
+      ready.set(`${k.label}${k.ground ? " (au sol)" : ""}`, Math.round(r.respawn));
+    }
+    for (const [name, secs] of KNOWN) if (![...ready.keys()].some((n) => n.startsWith(name))) ready.set(name, secs);
+    mount(readyBox, [...ready].sort((a, b) => a[0].localeCompare(b[0], "fr")).map(([name, secs]) =>
+      h("button", { class: "chip", type: "button", title: `Démarrer « ${name} » (${durationLabel(secs)})`, onclick: async () => {
+        await api.saveTimer({ name, place: "", group: "ressources", durationSecs: secs, repeat: false, alarm: true, inOverlay: true });
+        toast("Minuteur démarré", `${name} · prêt dans ${durationLabel(secs)}`);
+      } }, `${name} · ${durationLabel(secs)}`)));
+  }
+  void drawReady();
+
   // ---------- Liste ----------
   function row(t: Timer) {
     const status = timerStatus(t);
@@ -266,6 +290,10 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           templatesBox,
           h("p", { class: "muted", style: "margin: 0; font-size: 13px" },
             `En jeu, ${prettyKeys(ctx.settings().shortcuts["timer-last"] ?? "")} relance le dernier minuteur terminé sans ouvrir Sietch.`)),
+        h("section", { class: "card tight", "aria-labelledby": "prets-titre" },
+          h("h2", { class: "section-title", id: "prets-titre" }, "Prêts à l'emploi"),
+          h("p", { class: "muted", style: "margin: 0; font-size: 13px" }, "Réapparition des ressources, avec les délais relevés dans le jeu. Un clic démarre le minuteur ; depuis la carte, un clic sur une ressource le lance avec son secteur."),
+          readyBox),
       ),
     ),
   );
