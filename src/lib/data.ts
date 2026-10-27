@@ -192,27 +192,65 @@ export function parseSector(text: string): { x: number; y: number } | null {
   return { x: ("abcdefghi".indexOf(m[1].toLowerCase()) + 0.5) * 100, y: (Number(m[2]) - 0.5) * 100 };
 }
 
-// ---------- Code de partage d'un build ----------
+// ---------- Codes de partage (builds, marqueurs) ----------
 
 const SHARE_PREFIX = "SIETCH1-";
+const MARKERS_PREFIX = "SIETCHM1-";
 
-export function encodeBuild(b: Build): string {
-  const payload = JSON.stringify({ n: b.name, t: b.tag, s: b.slots, k: b.schools, o: b.notes });
-  const bytes = new TextEncoder().encode(payload);
+/** JSON en base64 lisible dans une URL (UTF-8 compris). */
+function toCode(prefix: string, value: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
   let bin = "";
   bytes.forEach((x) => (bin += String.fromCharCode(x)));
-  return SHARE_PREFIX + btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return prefix + btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromCode(prefix: string, code: string, what: string): unknown {
+  const text = code.trim();
+  if (!text.startsWith(prefix)) throw new Error(`Ce n'est pas un code ${what} Sietch.`);
+  try {
+    const bin = atob(text.slice(prefix.length).replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  } catch {
+    throw new Error("Code incomplet ou abîmé : recopiez-le en entier.");
+  }
+}
+
+/** Code de partage de marqueurs : région, type, nom, position, note (sans minuteur lié). */
+export function encodeMarkers(list: Marker[]): string {
+  return toCode(MARKERS_PREFIX, list.map((m) => [m.region === "profond" ? "p" : "h", m.type, m.name, m.x, m.y, m.note]));
+}
+
+export function decodeMarkers(code: string): Marker[] {
+  const raw = fromCode(MARKERS_PREFIX, code, "de marqueurs");
+  if (!Array.isArray(raw)) throw new Error("Aucun marqueur dans ce code.");
+  const clamp = (v: unknown) => Math.min(900, Math.max(0, Math.round(Number(v) || 0)));
+  return raw.slice(0, 500).flatMap((m) => {
+    if (!Array.isArray(m)) return [];
+    const [r, t, n, x, y, o] = m;
+    return [{
+      id: uid("m"),
+      region: r === "p" ? "profond" : "hagga",
+      type: typeof t === "string" && t in MARKER_TYPES ? (t as MarkerType) : "autre",
+      name: String(n ?? "").slice(0, 80),
+      x: clamp(x), y: clamp(y),
+      note: String(o ?? "").slice(0, 1000),
+      updatedAt: Date.now(),
+    } satisfies Marker];
+  });
+}
+
+export function encodeBuild(b: Build): string {
+  return toCode(SHARE_PREFIX, { n: b.name, t: b.tag, s: b.slots, k: b.schools, o: b.notes });
 }
 
 export function decodeBuild(code: string): Build {
-  const text = code.trim();
-  if (!text.startsWith(SHARE_PREFIX)) throw new Error("Ce n'est pas un code de build Sietch.");
-  const b64 = text.slice(SHARE_PREFIX.length).replace(/-/g, "+").replace(/_/g, "/");
-  const bin = atob(b64);
-  const raw = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  const raw = fromCode(SHARE_PREFIX, code, "de build") as {
+    n?: unknown; t?: string; s?: Record<string, unknown>; k?: Record<string, unknown>; o?: unknown;
+  };
   const b = newBuild();
   b.name = String(raw.n ?? b.name).slice(0, 80);
-  if (raw.t in BUILD_TAGS) b.tag = raw.t;
+  if (typeof raw.t === "string" && raw.t in BUILD_TAGS) b.tag = raw.t as BuildTag;
   for (const s of SLOTS) b.slots[s] = String(raw.s?.[s] ?? "").slice(0, 80);
   for (const s of SCHOOLS) b.schools[s] = Math.min(10, Math.max(0, Number(raw.k?.[s]) || 0));
   b.notes = String(raw.o ?? "").slice(0, 4000);

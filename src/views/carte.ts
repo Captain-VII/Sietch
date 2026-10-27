@@ -5,7 +5,7 @@ import type { Ctx, ViewHandle } from "../main";
 import { api, on, type MapData, type SeenResource, type Trail } from "../lib/api";
 import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, poiSvg, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
-  markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
+  decodeMarkers, encodeMarkers, markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
 } from "../lib/data";
 import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
@@ -593,6 +593,52 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     }
   }
 
+  /** Partage par code (amis, guilde) : le marqueur sélectionné ou ceux affichés, et collage d'un code reçu. */
+  function shareMarkers() {
+    const list = selected && !draft ? [selected] : visible();
+    const code = list.length ? encodeMarkers(list) : "";
+    const out = h("textarea", { class: "textarea", rows: "3", readonly: true, "aria-label": "Code à partager", style: "word-break: break-all; width: 100%; box-sizing: border-box" });
+    out.value = code;
+    const input = h("input", { class: "input", type: "text", placeholder: "SIETCHM1-…", "aria-label": "Code reçu", style: "flex: 1 1 auto; min-width: 0; width: auto" });
+    const dlg = h("dialog", { class: "dialog" });
+    const close = () => { dlg.close(); dlg.remove(); };
+    mount(dlg,
+      h("div", { class: "stack", style: "--gap: 16px; min-width: 0" },
+        h("h2", { class: "section-title" }, "Partager des marqueurs"),
+        list.length
+          ? [h("p", { class: "muted", style: "margin: 0" }, selected && !draft ? `Le marqueur « ${selected.name} ».` : list.length > 1 ? `Les ${list.length} marqueurs affichés dans ${REGIONS[region]}.` : `Le seul marqueur affiché dans ${REGIONS[region]}.`),
+             out,
+             h("button", { class: "btn btn-primary", type: "button", style: "align-self: flex-start", onclick: async () => {
+               await navigator.clipboard.writeText(code);
+               toast("Code copié", "Collez-le à vos amis : ils l'ajoutent depuis leur carte.");
+             } }, icon("copy", 16), "Copier le code")]
+          : h("p", { class: "muted", style: "margin: 0" }, "Aucun marqueur affiché à partager."),
+        h("span", { class: "label" }, "Ajouter des marqueurs reçus"),
+        h("div", { class: "row", style: "--gap: 8px" }, input,
+          h("button", { class: "btn", type: "button", onclick: async () => {
+            try {
+              // Un marqueur déjà présent (même région, nom et position) n'est pas ajouté deux fois.
+              const key = (m: Marker) => `${m.region}|${m.name}|${m.x}|${m.y}`;
+              const have = new Set(all.map(key));
+              const incoming = decodeMarkers(input.value).filter((m) => !have.has(key(m)));
+              await store.replaceAll([...all, ...incoming]);
+              all = await store.all();
+              drawMarkers();
+              drawPanel();
+              close();
+              toast("Marqueurs ajoutés", `${incoming.length} marqueur${incoming.length > 1 ? "s" : ""}.`);
+            } catch (e) {
+              toast("Code refusé", String(e instanceof Error ? e.message : e));
+            }
+          } }, "Ajouter")),
+        h("div", { class: "row", style: "justify-content: flex-end" }, h("button", { class: "btn", type: "button", onclick: close }, "Fermer")),
+      ),
+    );
+    dlg.addEventListener("cancel", () => dlg.remove());
+    document.body.appendChild(dlg);
+    dlg.showModal();
+  }
+
   search.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     const q = search.value.trim();
@@ -639,6 +685,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       h("div", { class: "titles" }, h("span", { class: "eyebrow" }, "Secteurs A1 — I9"), h("h1", { class: "h1" }, "Carte")),
       h("div", { class: "row wrap" },
         regionBox,
+        h("button", { class: "btn", type: "button", onclick: shareMarkers }, "Partager"),
         h("button", { class: "btn", type: "button", onclick: importMarkers }, "Importer"),
         h("button", { class: "btn", type: "button", onclick: exportMarkers }, "Exporter"),
         bgBox,
