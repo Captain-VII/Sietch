@@ -85,7 +85,8 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
    puis relance). Rien en mode dev.
 
 - Clé de signature : `C:\Users\Admin\Sietch-keys\` (`updater.key`, `updater.password`, hors dépôt, à sauvegarder),
-  copiée dans les secrets GitHub `TAURI_SIGNING_PRIVATE_KEY` et `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Perdue = plus
+  copiée dans les secrets GitHub `TAURI_SIGNING_PRIVATE_KEY` et `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+  (avec `gh secret set … --body`, pas par un tube PowerShell : il ajoute un BOM et la clé devient illisible). Perdue = plus
   aucune mise à jour possible pour les versions installées. Clé publique dans `tauri.conf.json` (`plugins.updater`).
 - `npm run tauri build` en local exige ces deux variables d'environnement ; sinon ajouter
   `--config src-tauri/tauri.ci.conf.json` (sans paquet de mise à jour, comme la CI de `main`).
@@ -116,6 +117,13 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   **Trajet** de la session (`state.trail`, un point tous les 20 m, coupé après un saut de 500 m, vidé au changement
   de région) : pointillés sur la carte et la mini-carte, bouton « Effacer le trajet ».
   Relevé des ressources découpé en morceaux (20 000 objets par tick, passage ~5 s en debug) pour ne pas figer la lecture.
+- **Sans lire le jeu (marche avec BattlEye)** : widgets visibles seulement jeu au premier plan et hors menus
+  (`menu.rs`) ; temps de jeu d'après le processus (`playtime.rs`, `temps-de-jeu.json`, carte de l'Accueil) ;
+  minuteurs prêts à l'emploi (délais relevés : 25 min, buisson 3 min) ; « Préparer une sortie » (Accueil) ;
+  partage de marqueurs `SIETCHM1-…` ; écran **Artisanat** (`lib/recipes.ts`, tableaux « Crafted By » du wiki,
+  pages d'ensemble « Armor Set », eau en mL, cache 7 j) et liste de courses d'un build ; pictogrammes de la carte
+  en silhouettes pleines (evenodd).
+- Menace du ver : widget affiché seulement quand la menace dépasse 0 (sur le sable), 15 s de répit.
 - **Reste** : noms des zones en français (`docs/carte-en-direct.md`), durabilité (système d'entités du jeu).
 
 ## État au 2026-10-26 (fin de la session sur le Mac)

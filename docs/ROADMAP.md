@@ -41,10 +41,10 @@ Objectif : le point bleu suit vraiment le joueur sur la carte.
 
 Objectif : rendre Sietch utile même en ligne, avec BattlEye.
 
-- 🟡 **Minuteurs prêts à l'emploi** : délais de réapparition des ressources courantes (à relever en jeu ou sur le
+- ✅ **Minuteurs prêts à l'emploi** : délais de réapparition des ressources courantes (à relever en jeu ou sur le
   wiki), en un clic depuis le marqueur.
 - 🟢 **Fond de carte** : importer sa propre image par région (capture de la carte du jeu) et la caler sur la grille.
-- 🟢 **Partage de marqueurs** par code, comme pour les builds (entre amis, en guilde).
+- ✅ **Partage de marqueurs** par code, comme pour les builds (entre amis, en guilde).
 - ✅ **Overlay personnalisable** (2026-10-26) : un widget par élément (heure, Coriolis, secteur, minuteurs),
   placé à la souris (Ctrl+Maj+L), taille à la molette, plusieurs dispositions (Ctrl+Maj+N), réglages dans
   Paramètres › Overlay. Reste : l'essai en jeu par l'utilisateur et l'installation de la version de la CI.
@@ -139,7 +139,7 @@ Objectif : que d'autres joueurs puissent l'utiliser sans friction.
 - ✅ Jauges en anneaux avec icônes : fonctions vitales en arc près du viseur, équipement au-dessus de la compétence C ; disposition par défaut réglée en jeu.
 - ✅ Carte sans défilement, région automatique, suivi interrompu au déplacement manuel.
 - ✅ Ressources en direct, mémoire des ressources vues, minuteur au clic.
-- ✅ Pictogrammes des lieux et ressources ; 🟡 à rendre plus lisibles.
+- ✅ Pictogrammes des lieux et ressources, en silhouettes pleines (2026-10-27).
 - ✅ Emplacements du sac et menace du ver (anneaux + alerte).
 - 🟡 Noms des zones : seul le nom anglais est trouvé ; durabilité : dans le système d'entités du jeu, non lue.
 - 🟡 Installation de la version de la CI : reportée par l'utilisateur.
@@ -149,11 +149,11 @@ Objectif : que d'autres joueurs puissent l'utiliser sans friction.
 Ordre conseillé : 1 + 2, puis 6, puis 8.
 
 **Utiles aussi en ligne (aucune lecture du jeu)**
-1. Calculateur d'artisanat : chaîne complète des matériaux d'un objet (minerai → lingot → pièce), recettes tirées d'awakening.wiki (CC BY-NC-SA, source citée).
-2. Liste de courses d'un build : total des matériaux des pièces d'un build (relie Builds au calculateur).
-3. Préparer une sortie dans le Désert profond : liste à cocher (eau, carburant, munitions, réparations), temps avant Coriolis, minuteurs utiles.
-4. Minuteurs prêts à l'emploi : entretien de base, impôts, réapparitions courantes.
-5. Partage de marqueurs par code (amis, guilde), comme les builds.
+1. ✅ (2026-10-27) Calculateur d'artisanat : chaîne complète des matériaux d'un objet (minerai → lingot → pièce), recettes tirées d'awakening.wiki (CC BY-NC-SA, source citée).
+2. ✅ (2026-10-27) Liste de courses d'un build : total des matériaux des pièces d'un build (relie Builds au calculateur).
+3. ✅ (2026-10-27) Préparer une sortie dans le Désert profond : liste à cocher (eau, carburant, munitions, réparations), temps avant Coriolis, minuteurs utiles.
+4. ✅ (2026-10-27) Minuteurs prêts à l'emploi : réapparitions des ressources (délais relevés en jeu). 🟡 Entretien de base et impôts : durées à relever en jeu.
+5. ✅ (2026-10-27) Partage de marqueurs par code (amis, guilde), comme les builds.
 
 **En solo, sans BattlEye**
 6. ✅ (2026-10-27) Trace du trajet de la session sur la carte et la mini-carte.
@@ -164,6 +164,8 @@ Ordre conseillé : 1 + 2, puis 6, puis 8.
 
 **Technique**
 10. Écran de diagnostic dans l'onglet « Sans BattlEye ».
-11. Installation de la version de la CI et mises à jour automatiques (quand l'utilisateur le voudra).
+11. ✅ (2026-10-27) Installation de la version de la CI et mises à jour automatiques (quand l'utilisateur le voudra).
 
 Écartés : lecture de l'écran (OCR des barres du jeu), jugée pas assez fiable par l'utilisateur.
+13. ✅ (2026-10-27) Overlay seulement quand le jeu est au premier plan, masqué dans ses menus (curseur affiché).
+14. ✅ (2026-10-27) Temps de jeu (session, jour, 7 jours).
