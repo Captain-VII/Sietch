@@ -5,7 +5,7 @@ import {
 } from "../lib/data";
 import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
 
-export function render(root: HTMLElement, _ctx: Ctx, action?: string | null): ViewHandle {
+export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
   let list: Build[] = [];
   let current: Build | null = null;
   let saveTimer = 0;
@@ -147,6 +147,16 @@ export function render(root: HTMLElement, _ctx: Ctx, action?: string | null): Vi
             },
           }, icon("copy", 16), "Copier"),
         ),
+        h("button", {
+          class: "btn", type: "button", style: "align-self: flex-start",
+          title: "Matières à récolter pour fabriquer toutes les pièces (noms du wiki, en anglais)",
+          onclick: () => {
+            const items = Object.values(b.slots).map((s) => s.trim()).filter(Boolean);
+            if (!items.length) return toast("Build vide", "Remplissez au moins un emplacement.");
+            // Toujours une liste (même d'un seul objet) : l'écran Artisanat la reconnaît au saut de ligne.
+            ctx.go("artisanat", `${items.join("\n")}\n`);
+          },
+        }, icon("hammer", 16), "Liste de courses"),
         h("div", { class: "row wrap spread" },
           savedHint,
           h("div", { class: "row" },

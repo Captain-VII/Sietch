@@ -68,6 +68,7 @@ const ICONS: Record<string, string> = {
   minimize: '<path d="M5 12h14"/>',
   maximize: '<rect x="5" y="5" width="14" height="14"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  hammer: '<path d="M14 4l6 6-3 3-6-6zM11 7l-8 8 3 3 8-8M15 3l2-1 5 5-1 2"/>',
   // Jauges du personnage.
   heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
   run: '<circle cx="14" cy="4.5" r="1.8"/><path d="M6 21l4-6 3 2v4M9 9l3-2 3 3 3 1M12 7l-2 8"/>',
