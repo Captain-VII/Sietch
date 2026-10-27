@@ -94,6 +94,9 @@ export interface PlayerState {
   /** Volume du sac et son maximum, null s'ils n'ont pas été trouvés. */
   volume: number | null;
   volumeMax: number | null;
+  /** Emplacements occupés du sac et leur nombre. */
+  slots: number | null;
+  slotsMax: number | null;
   x: number;
   y: number;
   z: number;

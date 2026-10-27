@@ -457,6 +457,63 @@ Structures d'Unreal Engine (noms et objets du jeu) :
         Ok(())
     }
 
+    /// Chaînes (`FString` : pointeur, nombre, capacité) trouvées dans un bloc, en suivant les pointeurs
+    /// sur `depth` niveaux. Sert à décoder les `FText` (texte affiché par l'interface du jeu).
+    fn strings(addr: u64, len: usize, depth: u32) -> Result<(), String> {
+        let g = Game::open()?;
+        let mut seen = std::collections::HashSet::new();
+        walk_strings(&g, addr, len, depth, String::new(), &mut seen);
+        Ok(())
+    }
+
+    /// Adresses où un texte (UTF-16, sensible à la casse) apparaît dans la mémoire privée du jeu.
+    fn find_text(text: &str) -> Result<(), String> {
+        let mut g = Game::open()?;
+        let needle: Vec<u8> = text.encode_utf16().flat_map(|c| c.to_le_bytes()).collect();
+        let regions: Vec<Region> = g.regions().into_iter().filter(|r| r.private).collect();
+        let mut hits = Vec::new();
+        g.each_chunk(&regions, |_, at, b| {
+            for i in (0..b.len().min(CHUNK)).step_by(2) {
+                if b[i..].starts_with(&needle) {
+                    hits.push(at + i as u64);
+                }
+            }
+        });
+        for h in hits.iter().take(30) {
+            println!("0x{h:X}");
+        }
+        eprintln!("{} occurrence(s)", hits.len());
+        Ok(())
+    }
+
+    fn walk_strings(g: &Game, addr: u64, len: usize, depth: u32, path: String, seen: &mut std::collections::HashSet<u64>) {
+        if !seen.insert(addr) {
+            return;
+        }
+        let mut b = vec![0u8; len];
+        let n = g.read_into(addr, &mut b);
+        let plausible = |p: u64| (0x100_0000_0000..0x7FF0_0000_0000).contains(&p);
+        for i in (0..n.saturating_sub(15)).step_by(8) {
+            let p = u64::from_le_bytes(b[i..i + 8].try_into().unwrap());
+            if !plausible(p) {
+                continue;
+            }
+            let (num, max) = (u32_at(&b, i + 8), u32_at(&b, i + 12));
+            if (2..=128).contains(&num) && max >= num && max <= 512 {
+                let mut s = vec![0u8; num as usize * 2];
+                if g.read_into(p, &mut s) == s.len() {
+                    let w: Vec<u16> = s.chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+                    if w.last() == Some(&0) && w[..w.len() - 1].iter().all(|&c| c >= 0x20) {
+                        println!("{path}+0x{i:X} → « {} »", String::from_utf16_lossy(&w[..w.len() - 1]));
+                    }
+                }
+            }
+            if depth > 0 {
+                walk_strings(g, p, len, depth - 1, format!("{path}+0x{i:X}→"), seen);
+            }
+        }
+    }
+
     /// Valeurs d'un objet (numéro de la table ou adresse), champ par champ.
     fn ue_dump(target: &str) -> Result<(), String> {
         let mut g = Game::open()?;
@@ -516,6 +573,12 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             "ue-fields" => ue_fields(arg(1).ok_or("nom de classe manquant")?),
             "ue-dump" => ue_dump(arg(1).ok_or("numéro ou adresse manquant")?),
             "ue-classes" => ue_classes(arg(1).unwrap_or("PersistentLevel"), arg(2).map(parse_num).transpose()?.unwrap_or(80) as usize),
+            "find-text" => find_text(arg(1).ok_or("texte manquant")?),
+            "strings" => strings(
+                parse_num(arg(1).ok_or("adresse manquante")?)?,
+                arg(2).map(parse_num).transpose()?.unwrap_or(0x60) as usize,
+                arg(3).map(parse_num).transpose()?.unwrap_or(3) as u32,
+            ),
             "raw" => raw(parse_num(arg(1).ok_or("adresse manquante")?)?, arg(2).map(parse_num).transpose()?.unwrap_or(128) as usize),
             _ => {
                 println!("{USAGE}");

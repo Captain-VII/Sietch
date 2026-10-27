@@ -234,6 +234,20 @@ body {
   color: #fff6e4;
 }
 
+/* Emplacements du sac, sous l'anneau du volume. */
+.w-ring-sub {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  margin-top: 1px;
+  font-size: 10px;
+  line-height: 1;
+  color: #e0d4bc;
+  white-space: nowrap;
+  text-shadow: 0 0 2px rgba(4, 5, 10, 0.9);
+}
+
 .w-ring.health { --ring: #e05a4f; }
 .w-ring.stamina { --ring: #e6cf95; }
 .w-ring.hydration { --ring: #6fb6e8; }

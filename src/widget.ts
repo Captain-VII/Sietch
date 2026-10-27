@@ -128,7 +128,7 @@ function drawBar(s: PlayerState | null) {
   mount(
     card,
     h("div", { class: "w-bar-head" },
-      h("span", { class: "w-label" }, bar.label),
+      h("span", { class: "w-label" }, kind === "inventory" && s?.slots != null && s.slotsMax ? `${bar.label} · ${s.slots}/${s.slotsMax}` : bar.label),
       h("span", { class: "digits w-mid" }, max > 0 ? `${Math.round(cur)} / ${Math.round(max)}` : "—")),
     h("div", { class: `w-bar ${kind}` }, h("span", { style: `width: ${pct.toFixed(1)}%` })),
   );
@@ -170,6 +170,11 @@ function drawGauges(s: PlayerState | null) {
     const pct = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0;
     el.querySelector<SVGCircleElement>(".fill")!.style.strokeDashoffset = String(RING * (1 - pct));
     el.querySelector(".digits")!.textContent = max > 0 ? String(Math.round(cur)) : "—";
+    // Sac : emplacements occupés sous l'anneau du volume.
+    if (el.dataset.kind === "inventory") {
+      const sub = el.querySelector(".w-ring-sub") ?? el.appendChild(h("span", { class: "w-ring-sub digits" }));
+      sub.textContent = s?.slots != null && s.slotsMax ? `${s.slots}/${s.slotsMax}` : "";
+    }
     el.classList.toggle("low", max > 0 && (bar.full ? pct >= 0.9 : pct <= 0.25));
   }
 }

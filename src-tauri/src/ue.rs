@@ -428,6 +428,17 @@ impl<'a> Ue<'a> {
             // On vérifie que le maximum y est bien avant de s'y fier.
             (read::<4>(self.m, tracker + 0x38).map(f32::from_le_bytes) == Some(max)).then_some(tracker)
         })();
+        // Emplacements du sac : liste interne des objets (TArray d'identifiants), juste avant m_ClientMonitors.
+        // On s'y fie seulement si le nombre ne dépasse pas la capacité.
+        let slots = (|| {
+            let comp = ptr(self.m, character + self.field(player_class, "m_BackpackInventoryComponent")?);
+            let inv = ptr(self.m, comp + self.field(ptr(self.m, comp + 0x10), "m_Inventory")?);
+            let inv_class = ptr(self.m, inv + 0x10);
+            let items = inv + self.field(inv_class, "m_ClientMonitors")? - 0x18;
+            let max = read::<4>(self.m, inv + self.field(inv_class, "m_InitialMaxItemCount")?).map(u32::from_le_bytes)?;
+            let b = read::<16>(self.m, items)?;
+            (max > 0 && u32_at(&b, 8) <= max && u32_at(&b, 12) >= u32_at(&b, 8)).then_some(Slots { items, max })
+        })();
         let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
         let root_class = ptr(self.m, root + 0x10);
         let mut f = |class: u64, n: &str| self.field(class, n);
@@ -446,7 +457,7 @@ impl<'a> Ue<'a> {
             heat_max: f(hydration_class, "HeatExhaustionMax")?,
             sun: f(hydration_class, "CurrentSunExposure")?,
         };
-        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, sets, fields })
+        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, slots, sets, fields })
     }
 }
 
@@ -586,9 +597,18 @@ pub struct Player {
     time_of_day: Option<Watched>,
     /// InventoryVolumeTracker du sac : maximum à +0x38, volume courant à +0x3C (champs internes).
     backpack: Option<u64>,
+    /// Liste interne des objets du sac et nombre d'emplacements.
+    slots: Option<Slots>,
     /// Jeux d'attributs du personnage : (classe, objet).
     sets: Vec<(String, u64)>,
     fields: Fields,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Slots {
+    /// TArray des objets du sac : nombre à +8.
+    items: u64,
+    max: u32,
 }
 
 /// Une valeur de l'écran « Stats brutes ».
@@ -632,6 +652,9 @@ pub struct PlayerState {
     /// Volume du sac et son maximum ; `None` s'il n'a pas été trouvé.
     pub volume: Option<f32>,
     pub volume_max: Option<f32>,
+    /// Emplacements occupés du sac et leur nombre ; `None` s'ils n'ont pas été trouvés.
+    pub slots: Option<u32>,
+    pub slots_max: Option<u32>,
     pub x: f64,
     pub y: f64,
     pub z: f64,
@@ -660,6 +683,8 @@ impl PlayerState {
             time_of_day: self.time_of_day.map(|t| (t * 60.0).floor() / 60.0),
             volume: self.volume.map(r),
             volume_max: self.volume_max.map(r),
+            slots: self.slots,
+            slots_max: self.slots_max,
             x: m(self.x),
             y: m(self.y),
             z: m(self.z),
@@ -706,6 +731,8 @@ impl Player {
                 .filter(|t| (0.0..=24.0).contains(t)),
             volume: self.backpack.and_then(|t| read::<4>(m, t + 0x3C).map(f32::from_le_bytes)),
             volume_max: self.backpack.and_then(|t| read::<4>(m, t + 0x38).map(f32::from_le_bytes)),
+            slots: self.slots.and_then(|s| read::<4>(m, s.items + 8).map(u32::from_le_bytes).filter(|n| *n <= s.max)),
+            slots_max: self.slots.map(|s| s.max),
             x: v(0),
             y: v(8),
             z: v(16),
