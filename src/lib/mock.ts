@@ -39,7 +39,7 @@ const DEFAULT_SETTINGS: Settings = {
   layouts: [{
     id: "exploration",
     name: "Exploration",
-    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear"] as const).map((kind) => ({ kind, shown: true, pos: null, scale: 1, opacity: 100 })),
+    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear"] as const).map((kind) => ({ kind, shown: !["health", "stamina", "hydration", "power", "inventory"].includes(kind), pos: null, scale: 1, opacity: 100 })),
   }],
   activeLayout: "exploration",
 };
