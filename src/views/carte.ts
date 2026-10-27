@@ -3,7 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api, on, type MapData, type SeenResource } from "../lib/api";
-import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
+import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, poiSvg, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -85,9 +85,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     /** Pictogramme de la catégorie dans son bouton, pour servir de légende. */
     const resIcon = (kind: string) => {
       const k = looks.get(kind);
-      if (!k) return null;
       const el = h("span", { style: "display: inline-flex" });
-      el.innerHTML = resourceSvg(k.path, k.color, 18);
+      el.innerHTML = k ? resourceSvg(k.path, k.color, 18) : poiSvg(kind, 18);
       return el;
     };
     if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
@@ -113,7 +112,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           drawPoiChips();
           drawGame();
         },
-      }, resIcon(kind) ?? h("span", { class: "dot", style: `background: ${k.color}` }), `${k.label} (${n})`);
+      }, resIcon(kind), `${k.label} (${n})`);
     }));
   }
 
@@ -145,7 +144,10 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       if (hiddenPoi.has(poi.kind)) continue;
       const p = worldToMap(poi.x, poi.y);
       const kind = POI_KINDS[poi.kind] ?? { label: poi.kind, color: "#e9dfc9" };
-      L.circleMarker(toLatLng(p.x, p.y), { radius: 5, color: "#11131F", weight: 2, fillColor: kind.color, fillOpacity: 1 })
+      L.marker(toLatLng(p.x, p.y), {
+        icon: L.divIcon({ className: "res-pin", html: poiSvg(poi.kind, 24), iconSize: [24, 24], iconAnchor: [12, 12] }),
+        keyboard: false,
+      })
         .bindTooltip(`${kind.label} · ${sectorOf(p.x, p.y)}`, { className: "marker-tip", direction: "top", offset: [0, -6] })
         .addTo(gameLayer);
     }

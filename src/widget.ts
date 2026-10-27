@@ -268,13 +268,26 @@ function drawMinimap() {
       if (masked.has(poi.kind)) continue;
       const p = worldToMap(mapData, poi.x, poi.y);
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
+      // Pastille de sa couleur, pictogramme sombre (comme sur la grande carte).
+      const k = POI_KINDS[poi.kind];
+      g.save();
+      g.translate(px(p.x), py(p.y));
       g.beginPath();
-      g.arc(px(p.x), py(p.y), 4, 0, Math.PI * 2);
-      g.fillStyle = POI_KINDS[poi.kind]?.color ?? "#e9dfc9";
+      g.arc(0, 0, 7.5, 0, Math.PI * 2);
+      g.fillStyle = k?.color ?? "#e9dfc9";
       g.fill();
-      g.lineWidth = 1.5;
+      g.lineWidth = 1.2;
       g.strokeStyle = "#11131F";
       g.stroke();
+      if (k) {
+        const s = 10 / 24;
+        g.scale(s, s);
+        g.translate(-12, -12);
+        g.lineWidth = 2.6;
+        g.lineCap = g.lineJoin = "round";
+        g.stroke(paths.get(k.path) ?? paths.set(k.path, new Path2D(k.path)).get(k.path)!);
+      }
+      g.restore();
     }
     // Ressources : petits points, pâles si elles ne sont plus chargées.
     const region = mapRegion(mapData);

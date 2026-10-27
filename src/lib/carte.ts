@@ -4,18 +4,25 @@ import type { Region } from "./data";
 /** Côté de la carte, en unités de Sietch (secteurs A1–I9 de 100). */
 export const SIZE = 900;
 
-/** Types de points d'intérêt lus dans le jeu (Terrain Blocks), couleurs de la carte. */
-export const POI_KINDS: Record<string, { label: string; color: string }> = {
-  station: { label: "Station écologique", color: "#6fb6e8" },
-  base: { label: "Base", color: "#e05a4f" },
-  epave: { label: "Épave", color: "#b9ad93" },
-  mine: { label: "Galerie de mine", color: "#c9a861" },
-  autel: { label: "Autel", color: "#b46be0" },
-  abri: { label: "Abri du Landsraad", color: "#7fd1b9" },
-  moissonneuse: { label: "Moissonneuse", color: "#e8823a" },
-  histoire: { label: "Lieu de l'histoire", color: "#f1d7ff" },
-  evenement: { label: "Événement", color: "#f09a8a" },
+/** Types de points d'intérêt lus dans le jeu (Terrain Blocks) : couleur et pictogramme (dessiné pour Sietch, grille 24 × 24). */
+export const POI_KINDS: Record<string, { label: string; color: string; path: string }> = {
+  station: { label: "Station écologique", color: "#6fb6e8", path: "M4 18h16M6 18a6 6 0 0 1 12 0M12 6v6M9 9h6" },
+  base: { label: "Base", color: "#e05a4f", path: "M5 20V9l7-5 7 5v11zM10 20v-5h4v5" },
+  epave: { label: "Épave", color: "#b9ad93", path: "M3 15l4-6h10l4 6zM8 9l2-4M14 9l3-3M6 19h12" },
+  mine: { label: "Galerie de mine", color: "#c9a861", path: "M5 20l9-9M8 6c4-2 8-1 10 3M13 5c3 1 5 4 5 8" },
+  autel: { label: "Autel", color: "#b46be0", path: "M5 20h14M7 20v-7h10v7M12 13V5M9 8h6" },
+  abri: { label: "Abri du Landsraad", color: "#7fd1b9", path: "M3 19L12 5l9 14zM9 19l3-5 3 5" },
+  moissonneuse: { label: "Moissonneuse", color: "#e8823a", path: "M3 16h18M5 16v-5h10l4 5M8 11V7h4v4M8 19.5a1.5 1.5 0 1 0 0.01 0M16 19.5a1.5 1.5 0 1 0 0.01 0" },
+  histoire: { label: "Lieu de l'histoire", color: "#f1d7ff", path: "M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.5l-5.3 2.9 1.2-6-4.5-4.1 6-.7z" },
+  evenement: { label: "Événement", color: "#f09a8a", path: "M12 3l10 18H2zM12 10v5M12 18v.5" },
 };
+
+/** Pastille d'un lieu : fond de sa couleur, pictogramme sombre (l'inverse des ressources, pour les distinguer). */
+export function poiSvg(kind: string, size: number) {
+  const k = POI_KINDS[kind] ?? { color: "#e9dfc9", path: "M12 8a4 4 0 1 0 0.01 0" };
+  return `<svg width="${size}" height="${size}" viewBox="-4 -4 32 32" aria-hidden="true"><circle cx="12" cy="12" r="14" fill="${k.color}" stroke="#11131F" stroke-width="2"/>`
+    + `<path d="${k.path}" fill="none" stroke="#11131F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
 
 /** Pictogrammes des ressources (dessinés pour Sietch, en trait, grille 24 × 24). */
 const RES_ICONS = {
