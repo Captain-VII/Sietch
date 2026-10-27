@@ -43,8 +43,8 @@ pub struct Settings {
 /// Valeurs que le widget Jauges peut montrer en anneaux.
 pub const GAUGE_RINGS: [&str; 5] = ["health", "stamina", "hydration", "power", "inventory"];
 
-pub const WIDGET_KINDS: [&str; 11] =
-    ["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges"];
+pub const WIDGET_KINDS: [&str; 12] =
+    ["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear"];
 
 /// Une disposition : un ensemble de widgets placés à l'écran.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -13,7 +13,8 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   power: "Énergie",
   inventory: "Volume du sac",
   minimap: "Mini-carte",
-  gauges: "Jauges",
+  gauges: "Fonctions vitales",
+  gear: "Équipement",
 };
 /** Valeurs du personnage : en barres (un widget chacune) ou en anneaux (widget Jauges). */
 const STATS: WidgetKind[] = ["health", "stamina", "hydration", "power", "inventory"];
@@ -59,10 +60,10 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     });
 
     // Barres ou anneaux : on coche l'un, on décoche l'autre.
-    const rings = layout.widgets.find((w) => w.kind === "gauges")?.shown ?? false;
+    const rings = layout.widgets.some((w) => (w.kind === "gauges" || w.kind === "gear") && w.shown);
     const style = (asRings: boolean) => edit((ls) => {
       for (const w of current(ls).widgets) {
-        if (w.kind === "gauges") w.shown = asRings;
+        if (w.kind === "gauges" || w.kind === "gear") w.shown = asRings;
         else if (STATS.includes(w.kind)) w.shown = !asRings;
       }
     });

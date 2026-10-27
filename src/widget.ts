@@ -139,21 +139,30 @@ function drawBar(s: PlayerState | null) {
 
 const RING = 2 * Math.PI * 19;
 
+/** Deux groupes séparés : fonctions vitales et équipement (un widget chacun). */
+const RING_GROUPS: Partial<Record<WidgetKind, WidgetKind[]>> = {
+  gauges: ["health", "stamina", "hydration"],
+  gear: ["power", "inventory"],
+};
+const RING_ICONS: Partial<Record<WidgetKind, string>> = {
+  health: "heart", stamina: "run", hydration: "drop", power: "bolt", inventory: "bag",
+};
+
 function drawGauges(s: PlayerState | null) {
-  const rings = settings.gaugeRings.filter((k) => BARS[k]);
-  if (card.childElementCount !== rings.length || card.dataset.rings !== rings.join()) {
+  const rings = settings.gaugeRings.filter((k) => RING_GROUPS[kind]!.includes(k));
+  if (card.dataset.rings !== rings.join()) {
     card.dataset.rings = rings.join();
     mount(card, rings.map((k) =>
       h("div", { class: `w-ring ${k}`, title: BARS[k]!.label, "data-kind": k },
         svgRing(),
-        h("span", { class: "digits" }))));
+        h("span", { class: "w-ring-in" }, icon(RING_ICONS[k]!, 13), h("span", { class: "digits" })))));
   }
   for (const el of card.querySelectorAll<HTMLElement>(".w-ring")) {
     const bar = BARS[el.dataset.kind as WidgetKind]!;
     const [cur, max] = s ? bar.value(s) : [0, 0];
     const pct = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0;
     el.querySelector<SVGCircleElement>(".fill")!.style.strokeDashoffset = String(RING * (1 - pct));
-    el.querySelector("span")!.textContent = max > 0 ? String(Math.round(cur)) : "—";
+    el.querySelector(".digits")!.textContent = max > 0 ? String(Math.round(cur)) : "—";
     el.classList.toggle("low", max > 0 && (bar.full ? pct >= 0.9 : pct <= 0.25));
   }
 }
@@ -356,6 +365,7 @@ async function start() {
       await on.playerState(drawBar);
       break;
     case "gauges":
+    case "gear":
       card.classList.add("gauges");
       drawGauges(await api.playerState());
       await on.playerState(drawGauges);
@@ -403,7 +413,7 @@ async function start() {
     apply(s);
     await syncClock();
     if (kind === "sector") void drawSector();
-    if (kind === "gauges") drawGauges(await api.playerState());
+    if (kind === "gauges" || kind === "gear") drawGauges(await api.playerState());
     if (kind === "minimap") {
       // Fond changé ou réaligné, échelle modifiée.
       await loadMapImage();

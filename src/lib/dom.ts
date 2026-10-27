@@ -68,6 +68,12 @@ const ICONS: Record<string, string> = {
   minimize: '<path d="M5 12h14"/>',
   maximize: '<rect x="5" y="5" width="14" height="14"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  // Jauges du personnage.
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  run: '<circle cx="14" cy="4.5" r="1.8"/><path d="M6 21l4-6 3 2v4M9 9l3-2 3 3 3 1M12 7l-2 8"/>',
+  drop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  bolt: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
+  bag: '<path d="M6 8h12l1 13H5zM9 8V6a3 3 0 0 1 6 0v2"/>',
 };
 
 /** Icône en trait, couleur du texte. Décorative par défaut. */

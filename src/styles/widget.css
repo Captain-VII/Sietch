@@ -187,19 +187,19 @@ body {
 
 .w-ring {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   flex: 0 0 auto;
 }
 
-.w-ring svg {
+.w-ring > svg {
   width: 100%;
   height: 100%;
   transform: rotate(-90deg);
   filter: drop-shadow(0 0 2px rgba(4, 5, 10, 0.8));
 }
 
-.w-ring circle {
+.w-ring > svg circle {
   fill: rgba(4, 5, 10, 0.35);
   stroke-width: 3.5;
 }
@@ -214,23 +214,30 @@ body {
   transition: stroke-dashoffset 0.25s linear;
 }
 
-.w-ring span {
+/* Icône au-dessus du chiffre, dans la couleur de l'anneau. */
+.w-ring-in {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-size: 11px;
+  line-height: 1;
   color: #fff6e4;
 }
 
-.w-ring.health .fill { stroke: #e05a4f; }
-.w-ring.stamina .fill { stroke: #e6cf95; }
-.w-ring.hydration .fill { stroke: #6fb6e8; }
-.w-ring.power .fill { stroke: #7fd1b9; }
-.w-ring.inventory .fill { stroke: #b9ad93; }
+.w-ring.health { --ring: #e05a4f; }
+.w-ring.stamina { --ring: #e6cf95; }
+.w-ring.hydration { --ring: #6fb6e8; }
+.w-ring.power { --ring: #7fd1b9; }
+.w-ring.inventory { --ring: #b9ad93; }
+.w-ring.low { --ring: var(--violet-light); }
 
-.w-ring.low .fill { stroke: var(--violet-light); }
-.w-ring.low span { color: var(--violet-light); }
+.w-ring .fill { stroke: var(--ring); }
+.w-ring-in svg { color: var(--ring); }
+.w-ring.low .digits { color: var(--violet-light); }
 
 /* Valeur basse (25 % ou moins) : le chiffre passe en violet, comme les alertes de Sietch. */
 .widget.low .w-mid {
