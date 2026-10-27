@@ -110,6 +110,31 @@ fn widget_size(kind: &str) -> (f64, f64) {
     }
 }
 
+/// Disposition par défaut, réglée en jeu sur un écran 2560 × 1440 puis rapportée à l'écran :
+/// coin haut droit (mini-carte, heure, Coriolis, secteur, minuteurs) collé au bord droit,
+/// fonctions vitales en arc à droite du viseur, équipement au-dessus de la compétence C.
+fn default_pos(kind: &str, sw: f64, sh: f64) -> (f64, f64) {
+    let right = |x: f64, y: f64| (sw - (2560.0 - x), y);
+    let center = |x: f64, y: f64| (sw / 2.0 + (x - 1280.0), sh / 2.0 + (y - 720.0));
+    let bottom = |x: f64, y: f64| (sw / 2.0 + (x - 1280.0), sh - (1440.0 - y));
+    match kind {
+        "minimap" => right(2320.0, 40.0),
+        "clock" => right(2340.0, 250.0),
+        "coriolis" => right(2310.0, 310.0),
+        "sector" => right(2270.0, 370.0),
+        "timers" => right(2270.0, 440.0),
+        "gauges" => center(1480.0, 620.0),
+        "gear" => bottom(1490.0, 1248.0),
+        // Barres (cachées par défaut, remplacées par les anneaux) : en colonne à droite du viseur.
+        "health" => center(1560.0, 800.0),
+        "stamina" => center(1560.0, 852.0),
+        "hydration" => center(1560.0, 904.0),
+        "power" => center(1560.0, 956.0),
+        "inventory" => center(1560.0, 1008.0),
+        _ => right(2270.0, 640.0),
+    }
+}
+
 /// Ouvre, place ou ferme les fenêtres des widgets selon la disposition active.
 /// Passe par une tâche de fond : créer une fenêtre depuis le fil principal (commande synchrone,
 /// raccourci) la laisserait blanche sous Windows.
@@ -129,14 +154,12 @@ fn apply_widgets(app: &AppHandle) {
     let Some(layout) = settings.layouts.iter().find(|l| l.id == settings.active_layout) else {
         return;
     };
-    // Placement automatique : en colonne, en haut à droite de l'écran principal.
+    // Placement par défaut sur l'écran principal (le jeu est en plein écran) : voir `default_pos`.
     let area = app.primary_monitor().ok().flatten().map(|m| {
-        let area = m.work_area();
-        let size = area.size.to_logical::<f64>(m.scale_factor());
-        let p = area.position.to_logical::<f64>(m.scale_factor());
-        (p.x, p.y, size.width)
+        let size = m.size().to_logical::<f64>(m.scale_factor());
+        let p = m.position().to_logical::<f64>(m.scale_factor());
+        (p.x, p.y, size.width, size.height)
     });
-    let mut next_y = 24.0;
     for w in &layout.widgets {
         let label = format!("widget-{}", w.kind);
         let existing = app.get_webview_window(&label);
@@ -150,10 +173,9 @@ fn apply_widgets(app: &AppHandle) {
         let (width, height) = (bw * w.scale, bh * w.scale);
         let (x, y) = match (w.pos, area) {
             (Some([x, y]), _) => (x as f64, y as f64),
-            (None, Some((left, top, aw))) => {
-                let pos = (left + aw - width - 24.0, top + next_y);
-                next_y += height + 10.0;
-                pos
+            (None, Some((left, top, sw, sh))) => {
+                let (x, y) = default_pos(&w.kind, sw, sh);
+                (left + x, top + y)
             }
             (None, None) => (24.0, 24.0),
         };
@@ -241,4 +263,19 @@ pub fn open_site(app: &AppHandle, url: &str) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_pos;
+
+    #[test]
+    fn default_layout_follows_the_screen() {
+        // Réglée sur 2560 × 1440 : on retrouve les positions choisies en jeu.
+        assert_eq!(default_pos("gauges", 2560.0, 1440.0), (1480.0, 620.0));
+        // Sur 1920 × 1080 : coin collé au bord droit, arc toujours à droite du viseur.
+        assert_eq!(default_pos("minimap", 1920.0, 1080.0), (1680.0, 40.0));
+        assert_eq!(default_pos("gauges", 1920.0, 1080.0), (1160.0, 440.0));
+        assert_eq!(default_pos("gear", 1920.0, 1080.0), (1170.0, 888.0));
+    }
 }

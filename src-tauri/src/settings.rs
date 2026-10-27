@@ -82,8 +82,9 @@ pub struct Widget {
 }
 
 impl Widget {
+    /// Widget de la disposition par défaut : les barres sont cachées, remplacées par les anneaux.
     pub fn new(kind: &str) -> Self {
-        Self { kind: kind.into(), ..Default::default() }
+        Self { kind: kind.into(), shown: !GAUGE_RINGS.contains(&kind), ..Default::default() }
     }
 }
 

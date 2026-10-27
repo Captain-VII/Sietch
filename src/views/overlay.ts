@@ -107,8 +107,14 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
           return id;
         }) }, "Nouvelle disposition"),
         h("button", { class: "btn", type: "button", onclick: () => edit((ls) => {
-          for (const w of current(ls).widgets) w.pos = null;
-        }) }, "Replacer automatiquement"),
+          // Disposition par défaut : positions, tailles et éléments d'origine (anneaux plutôt que barres).
+          for (const w of current(ls).widgets) {
+            w.pos = null;
+            w.scale = 1;
+            w.opacity = 100;
+            w.shown = !STATS.includes(w.kind);
+          }
+        }) }, "Disposition par défaut"),
         s.layouts.length > 1
           ? h("button", { class: "btn btn-danger", type: "button", onclick: async () => {
             if (!(await confirmDialog(`Supprimer la disposition « ${layout.name} » ?`, "Supprimer"))) return;
