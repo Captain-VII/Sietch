@@ -189,33 +189,59 @@ fn apply_widgets(app: &AppHandle) {
                 }
                 win
             }
-            None => {
-                let url = WebviewUrl::App(format!("widget.html?kind={}", w.kind).into());
-                let built = WebviewWindowBuilder::new(app, &label, url)
-                    .title("Sietch — Widget")
-                    .inner_size(width, height)
-                    .position(x, y)
-                    .decorations(false)
-                    .transparent(true)
-                    .shadow(false)
-                    .resizable(false)
-                    .always_on_top(true)
-                    .skip_taskbar(true)
-                    // Ne jamais prendre le focus au jeu.
-                    .focused(false)
-                    .focusable(false)
-                    .build();
-                match built {
-                    Ok(win) => {
-                        no_activate(&win);
-                        win
-                    }
-                    Err(_) => continue,
-                }
-            }
+            None => match widget_window(app, &label, &w.kind, (width, height), (x, y)) {
+                Some(win) => win,
+                None => continue,
+            },
         };
         let _ = win.set_ignore_cursor_events(!editing && settings.overlay_click_through);
     }
+    apply_banner(app, on, area);
+}
+
+/// Bandeau des alertes, en haut au centre de l'écran : vide (donc invisible) tant qu'aucune alerte
+/// n'arrive. Toujours traversé par la souris ; suit l'overlay (masqué avec lui).
+fn apply_banner(app: &AppHandle, on: bool, area: Option<(f64, f64, f64, f64)>) {
+    let existing = app.get_webview_window("widget-banner");
+    match (on, existing, area) {
+        (false, Some(win), _) => {
+            let _ = win.destroy();
+        }
+        (true, None, Some((left, top, sw, sh))) => {
+            let (w, h) = (BANNER.0, BANNER.1);
+            // Sous la boussole du jeu, rapporté à la hauteur de l'écran (réglé sur 1440).
+            let pos = (left + (sw - w) / 2.0, top + sh * 150.0 / 1440.0);
+            if let Some(win) = widget_window(app, "widget-banner", "banner", (w, h), pos) {
+                let _ = win.set_ignore_cursor_events(true);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Taille (logique) du bandeau des alertes.
+const BANNER: (f64, f64) = (560.0, 96.0);
+
+/// Fenêtre transparente, toujours devant, qui ne prend jamais le focus au jeu.
+fn widget_window(app: &AppHandle, label: &str, kind: &str, size: (f64, f64), pos: (f64, f64)) -> Option<WebviewWindow> {
+    let url = WebviewUrl::App(format!("widget.html?kind={kind}").into());
+    let win = WebviewWindowBuilder::new(app, label, url)
+        .title("Sietch — Widget")
+        .inner_size(size.0, size.1)
+        .position(pos.0, pos.1)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .resizable(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        // Ne jamais prendre le focus au jeu.
+        .focused(false)
+        .focusable(false)
+        .build()
+        .ok()?;
+    no_activate(&win);
+    Some(win)
 }
 
 /// Un clic sur le widget (mode édition) ne doit pas l'activer : le jeu garderait sinon le focus perdu.

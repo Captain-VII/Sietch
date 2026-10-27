@@ -379,7 +379,29 @@ function editControls() {
 
 // ---------- Démarrage ----------
 
+// ---------- Bandeau des alertes ----------
+
+/** En haut au centre : chaque alerte s'y affiche quelques secondes, puis s'efface. */
+async function startBanner() {
+  document.body.classList.add("banner");
+  const app = document.getElementById("app")!;
+  let hide = 0;
+  await on.alarm((a) => {
+    const el = h("div", { class: `w-banner${a.title.startsWith("Le ver") ? " worm" : ""}` },
+      h("strong", {}, a.title),
+      h("span", {}, a.body),
+    );
+    mount(app, el);
+    window.clearTimeout(hide);
+    hide = window.setTimeout(() => {
+      el.classList.add("out");
+      window.setTimeout(() => el.remove(), 600);
+    }, 8000);
+  });
+}
+
 async function start() {
+  if ((kind as string) === "banner") return startBanner();
   [settings, timers] = await Promise.all([api.settings(), api.timers()]);
   await syncClock();
   apply(settings);

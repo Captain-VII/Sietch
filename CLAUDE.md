@@ -91,6 +91,7 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   (`captures-carte\hagga\retouche-*.webp`). Pour capturer : masquer l'overlay (Ctrl+Maj+O) et les filtres
   « Événements/Dangers » de la carte du jeu, même zoom (dézoom maximum).
 - **Sac** : emplacements occupés (sous l'anneau du volume). **Ver** : menace en % du seuil d'attaque, anneau + alerte.
+  **Bandeau des alertes** (`widget-banner`, hors dispositions) : en haut au centre, affiche chaque alerte 8 s ; suit l'overlay.
   Relevé des ressources découpé en morceaux (20 000 objets par tick, passage ~5 s en debug) pour ne pas figer la lecture.
 - **Reste** : noms des zones en français (`docs/carte-en-direct.md`), durabilité (système d'entités du jeu).
 
