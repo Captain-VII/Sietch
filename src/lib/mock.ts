@@ -208,6 +208,10 @@ function handle(cmd: string, args: Record<string, any>): unknown {
           })
         : [];
     }
+    case "get_update":
+    case "check_update":
+    case "install_update":
+      return null;
     case "clear_trail":
       void emit("trail", []);
       return null;

@@ -46,8 +46,9 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
+      # Sans paquet de mise à jour : il demande la clé de signature, réservée aux releases (release.yml).
       - name: Compilation
-        run: npx tauri build
+        run: npx tauri build --config src-tauri/tauri.ci.conf.json
 
       - name: Installateurs
         uses: actions/upload-artifact@v4

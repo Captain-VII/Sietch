@@ -7,6 +7,7 @@ mod state;
 mod timers;
 mod tray;
 mod ue;
+mod update;
 mod windows;
 
 use serde::Serialize;
@@ -327,6 +328,24 @@ fn test_alarm(app: AppHandle, state: State<AppState>) {
     );
 }
 
+// ---------- Mises à jour ----------
+
+/// Mise à jour déjà trouvée par la vérification de fond.
+#[tauri::command]
+fn get_update(state: State<AppState>) -> Option<update::UpdateInfo> {
+    state.update.lock().unwrap().clone()
+}
+
+#[tauri::command]
+async fn check_update(app: AppHandle) -> CmdResult<Option<update::UpdateInfo>> {
+    update::check(&app).await
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle) -> CmdResult<()> {
+    update::install(&app).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -349,6 +368,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             app.manage(AppState::load(dir));
@@ -366,6 +386,7 @@ pub fn run() {
             }
             engine::spawn(handle.clone());
             live::spawn(handle.clone());
+            update::spawn(handle.clone());
 
             let minimized = std::env::args().any(|a| a == "--minimized")
                 || handle
@@ -429,6 +450,9 @@ pub fn run() {
             get_live_status,
             reload_live_config,
             test_alarm,
+            get_update,
+            check_update,
+            install_update,
         ])
         .run(tauri::generate_context!())
         .expect("erreur au lancement de Sietch");

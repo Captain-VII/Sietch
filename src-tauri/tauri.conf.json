@@ -48,9 +48,17 @@
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost https://media.awakening.wiki; font-src 'self' data:; connect-src ipc: http://ipc.localhost"
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1RDk2NEVBMTJGMzRENkQKUldSdFRmTVM2bVRaNWNXVkZjVU9GNWxkNjFQYTY5N2tIeW5uVjlaRTVOVUpCTU5jN0RJei9rSnoK",
+      "endpoints": ["https://github.com/Captain-VII/Sietch/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "category": "Game",
     "shortDescription": "Compagnon de bureau pour Dune: Awakening",
     "license": "GPL-3.0-or-later",

@@ -107,6 +107,12 @@ export interface PlayerState {
   yaw: number;
 }
 
+/** Nouvelle version publiée sur GitHub. */
+export interface UpdateInfo {
+  version: string;
+  notes: string;
+}
+
 /** Trajet de la session, en coordonnées du jeu ; `null` coupe le tracé (téléportation, mort). */
 export type Trail = ([number, number] | null)[];
 
@@ -189,6 +195,9 @@ export const api = {
   mapData: () => invoke<MapData | null>("get_map_data"),
   resources: () => invoke<SeenResource[]>("get_resources"),
   trail: () => invoke<Trail>("get_trail"),
+  update: () => invoke<UpdateInfo | null>("get_update"),
+  checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
+  installUpdate: () => invoke<void>("install_update"),
   clearTrail: () => invoke<void>("clear_trail"),
   importMapImage: (region: string, path: string) => invoke<string>("import_map_image", { region, path }),
   mapImage: (region: string) => invoke<string | null>("get_map_image", { region }),

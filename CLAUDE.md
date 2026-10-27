@@ -9,7 +9,8 @@ https://github.com/Captain-VII/Sietch (licence GPL-3.0-or-later).
 ## L'utilisateur
 
 - Parle français : interface, commentaires, commits et réponses en français.
-- Veut aller vite : **pas de tags ni de releases**. Un push sur `main` suffit, la CI produit le `.exe`.
+- Veut aller vite : un push sur `main` suffit au quotidien (la CI produit le `.exe`, sans paquet de mise à jour).
+  Les **releases** (depuis le 2026-10-27) se font sur demande, voir « Release et mises à jour ».
 - Les **overlays et widgets** se testent par-dessus le jeu, sur l'écran principal (sans jamais voler son focus) ;
   le reste de Sietch s'ouvre sur l'écran secondaire.
 - Ne veut **aucun son** : les alertes passent par la notification système (silencieuse) et un toast dans l'app.
@@ -72,6 +73,21 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
   transparente, toujours devant, avec `WS_EX_NOACTIVATE` (un clic ne doit jamais prendre le focus au jeu ;
   `focusable(false)` ne suffit pas). Positions enregistrées en sortant du mode édition. En dev, la fenêtre principale
   reste cachée au démarrage (l'appli redémarre à chaque modification du Rust).
+
+## Release et mises à jour
+
+1. Monter la version dans `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` et `package.json` (les trois identiques).
+2. Commit, push, puis tag `vX.Y.Z` poussé : `.github/workflows/release.yml` vérifie que le tag = la version, teste,
+   compile, signe et publie la release GitHub avec `latest.json`.
+3. Les Sietch installés lisent `releases/latest/download/latest.json` (`update.rs`) : au lancement + 30 s puis toutes les
+   6 h, notification silencieuse ; l'installation se lance depuis Paramètres › À propos (installateur NSIS passif,
+   puis relance). Rien en mode dev.
+
+- Clé de signature : `C:\Users\Admin\Sietch-keys\` (`updater.key`, `updater.password`, hors dépôt, à sauvegarder),
+  copiée dans les secrets GitHub `TAURI_SIGNING_PRIVATE_KEY` et `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Perdue = plus
+  aucune mise à jour possible pour les versions installées. Clé publique dans `tauri.conf.json` (`plugins.updater`).
+- `npm run tauri build` en local exige ces deux variables d'environnement ; sinon ajouter
+  `--config src-tauri/tauri.ci.conf.json` (sans paquet de mise à jour, comme la CI de `main`).
 
 ## État au 2026-10-27
 

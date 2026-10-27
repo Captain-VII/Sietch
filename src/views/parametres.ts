@@ -4,7 +4,7 @@ import { disable as disableAutostart, enable as enableAutostart, isEnabled as au
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api, prettyKeys, SHORTCUT_LABELS, type Settings } from "../lib/api";
+import { api, prettyKeys, SHORTCUT_LABELS, type Settings, type UpdateInfo } from "../lib/api";
 import { builds, getNotes, markers, setNotes, timerTemplates, type Build, type Marker, type TimerTemplate } from "../lib/data";
 import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
 import { durationLabel, pad } from "../lib/time";
@@ -252,10 +252,32 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
     apropos: async () => {
       const version = await getVersion().catch(() => "?");
+      // Mises à jour : la vérification de fond a peut-être déjà trouvé une version plus récente.
+      const updateBox = h("div", { class: "row wrap", style: "--gap: 12px" });
+      const showUpdate = (u: UpdateInfo | null, checked = false) => mount(updateBox,
+        u
+          ? [h("span", {}, `Version ${u.version} disponible.`),
+             h("button", { class: "btn btn-primary", type: "button", onclick: async (e: Event) => {
+               (e.currentTarget as HTMLButtonElement).disabled = true;
+               toast("Mise à jour", "Téléchargement… Sietch va se fermer puis se relancer.");
+               await api.installUpdate().catch((err) => toast("Mise à jour impossible", String(err)));
+             } }, "Installer et redémarrer")]
+          : [h("span", { class: "muted" }, checked ? "Sietch est à jour." : "Vérification automatique au lancement, puis toutes les 6 heures."),
+             h("button", { class: "btn", type: "button", onclick: async (e: Event) => {
+               (e.currentTarget as HTMLButtonElement).disabled = true;
+               try {
+                 showUpdate(await api.checkUpdate(), true);
+               } catch (err) {
+                 toast("Vérification impossible", String(err));
+                 showUpdate(null);
+               }
+             } }, "Rechercher une mise à jour")]);
+      showUpdate(await api.update().catch(() => null));
       return card("À propos",
         h("div", { class: "row", style: "align-items: baseline; --gap: 12px" },
           h("span", { class: "h2" }, "SIETCH"), h("span", { class: "muted" }, `version ${version}`)),
-        h("p", { class: "prose soft", style: "margin: 0" }, "Compagnon de bureau non officiel pour Dune: Awakening. Sietch ne lit ni ne modifie la mémoire du jeu : il reste compatible avec BattlEye."),
+        updateBox,
+        h("p", { class: "prose soft", style: "margin: 0" }, "Compagnon de bureau non officiel pour Dune: Awakening. Sietch ne modifie jamais le jeu. Il ne lit sa mémoire (sans l'écrire) qu'en mode solo ou serveur privé sans BattlEye, et seulement si vous l'activez : il reste compatible avec BattlEye."),
         h("p", { class: "muted", style: "margin: 0" }, "Logiciel libre sous licence GPL-3.0-or-later. Dune et Dune: Awakening appartiennent à leurs ayants droit ; Sietch n'y est pas affilié."),
       );
     },

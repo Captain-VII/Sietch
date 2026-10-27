@@ -1,0 +1,69 @@
+# Publie une version de Sietch : pousser un tag `vX.Y.Z` (égal à la version de tauri.conf.json).
+# Vérifie, compile, signe le paquet de mise à jour et crée la release GitHub avec latest.json,
+# que les Sietch installés consultent pour se mettre à jour.
+# Secrets : TAURI_SIGNING_PRIVATE_KEY et TAURI_SIGNING_PRIVATE_KEY_PASSWORD (clé gardée hors du dépôt).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag = version de l'appli
+        shell: pwsh
+        run: |
+          $v = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} ≠ version v$v de tauri.conf.json" }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Types
+        run: npx tsc --noEmit -p .
+
+      - name: Lint Rust
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests Rust
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Compilation et release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Sietch ${{ github.ref_name }}
+          releaseBody: |
+            Installer : **Sietch_…_x64-setup.exe** (recommandé) ou le `.msi`.
+            Windows peut afficher un avertissement SmartScreen (exécutable non signé) : « Informations complémentaires » › « Exécuter quand même ».
+            Les versions installées se mettent à jour depuis Paramètres › À propos.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
