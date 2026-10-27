@@ -3,7 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api, on, type MapData, type SeenResource } from "../lib/api";
-import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, resourceKind, SIZE, worldToMap as toWorldMap } from "../lib/carte";
+import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -81,7 +81,15 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   /** Catégories de points d'intérêt à cocher, avec le nombre de points de chacune. */
   function drawPoiChips() {
     const counts = new Map<string, number>();
-    const looks = new Map<string, { label: string; color: string }>();
+    const looks = new Map<string, { label: string; color: string; path: string }>();
+    /** Pictogramme de la catégorie dans son bouton, pour servir de légende. */
+    const resIcon = (kind: string) => {
+      const k = looks.get(kind);
+      if (!k) return null;
+      const el = h("span", { style: "display: inline-flex" });
+      el.innerHTML = resourceSvg(k.path, k.color, 18);
+      return el;
+    };
     if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
     // Ressources : une catégorie par ressource, au sol ou non.
     for (const r of resources) {
@@ -105,7 +113,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           drawPoiChips();
           drawGame();
         },
-      }, h("span", { class: "dot", style: `background: ${k.color}` }), `${k.label} (${n})`);
+      }, resIcon(kind) ?? h("span", { class: "dot", style: `background: ${k.color}` }), `${k.label} (${n})`);
     }));
   }
 
@@ -135,7 +143,12 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       if (hiddenPoi.has(k.key)) continue;
       const p = worldToMap(r.x, r.y);
       const respawn = r.respawn > 0 ? ` · réapparaît en ${Math.round(r.respawn / 60)} min` : "";
-      L.circleMarker(toLatLng(p.x, p.y), { radius: k.ground ? 2.5 : 4, stroke: false, fillColor: k.color, fillOpacity: r.live ? 0.95 : 0.4 })
+      const size = k.ground ? 14 : 20;
+      L.marker(toLatLng(p.x, p.y), {
+        icon: L.divIcon({ className: "res-pin", html: resourceSvg(k.path, k.color, size), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+        opacity: r.live ? 1 : 0.45,
+        keyboard: false,
+      })
         .bindTooltip(`${k.label}${k.ground ? " (au sol)" : ""} · ${sectorOf(p.x, p.y)}${respawn}${r.live ? "" : " · déjà vue"}`, { className: "marker-tip", direction: "top", offset: [0, -4] })
         .addTo(gameLayer);
     }

@@ -201,6 +201,8 @@ let mapData: MapData | null = null;
 let mapImg: { img: HTMLImageElement; rect: [number, number, number, number] } | null = null;
 let player: PlayerState | null = null;
 let resources: SeenResource[] = [];
+/** Pictogrammes des ressources, préparés une fois. */
+const paths = new Map<string, Path2D>();
 
 async function loadMapImage() {
   mapImg = null;
@@ -282,11 +284,25 @@ function drawMinimap() {
       if (masked.has(k.key)) continue;
       const p = worldToMap(mapData, r.x, r.y);
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
-      g.globalAlpha = r.live ? 0.95 : 0.4;
+      // Pastille avec pictogramme, comme sur la grande carte (grille 24 ramenée à la taille voulue).
+      const size = k.ground ? 9 : 13;
+      g.globalAlpha = r.live ? 1 : 0.45;
+      g.save();
+      g.translate(px(p.x), py(p.y));
       g.beginPath();
-      g.arc(px(p.x), py(p.y), k.ground ? 1.8 : 2.8, 0, Math.PI * 2);
-      g.fillStyle = k.color;
+      g.arc(0, 0, size / 2, 0, Math.PI * 2);
+      g.fillStyle = "rgba(17, 19, 31, 0.85)";
       g.fill();
+      g.lineWidth = 1;
+      g.strokeStyle = k.color;
+      g.stroke();
+      const s = (size * 0.7) / 24;
+      g.scale(s, s);
+      g.translate(-12, -12);
+      g.lineWidth = 2.4;
+      g.lineCap = g.lineJoin = "round";
+      g.stroke(paths.get(k.path) ?? paths.set(k.path, new Path2D(k.path)).get(k.path)!);
+      g.restore();
     }
     g.globalAlpha = 1;
     // Flèche du joueur : yaw 0 = vers l'est, comme sur la grande carte.

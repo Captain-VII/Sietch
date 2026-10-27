@@ -17,27 +17,45 @@ export const POI_KINDS: Record<string, { label: string; color: string }> = {
   evenement: { label: "Événement", color: "#f09a8a" },
 };
 
+/** Pictogrammes des ressources (dessinés pour Sietch, en trait, grille 24 × 24). */
+const RES_ICONS = {
+  minerai: "M12 3l6 6-6 12-6-12zM6 9h12M12 3v18",
+  pierre: "M4 18l3-9 6-4 6 5 1 8z",
+  ferraille: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 9a3 3 0 1 0 0.01 0",
+  electronique: "M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4",
+  carburant: "M12 3c3 4 6 6.5 6 11a6 6 0 0 1-12 0c0-3 1.5-5 3-7 1 2 2 3 3 3 0-3-1-5 0-7z",
+  plante: "M5 19C5 11 11 5 19 5c0 8-6 14-14 14zM5 19l8-8",
+  fleur: "M12 10a2 2 0 1 0 0.01 0M12 3v5M12 14v7M5 9l5 2M19 9l-5 2M8 19l3-6M16 19l-3-6",
+  ornithoptere: "M2 11h20M12 7v9M9 16h6M5 11l-3-4M19 11l3-4",
+} as const;
+
 /** Ressources lues dans le jeu (générateurs), d'après leur nom interne. Les noms français du jeu peuvent différer. */
-const RESOURCE_KINDS: Record<string, { label: string; color: string }> = {
-  AzuriteOre: { label: "Azurite", color: "#4f8fe0" },
-  Azurite: { label: "Azurite", color: "#4f8fe0" },
-  RhyoliteStone: { label: "Rhyolite", color: "#a99a86" },
-  ScrapMetal: { label: "Ferraille", color: "#9aa3ad" },
-  ScrapElectronics: { label: "Électronique", color: "#6fd1e8" },
-  ImpureFuel: { label: "Carburant", color: "#e8823a" },
-  BurroBush: { label: "Buisson", color: "#8fbf5a" },
-  Primrose: { label: "Primevère", color: "#e6a6d0" },
-  Ornithopter: { label: "Ornithoptère", color: "#f1d7ff" },
+const RESOURCE_KINDS: Record<string, { label: string; color: string; icon: keyof typeof RES_ICONS }> = {
+  AzuriteOre: { label: "Azurite", color: "#4f8fe0", icon: "minerai" },
+  Azurite: { label: "Azurite", color: "#4f8fe0", icon: "minerai" },
+  RhyoliteStone: { label: "Rhyolite", color: "#c7b7a0", icon: "pierre" },
+  ScrapMetal: { label: "Ferraille", color: "#aab4be", icon: "ferraille" },
+  ScrapElectronics: { label: "Électronique", color: "#6fd1e8", icon: "electronique" },
+  ImpureFuel: { label: "Carburant", color: "#e8823a", icon: "carburant" },
+  BurroBush: { label: "Buisson", color: "#8fbf5a", icon: "plante" },
+  Primrose: { label: "Primevère", color: "#e6a6d0", icon: "fleur" },
+  Ornithopter: { label: "Ornithoptère", color: "#f1d7ff", icon: "ornithoptere" },
 };
 
-/** Catégorie d'une ressource (clé de masquage `r:<nom>`), libellé, couleur, et si elle se ramasse au sol. */
+/** Catégorie d'une ressource (clé de masquage `r:<nom>`), libellé, couleur, pictogramme, et si elle se ramasse au sol. */
 export function resourceKind(name: string) {
   const ground = name.endsWith("_Pickup");
   const base = name.replace(/_Pickup$/, "");
   // Variantes (« AzuriteOre_Cliffside ») : on garde la ressource de départ.
   const known = Object.keys(RESOURCE_KINDS).filter((n) => base === n || base.startsWith(`${n}_`))[0];
-  const k = (known && RESOURCE_KINDS[known]) || { label: base.replace(/([a-z])([A-Z])/g, "$1 $2"), color: "#e9dfc9" };
-  return { key: `r:${k.label}`, label: k.label, color: k.color, ground };
+  const k = (known && RESOURCE_KINDS[known]) || { label: base.replace(/([a-z])([A-Z])/g, "$1 $2"), color: "#e9dfc9", icon: "pierre" as const };
+  return { key: `r:${k.label}`, label: k.label, color: k.color, path: RES_ICONS[k.icon], ground };
+}
+
+/** Pastille SVG d'une ressource : fond sombre, contour et pictogramme dans la couleur de la ressource. */
+export function resourceSvg(path: string, color: string, size: number) {
+  return `<svg width="${size}" height="${size}" viewBox="-4 -4 32 32" aria-hidden="true"><circle cx="12" cy="12" r="14" fill="#11131F" fill-opacity="0.85" stroke="${color}" stroke-width="2"/>`
+    + `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 /** Catégories de points d'intérêt masquées, partagées par la carte et la mini-carte. */

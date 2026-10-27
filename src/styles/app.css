@@ -628,3 +628,13 @@
     animation: none;
   }
 }
+
+/* Ressources du jeu sur la carte : pastille avec pictogramme (voir lib/carte.ts). */
+.res-pin {
+  background: none;
+  border: none;
+}
+
+.res-pin svg {
+  display: block;
+}
