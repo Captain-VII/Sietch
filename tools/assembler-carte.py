@@ -93,6 +93,34 @@ def ncc(ga, gb, ma, mb, dx, dy):
     return float((va * vb).sum() / (np.sqrt((va ** 2).sum() * (vb ** 2).sum()) + 1e-9)), int(n)
 
 
+def color_gains(tiles, pos, rounds=30):
+    """Gain par couleur et par morceau pour que les chevauchements aient la même teinte (le 1er sert de référence)."""
+    keys = sorted(pos)
+    links = []
+    for a in keys:
+        for b in keys:
+            if a >= b:
+                continue
+            dx, dy = pos[b][0] - pos[a][0], pos[b][1] - pos[a][1]
+            x0, x1, y0, y1 = max(0, dx), min(W, W + dx), max(0, dy), min(H, H + dy)
+            if x1 - x0 < 50 or y1 - y0 < 50:
+                continue
+            (ra, ma), (rb, mb) = tiles[a], tiles[b]
+            m = ma[y0:y1, x0:x1] & mb[y0 - dy:y1 - dy, x0 - dx:x1 - dx]
+            if m.sum() < 5000:
+                continue
+            mean_a = ra[y0:y1, x0:x1][m].mean(axis=0) + 1e-3
+            mean_b = rb[y0 - dy:y1 - dy, x0 - dx:x1 - dx][m].mean(axis=0) + 1e-3
+            links.append((a, b, np.log(mean_a / mean_b), m.sum()))
+    log_g = {k: np.zeros(3) for k in keys}
+    for _ in range(rounds):
+        for k in keys[1:]:
+            votes = [(log_g[a] + d, n) for a, b, d, n in links if b == k] + [(log_g[b] - d, n) for a, b, d, n in links if a == k]
+            if votes:
+                log_g[k] = sum(v * n for v, n in votes) / sum(n for _, n in votes)
+    return {k: np.exp(v).astype(np.float32) for k, v in log_g.items()}
+
+
 def main(folder, out):
     paths = sorted(p for p in Path(folder).iterdir() if p.suffix.lower() in (".png", ".webp", ".jpg", ".jpeg"))
     tiles = [load(p) for p in paths]
@@ -145,13 +173,17 @@ def main(folder, out):
     ys = [p[1] for p in pos.values()]
     x0, y0 = min(xs), min(ys)
     cw, ch = max(xs) - x0 + W, max(ys) - y0 + H
+    gains = color_gains(tiles, pos)
     acc = np.zeros((ch, cw, 3), dtype=np.float32)
     wsum = np.zeros((ch, cw), dtype=np.float32)
-    # Poids plus fort au centre de chaque morceau : les raccords se fondent.
+    # Chaque pixel vient surtout du morceau dont il est le plus loin du bord : poids très pointu
+    # (puissance 8), donc des raccords nets sur ~30 px au lieu d'un mélange flou sur tout le chevauchement.
     yy, xx = np.mgrid[0:H, 0:W]
     center = np.minimum(np.minimum(xx, W - xx), np.minimum(yy, H - yy)).astype(np.float32) + 1
+    center = (center / center.max()) ** 8
     for k, (px, py) in pos.items():
         rgb, mask = tiles[k]
+        rgb = np.clip(rgb * gains[k], 0, 1)
         wgt = center * mask
         ox, oy = px - x0, py - y0
         acc[oy:oy + H, ox:ox + W] += rgb * wgt[..., None]
