@@ -1,6 +1,6 @@
 import type { Ctx, ViewHandle } from "../main";
 import { api, prettyKeys, type Layout, type Settings, type WidgetKind } from "../lib/api";
-import { confirmDialog, h, mount, toast } from "../lib/dom";
+import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
 
 const WIDGET_LABELS: Record<WidgetKind, string> = {
   clock: "Heure du jeu",
@@ -18,14 +18,22 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   threat: "Menace du ver",
   worm: "Ver",
 };
-/** Valeurs du personnage : en barres (un widget chacune) ou en anneaux (widget Jauges). */
+/** Valeurs du personnage : en barres (un widget chacune) ou en anneaux (widgets Fonctions vitales et Équipement). */
 const STATS: WidgetKind[] = ["health", "stamina", "hydration", "power", "inventory"];
-/** Anneaux possibles (le ver n'existe qu'en anneau). */
-const RINGS: WidgetKind[] = STATS;
+const RING_WIDGETS: WidgetKind[] = ["gauges", "gear"];
+/** Repères autour du joueur, puis le personnage. */
+const LANDMARKS: WidgetKind[] = ["minimap", "clock", "coriolis", "sector", "timers"];
 
-/** Widgets de l'overlay : dispositions, éléments affichés, clic traversant. */
+/** Dispositions préfaites : éléments affichés. Gardées en accord avec `PRESETS` de `settings.rs`. */
+const PRESETS: Record<string, { hint: string; shown: WidgetKind[] }> = {
+  exploration: { hint: "Tout : repères, minuteurs, personnage.", shown: ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat"] },
+  combat: { hint: "Seulement le personnage, près du viseur.", shown: ["gauges", "gear", "threat"] },
+  vehicule: { hint: "Se repérer et surveiller le ver.", shown: ["clock", "coriolis", "sector", "minimap", "threat"] },
+};
+
+/** Widgets de l'overlay : dispositions, éléments affichés, comportement. */
 export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
-  const content = h("section", { class: "card", style: "padding: 28px" });
+  const body = h("div", { class: "columns" });
   /** Réglages envoyés depuis cet écran dont on attend encore l'écho. */
   let pendingEchoes = 0;
 
@@ -33,6 +41,21 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     pendingEchoes++;
     const errors = await ctx.saveSettings({ ...ctx.settings(), ...patch });
     if (errors.length) toast("Réglage refusé", errors.join(" — "));
+  }
+
+  /** Interrupteur d'un réglage booléen, avec son libellé et son explication. */
+  function toggle(key: "overlayClickThrough" | "overlayOnlyInGame" | "overlayHideInMenus", label: string, hint: string) {
+    const sw = h("button", {
+      class: "switch", type: "button", role: "switch", "aria-checked": String(ctx.settings()[key]), "aria-label": label,
+      onclick: () => {
+        const v = sw.getAttribute("aria-checked") !== "true";
+        sw.setAttribute("aria-checked", String(v));
+        void update({ [key]: v });
+      },
+    });
+    return h("div", { class: "setting-row" },
+      h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, label), h("span", { class: "muted", style: "font-size: 13px" }, hint)),
+      sw);
   }
 
   function draw() {
@@ -45,128 +68,110 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
       void update({ layouts, activeLayout: active }).then(draw);
     };
     const current = (layouts: Layout[]) => layouts.find((l) => l.id === layout.id)!;
+    const preset = PRESETS[layout.id];
 
-    const pick = h("select", { class: "select", id: "o-disp" }, s.layouts.map((l) => h("option", { value: l.id, selected: l.id === layout.id }, l.name)));
-    pick.addEventListener("change", () => void update({ activeLayout: pick.value }).then(draw));
-    const name = h("input", { class: "input", id: "o-disp-nom", type: "text", maxlength: "30", value: layout.name });
+    // ---------- Disposition ----------
+    const tabs = h("div", { class: "segmented", role: "group", "aria-label": "Disposition affichée", style: "flex-wrap: wrap" },
+      s.layouts.map((l) => h("button", { type: "button", "aria-pressed": String(l.id === layout.id), onclick: () => void update({ activeLayout: l.id }).then(draw) }, l.name)));
+    const name = h("input", { class: "input", id: "o-disp-nom", type: "text", maxlength: "30", value: layout.name, style: "flex: 1 1 160px; width: auto" });
     name.addEventListener("change", () => {
       const v = name.value.trim();
       if (v) edit((ls) => void (current(ls).name = v));
     });
-
-    const elements = layout.widgets.map((w) => {
-      const box = h("input", { type: "checkbox", checked: w.shown });
-      box.addEventListener("change", () => edit((ls) => {
-        current(ls).widgets.find((x) => x.kind === w.kind)!.shown = box.checked;
-      }));
-      return h("label", { class: "chip", style: "border-style: solid" }, box, WIDGET_LABELS[w.kind],
-        w.scale !== 1 ? h("span", { class: "muted", style: "font-size: 12px" }, `${Math.round(w.scale * 100)} %`) : null);
+    const reset = () => edit((ls) => {
+      // Positions, tailles et éléments d'origine (anneaux plutôt que barres).
+      const shown = (PRESETS[layout.id] ?? PRESETS.exploration).shown;
+      for (const w of current(ls).widgets) {
+        w.pos = null;
+        w.scale = 1;
+        w.opacity = 100;
+        w.shown = shown.includes(w.kind);
+      }
     });
+    const layoutCard = h("section", { class: "card", "aria-labelledby": "o-disp-titre" },
+      h("h2", { class: "section-title", id: "o-disp-titre" }, "Disposition"),
+      tabs,
+      h("p", { class: "muted", style: "margin: 0; font-size: 13px" },
+        `${preset ? preset.hint + " " : ""}En jeu, ${prettyKeys(s.shortcuts["overlay-next"] ?? "")} passe à la suivante.`),
+      h("div", { class: "row wrap", style: "--gap: 8px" },
+        h("label", { class: "sr-only", for: "o-disp-nom" }, "Nom de la disposition"), name,
+        h("button", { class: "btn", type: "button", title: "Nouvelle disposition, copie de celle-ci", onclick: () => edit((ls) => {
+          const id = `disposition-${Date.now().toString(36)}`;
+          ls.push({ ...structuredClone(current(ls)), id, name: `${layout.name} (copie)` });
+          return id;
+        }) }, icon("copy", 16), "Dupliquer"),
+        h("button", { class: "btn", type: "button", title: "Positions, tailles et éléments d'origine", onclick: reset }, icon("restart", 16), "Par défaut"),
+        s.layouts.length > 1
+          ? h("button", { class: "icon-btn", type: "button", "aria-label": `Supprimer la disposition ${layout.name}`, title: "Supprimer", onclick: async () => {
+              if (!(await confirmDialog(`Supprimer la disposition « ${layout.name} » ?`, "Supprimer"))) return;
+              edit((ls) => {
+                ls.splice(ls.findIndex((l) => l.id === layout.id), 1);
+                return ls[0].id;
+              });
+            } }, icon("trash", 16))
+          : null),
+    );
 
-    // Barres ou anneaux : on coche l'un, on décoche l'autre.
-    const rings = layout.widgets.some((w) => (w.kind === "gauges" || w.kind === "gear") && w.shown);
+    // ---------- Éléments ----------
+    const chip = (kind: WidgetKind) => {
+      const w = layout.widgets.find((x) => x.kind === kind);
+      if (!w) return null;
+      const box = h("input", { type: "checkbox", checked: w.shown });
+      box.addEventListener("change", () => edit((ls) => void (current(ls).widgets.find((x) => x.kind === kind)!.shown = box.checked)));
+      return h("label", { class: "chip", style: "border-style: solid" }, box, WIDGET_LABELS[kind],
+        w.scale !== 1 ? h("span", { class: "muted", style: "font-size: 12px" }, `${Math.round(w.scale * 100)} %`) : null);
+    };
+    // Anneaux ou barres : on coche l'un, on décoche l'autre.
+    const rings = !layout.widgets.some((w) => STATS.includes(w.kind) && w.shown);
     const style = (asRings: boolean) => edit((ls) => {
       for (const w of current(ls).widgets) {
-        if (w.kind === "gauges" || w.kind === "gear") w.shown = asRings;
+        if (RING_WIDGETS.includes(w.kind)) w.shown = asRings;
         else if (STATS.includes(w.kind)) w.shown = !asRings;
       }
     });
-    const ringChips = RINGS.map((k) => {
+    const ringValues = STATS.map((k) => {
       const box = h("input", { type: "checkbox", checked: s.gaugeRings.includes(k) });
       box.addEventListener("change", () => {
         const on = new Set(ctx.settings().gaugeRings);
         if (box.checked) on.add(k);
         else on.delete(k);
-        void update({ gaugeRings: RINGS.filter((x) => on.has(x)) });
+        void update({ gaugeRings: STATS.filter((x) => on.has(x)) });
       });
-      return h("label", { class: "chip", style: "border-style: solid" }, box, WIDGET_LABELS[k]);
+      return h("label", { class: "check" }, box, WIDGET_LABELS[k]);
     });
-
-    const through = h("button", {
-      class: "switch", type: "button", role: "switch", "aria-checked": String(s.overlayClickThrough), "aria-label": "Clic traversant",
-      onclick: () => {
-        const v = through.getAttribute("aria-checked") !== "true";
-        through.setAttribute("aria-checked", String(v));
-        void update({ overlayClickThrough: v });
-      },
-    });
-    const inGame = h("button", {
-      class: "switch", type: "button", role: "switch", "aria-checked": String(s.overlayOnlyInGame), "aria-label": "Seulement quand le jeu est au premier plan",
-      onclick: () => {
-        const v = inGame.getAttribute("aria-checked") !== "true";
-        inGame.setAttribute("aria-checked", String(v));
-        void update({ overlayOnlyInGame: v });
-      },
-    });
-    const menus = h("button", {
-      class: "switch", type: "button", role: "switch", "aria-checked": String(s.overlayHideInMenus), "aria-label": "Masquer dans les menus du jeu",
-      onclick: () => {
-        const v = menus.getAttribute("aria-checked") !== "true";
-        menus.setAttribute("aria-checked", String(v));
-        void update({ overlayHideInMenus: v });
-      },
-    });
-
-    mount(content,
-      h("p", { class: "muted", style: "margin: 0" },
-        `Chaque élément est un widget que vous placez où vous voulez par-dessus le jeu. ${prettyKeys(s.shortcuts.overlay ?? "")} les affiche ou les masque, `
-        + `${prettyKeys(s.shortcuts["overlay-edit"] ?? "")} ouvre le mode édition : glissez-les à la souris, la molette change leur taille, puis la même combinaison les verrouille.`),
-      h("div", { class: "row wrap" },
-        h("button", { class: "btn btn-primary", type: "button", onclick: () => api.toggleWidgetsEdit() }, "Placer les widgets"),
-        h("button", { class: "btn", type: "button", onclick: () => api.toggleOverlay() }, "Afficher / masquer"),
-      ),
-      h("div", { class: "grid-auto", style: "--min: 220px; gap: 16px" },
-        h("div", { class: "field" }, h("label", { class: "label", for: "o-disp" }, "Disposition affichée"), pick),
-        h("div", { class: "field" }, h("label", { class: "label", for: "o-disp-nom" }, "Nom de la disposition"), name),
-      ),
-      h("div", { class: "row wrap" },
-        h("button", { class: "btn", type: "button", onclick: () => edit((ls) => {
-          // Copie de la disposition affichée : on part de ses positions.
-          const id = `disposition-${Date.now().toString(36)}`;
-          ls.push({ ...structuredClone(current(ls)), id, name: `Disposition ${ls.length + 1}` });
-          return id;
-        }) }, "Nouvelle disposition"),
-        h("button", { class: "btn", type: "button", onclick: () => edit((ls) => {
-          // Disposition par défaut : positions, tailles et éléments d'origine (anneaux plutôt que barres).
-          for (const w of current(ls).widgets) {
-            w.pos = null;
-            w.scale = 1;
-            w.opacity = 100;
-            w.shown = !STATS.includes(w.kind);
-          }
-        }) }, "Disposition par défaut"),
-        s.layouts.length > 1
-          ? h("button", { class: "btn btn-danger", type: "button", onclick: async () => {
-            if (!(await confirmDialog(`Supprimer la disposition « ${layout.name} » ?`, "Supprimer"))) return;
-            edit((ls) => {
-              ls.splice(ls.findIndex((l) => l.id === layout.id), 1);
-              return ls[0].id;
-            });
-          } }, "Supprimer")
-          : null,
-      ),
+    const group = (title: string, ...children: (HTMLElement | null)[]) =>
+      h("div", { class: "stack", style: "--gap: 8px" }, h("span", { class: "label" }, title), h("div", { class: "row wrap", style: "--gap: 8px" }, children));
+    const elementsCard = h("section", { class: "card", "aria-labelledby": "o-elem-titre" },
+      h("h2", { class: "section-title", id: "o-elem-titre" }, `Éléments · ${layout.name}`),
+      group("Repères", ...LANDMARKS.map(chip)),
       h("div", { class: "stack", style: "--gap: 8px" },
-        h("span", { class: "label" }, "Éléments affichés"),
-        h("div", { class: "row wrap", style: "--gap: 8px" }, elements)),
-      h("div", { class: "stack", style: "--gap: 8px" },
-        h("span", { class: "label" }, "Vie, endurance, eau…"),
-        h("div", { class: "segmented", role: "group", "aria-label": "Style des jauges", style: "align-self: flex-start" },
-          h("button", { type: "button", "aria-pressed": String(!rings), onclick: () => style(false) }, "Barres"),
-          h("button", { type: "button", "aria-pressed": String(rings), onclick: () => style(true) }, "Anneaux")),
-        rings ? h("div", { class: "row wrap", style: "--gap: 8px" }, ringChips) : null),
-      h("div", { class: "setting-row" },
-        h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Clic traversant"),
-          h("span", { class: "muted", style: "font-size: 13px" }, "Widgets verrouillés : les clics passent à travers, vers le jeu. Le mode édition les rend toujours déplaçables.")),
-        through),
-      h("div", { class: "setting-row" },
-        h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Seulement quand le jeu est au premier plan"),
-          h("span", { class: "muted", style: "font-size: 13px" }, "Les widgets s'effacent quand vous passez sur une autre fenêtre (Alt+Tab) ou quand le jeu est fermé. Le mode édition les affiche toujours.")),
-        inGame),
-      h("div", { class: "setting-row" },
-        h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Masquer dans les menus du jeu"),
-          h("span", { class: "muted", style: "font-size: 13px" }, "Inventaire, carte, menu Échap… : les widgets s'effacent tant que le curseur de la souris est affiché. Le bandeau des alertes reste visible.")),
-        menus),
-      h("p", { class: "muted", style: "margin: 0" }, `${prettyKeys(s.shortcuts["overlay-next"] ?? "")} passe d'une disposition à l'autre, même en jeu. Choisissez dans l'écran Minuteurs quels minuteurs apparaissent dans le widget Minuteurs.`),
+        h("div", { class: "row spread wrap" },
+          h("span", { class: "label" }, "Personnage"),
+          h("div", { class: "segmented", role: "group", "aria-label": "Style des jauges" },
+            h("button", { type: "button", "aria-pressed": String(rings), onclick: () => style(true) }, "Anneaux"),
+            h("button", { type: "button", "aria-pressed": String(!rings), onclick: () => style(false) }, "Barres"))),
+        h("div", { class: "row wrap", style: "--gap: 8px" }, rings ? RING_WIDGETS.map(chip) : STATS.map(chip), chip("threat")),
+        rings
+          ? h("details", {},
+              h("summary", { class: "muted", style: "cursor: pointer; font-size: 13px" }, "Valeurs dans les anneaux (toutes dispositions)"),
+              h("div", { class: "row wrap", style: "--gap: 14px; margin-top: 8px" }, ringValues))
+          : null),
+    );
+
+    // ---------- Comportement ----------
+    const behaviourCard = h("section", { class: "card", "aria-labelledby": "o-comp-titre" },
+      h("h2", { class: "section-title", id: "o-comp-titre" }, "Comportement"),
+      toggle("overlayOnlyInGame", "Seulement avec le jeu au premier plan", "Les widgets s'effacent avec Alt+Tab ou quand le jeu est fermé."),
+      toggle("overlayHideInMenus", "Masqués dans les menus du jeu", "Inventaire, carte, Échap… : effacés tant que le curseur est affiché. Le bandeau des alertes reste visible."),
+      toggle("overlayClickThrough", "Clic traversant", "Les clics passent à travers les widgets, vers le jeu."),
+      h("p", { class: "muted", style: "margin: 0; font-size: 13px" },
+        `${prettyKeys(s.shortcuts.overlay ?? "")} affiche ou masque l'overlay ; ${prettyKeys(s.shortcuts["overlay-edit"] ?? "")} ouvre le mode édition `
+        + "(glisser pour déplacer, molette pour la taille), la même combinaison le referme. Les minuteurs du widget se choisissent dans l'écran Minuteurs."),
+    );
+
+    mount(body,
+      h("div", { class: "stack", style: "--gap: 20px; flex: 3 1 480px; min-width: 0" }, layoutCard, elementsCard),
+      h("div", { class: "stack", style: "--gap: 20px; flex: 2 1 300px; min-width: 0" }, behaviourCard),
     );
   }
 
@@ -174,9 +179,11 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     root,
     h("header", { class: "page-head" },
       h("div", { class: "titles" }, h("span", { class: "eyebrow" }, "Widgets par-dessus le jeu"), h("h1", { class: "h1" }, "Overlay")),
-      h("span", { class: "muted" }, "Enregistré automatiquement"),
+      h("div", { class: "row wrap", style: "--gap: 8px" },
+        h("button", { class: "btn btn-primary", type: "button", onclick: () => api.toggleWidgetsEdit() }, icon("edit", 16), "Placer les widgets"),
+        h("button", { class: "btn", type: "button", onclick: () => api.toggleOverlay() }, "Afficher / masquer")),
     ),
-    content,
+    body,
   );
   draw();
 

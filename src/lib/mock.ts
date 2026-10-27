@@ -38,11 +38,17 @@ const DEFAULT_SETTINGS: Settings = {
   playerAlerts: { water: 25, health: 30, power: 15, volume: 90, worm: 75, heat: 70 },
   mapImages: {},
   gaugeRings: ["health", "stamina", "hydration", "power", "inventory"],
-  layouts: [{
-    id: "exploration",
-    name: "Exploration",
-    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear", "threat"] as const).map((kind) => ({ kind, shown: !["health", "stamina", "hydration", "power", "inventory"].includes(kind), pos: null, scale: 1, opacity: 100 })),
-  }],
+  // Mêmes dispositions préfaites que `settings.rs` (PRESETS).
+  layouts: ([
+    ["exploration", "Exploration", ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat"]],
+    ["combat", "Combat", ["gauges", "gear", "threat"]],
+    ["vehicule", "Véhicule", ["clock", "coriolis", "sector", "minimap", "threat"]],
+  ] as const).map(([id, name, shown]) => ({
+    id,
+    name,
+    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear", "threat"] as const)
+      .map((kind) => ({ kind, shown: (shown as readonly string[]).includes(kind), pos: null, scale: 1, opacity: 100 })),
+  })),
   activeLayout: "exploration",
 };
 

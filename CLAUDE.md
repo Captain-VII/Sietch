@@ -123,6 +123,9 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   partage de marqueurs `SIETCHM1-…` ; écran **Artisanat** (`lib/recipes.ts`, tableaux « Crafted By » du wiki,
   pages d'ensemble « Armor Set », eau en mL, cache 7 j) et liste de courses d'un build ; pictogrammes de la carte
   en silhouettes pleines (evenodd).
+- **Dispositions préfaites** (`settings.rs::PRESETS`, copie dans `views/overlay.ts`) : Exploration, Combat (personnage
+  seul), Véhicule (repères + ver) ; ajoutées une fois aux anciens réglages (`layouts_version`), placées comme la
+  première disposition. Écran Overlay en trois blocs : Disposition (onglets), Éléments (Repères / Personnage), Comportement.
 - Menace du ver : widget affiché seulement quand la menace dépasse 0 (sur le sable), 15 s de répit.
 - **Reste** : noms des zones en français (`docs/carte-en-direct.md`), durabilité (système d'entités du jeu).
 

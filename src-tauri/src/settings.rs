@@ -41,6 +41,9 @@ pub struct Settings {
     /// Absente d'un ancien fichier : 0 (et non la valeur par défaut des réglages neufs).
     #[serde(default)]
     pub rings_version: u8,
+    /// Version des dispositions préfaites : Combat et Véhicule (version 1) ajoutées une fois aux anciens réglages.
+    #[serde(default)]
+    pub layouts_version: u8,
     /// Dispositions de widgets de l'overlay ; il en reste toujours au moins une.
     pub layouts: Vec<Layout>,
     /// Identifiant de la disposition affichée.
@@ -66,13 +69,34 @@ pub struct Layout {
     pub widgets: Vec<Widget>,
 }
 
+/// Dispositions préfaites : identifiant, nom et éléments affichés (les autres sont décochés).
+/// Gardées en accord avec `PRESETS` de `src/views/overlay.ts`.
+pub const PRESETS: [(&str, &str, &[&str]); 3] = [
+    ("exploration", "Exploration", &["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat"]),
+    // Les yeux sur le viseur : vie, endurance, eau, bouclier et ver seulement.
+    ("combat", "Combat", &["gauges", "gear", "threat"]),
+    // Se repérer et surveiller le ver ; le personnage compte moins.
+    ("vehicule", "Véhicule", &["clock", "coriolis", "sector", "minimap", "threat"]),
+];
+
+impl Layout {
+    /// Disposition préfaite `id` (Exploration par défaut).
+    pub fn preset(id: &str) -> Self {
+        let (id, name, shown) = PRESETS.iter().find(|p| p.0 == id).copied().unwrap_or(PRESETS[0]);
+        Self {
+            id: id.into(),
+            name: name.into(),
+            widgets: WIDGET_KINDS
+                .iter()
+                .map(|k| Widget { shown: shown.contains(k), ..Widget::new(k) })
+                .collect(),
+        }
+    }
+}
+
 impl Default for Layout {
     fn default() -> Self {
-        Self {
-            id: "exploration".into(),
-            name: "Exploration".into(),
-            widgets: WIDGET_KINDS.iter().map(|k| Widget::new(k)).collect(),
-        }
+        Self::preset("exploration")
     }
 }
 
@@ -143,6 +167,22 @@ impl Settings {
         if self.layouts.is_empty() {
             self.layouts.push(Layout::default());
         }
+        // Dispositions préfaites ajoutées depuis : placées comme la première disposition (positions, tailles).
+        if self.layouts_version < 1 {
+            for (id, ..) in PRESETS {
+                if self.layouts.iter().any(|l| l.id == id) {
+                    continue;
+                }
+                let mut l = Layout::preset(id);
+                for w in &mut l.widgets {
+                    if let Some(src) = self.layouts[0].widgets.iter().find(|x| x.kind == w.kind) {
+                        (w.pos, w.scale, w.opacity) = (src.pos, src.scale, src.opacity);
+                    }
+                }
+                self.layouts.push(l);
+            }
+        }
+        self.layouts_version = 1;
         if !self.layouts.iter().any(|l| l.id == self.active_layout) {
             self.active_layout = self.layouts[0].id.clone();
         }
@@ -210,7 +250,8 @@ impl Default for Settings {
             map_images: BTreeMap::new(),
             gauge_rings: GAUGE_RINGS.iter().map(|s| s.to_string()).collect(),
             rings_version: 2,
-            layouts: vec![Layout::default()],
+            layouts_version: 1,
+            layouts: PRESETS.iter().map(|p| Layout::preset(p.0)).collect(),
             active_layout: "exploration".into(),
         }
     }
@@ -259,8 +300,27 @@ mod tests {
         // settings.json d'avant les dispositions : aucun champ `layouts`.
         let mut s: Settings = serde_json::from_str(r#"{"serverLabel":"Europe"}"#).unwrap();
         s.normalize();
-        assert_eq!(s.layouts, vec![Layout::default()]);
+        let ids: Vec<_> = s.layouts.iter().map(|l| l.id.as_str()).collect();
+        assert_eq!(ids, ["exploration", "combat", "vehicule"]);
         assert_eq!(s.active_layout, "exploration");
+    }
+
+    #[test]
+    fn presets_are_added_once_where_the_first_layout_is() {
+        let mut s: Settings = serde_json::from_str(
+            r#"{"layouts":[{"id":"exploration","name":"Explo","widgets":[{"kind":"minimap","shown":true,"pos":[5,6],"scale":1.5,"opacity":80}]}]}"#,
+        )
+        .unwrap();
+        s.normalize();
+        let ids: Vec<_> = s.layouts.iter().map(|l| l.id.as_str()).collect();
+        assert_eq!(ids, ["exploration", "combat", "vehicule"]);
+        let map = s.layouts[2].widgets.iter().find(|w| w.kind == "minimap").unwrap();
+        assert_eq!((map.shown, map.pos, map.scale), (true, Some([5, 6]), 1.5), "placée comme dans Exploration");
+        assert!(!s.layouts[1].widgets.iter().find(|w| w.kind == "minimap").unwrap().shown, "pas de mini-carte en combat");
+        // Supprimée ensuite par l'utilisateur : elle ne revient pas.
+        s.layouts.remove(1);
+        s.normalize();
+        assert_eq!(s.layouts.len(), 2);
     }
 
     #[test]
