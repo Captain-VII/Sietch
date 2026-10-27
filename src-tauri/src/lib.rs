@@ -1,6 +1,7 @@
 mod alerts;
 mod engine;
 mod live;
+mod menu;
 mod settings;
 mod shortcuts;
 mod state;
@@ -328,6 +329,12 @@ fn test_alarm(app: AppHandle, state: State<AppState>) {
     );
 }
 
+/// Un menu du jeu est-il ouvert ? (`menu.rs`)
+#[tauri::command]
+fn get_game_menu(state: State<AppState>) -> bool {
+    state.game_menu.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 // ---------- Mises à jour ----------
 
 /// Mise à jour déjà trouvée par la vérification de fond.
@@ -387,6 +394,7 @@ pub fn run() {
             engine::spawn(handle.clone());
             live::spawn(handle.clone());
             update::spawn(handle.clone());
+            menu::spawn(handle.clone());
 
             let minimized = std::env::args().any(|a| a == "--minimized")
                 || handle
@@ -450,6 +458,7 @@ pub fn run() {
             get_live_status,
             reload_live_config,
             test_alarm,
+            get_game_menu,
             get_update,
             check_update,
             install_update,

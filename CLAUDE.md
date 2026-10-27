@@ -108,6 +108,8 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   (`captures-carte\hagga\retouche-*.webp`). Pour capturer : masquer l'overlay (Ctrl+Maj+O) et les filtres
   « Événements/Dangers » de la carte du jeu, même zoom (dézoom maximum).
 - **Sac** : emplacements occupés (sous l'anneau du volume). **Ver** : menace en % du seuil d'attaque, anneau + alerte.
+  **Menus du jeu** (`menu.rs`) : widgets effacés tant que la fenêtre `UnrealWindow` est au premier plan avec le curseur
+  affiché (inventaire, carte, Échap) ; Windows seul, rien de lu dans le jeu, marche avec BattlEye. Validé en jeu.
   **Bandeau des alertes** (`widget-banner`, hors dispositions) : en haut au centre, affiche chaque alerte 8 s ; suit l'overlay.
   **Chaleur** : alerte à 70 % de `HeatstrokeThreshold` (100 en jeu), texte « plein soleil » si `CurrentSunExposure` > 0.
   **Trajet** de la session (`state.trail`, un point tous les 20 m, coupé après un saut de 500 m, vidé au changement

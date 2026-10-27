@@ -11,6 +11,12 @@ body {
   position: relative;
   height: 100vh;
   zoom: var(--scale, 1);
+  transition: opacity 0.15s;
+}
+
+/* Menu du jeu ouvert (inventaire, carte, Échap…) : le widget s'efface. */
+.in-menu #app {
+  opacity: 0;
 }
 
 /* Mode édition : cadre en pointillé, fond léger, déplacement à la souris. */

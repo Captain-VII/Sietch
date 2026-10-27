@@ -32,6 +32,7 @@ export interface Settings {
   closeToTray: boolean;
   startMinimized: boolean;
   overlayClickThrough: boolean;
+  overlayHideInMenus: boolean;
   shortcuts: Record<string, string>;
   liveModules: boolean;
   liveRegion: string;
@@ -195,6 +196,7 @@ export const api = {
   mapData: () => invoke<MapData | null>("get_map_data"),
   resources: () => invoke<SeenResource[]>("get_resources"),
   trail: () => invoke<Trail>("get_trail"),
+  gameMenu: () => invoke<boolean>("get_game_menu"),
   update: () => invoke<UpdateInfo | null>("get_update"),
   checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
   installUpdate: () => invoke<void>("install_update"),
@@ -213,6 +215,7 @@ export const on = {
   liveStatus: (fn: (s: LiveStatus) => void) => listen<LiveStatus>("live-status", (e) => fn(e.payload)),
   mapData: (fn: (m: MapData | null) => void) => listen<MapData | null>("map-data", (e) => fn(e.payload)),
   resources: (fn: (r: SeenResource[]) => void) => listen<SeenResource[]>("resources", (e) => fn(e.payload)),
+  gameMenu: (fn: (open: boolean) => void) => listen<boolean>("game-menu", (e) => fn(e.payload)),
   // Trajet remplacé (effacé, changement de région) ou prolongé de quelques points.
   trail: (fn: (t: Trail) => void) => listen<Trail>("trail", (e) => fn(e.payload)),
   trailPoint: (fn: (t: Trail) => void) => listen<Trail>("trail-point", (e) => fn(e.payload)),

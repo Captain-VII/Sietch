@@ -400,8 +400,16 @@ function drawMinimap() {
 /** Cadre, déplacement à la souris et taille à la molette ; le moteur enregistre les positions en sortant. */
 const badge = h("span", { class: "w-badge" });
 
+/** Menu du jeu ouvert : le widget s'efface (sauf en mode édition, ou si le réglage est coupé). */
+let inMenu = false;
+function applyMenu() {
+  const root = document.documentElement;
+  root.classList.toggle("in-menu", inMenu && settings.overlayHideInMenus && !root.classList.contains("editing"));
+}
+
 function setEditing(on: boolean) {
   document.documentElement.classList.toggle("editing", on);
+  applyMenu();
   badge.textContent = `${Math.round((config(settings)?.scale ?? 1) * 100)} %`;
 }
 
@@ -454,6 +462,12 @@ async function start() {
   editControls();
   setEditing(await api.widgetsEdit());
   await on.widgetsEdit(setEditing);
+  inMenu = await api.gameMenu();
+  applyMenu();
+  await on.gameMenu((open) => {
+    inMenu = open;
+    applyMenu();
+  });
 
   switch (kind) {
     case "clock":
@@ -538,6 +552,7 @@ async function start() {
   await on.settingsChanged(async (s) => {
     settings = s;
     apply(s);
+    applyMenu();
     await syncClock();
     if (kind === "sector") void drawSector();
     if (kind === "gauges" || kind === "gear") drawGauges(await api.playerState());

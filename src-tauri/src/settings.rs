@@ -19,6 +19,8 @@ pub struct Settings {
     pub start_minimized: bool,
     /// Widgets verrouillés : les clics passent à travers, vers le jeu.
     pub overlay_click_through: bool,
+    /// Widgets masqués quand un menu du jeu est ouvert (inventaire, carte, Échap…).
+    pub overlay_hide_in_menus: bool,
     /// Action → combinaison, ex. "overlay" → "Ctrl+Shift+O".
     pub shortcuts: BTreeMap<String, String>,
     /// Modules sans BattlEye (position en direct). Désactivés par défaut.
@@ -196,6 +198,7 @@ impl Default for Settings {
             close_to_tray: true,
             start_minimized: false,
             overlay_click_through: false,
+            overlay_hide_in_menus: true,
             shortcuts,
             live_modules: false,
             live_region: "hagga".into(),

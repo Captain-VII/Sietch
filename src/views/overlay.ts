@@ -90,6 +90,14 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
         void update({ overlayClickThrough: v });
       },
     });
+    const menus = h("button", {
+      class: "switch", type: "button", role: "switch", "aria-checked": String(s.overlayHideInMenus), "aria-label": "Masquer dans les menus du jeu",
+      onclick: () => {
+        const v = menus.getAttribute("aria-checked") !== "true";
+        menus.setAttribute("aria-checked", String(v));
+        void update({ overlayHideInMenus: v });
+      },
+    });
 
     mount(content,
       h("p", { class: "muted", style: "margin: 0" },
@@ -142,6 +150,10 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
         h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Clic traversant"),
           h("span", { class: "muted", style: "font-size: 13px" }, "Widgets verrouillés : les clics passent à travers, vers le jeu. Le mode édition les rend toujours déplaçables.")),
         through),
+      h("div", { class: "setting-row" },
+        h("div", { class: "stack", style: "--gap: 4px" }, h("span", {}, "Masquer dans les menus du jeu"),
+          h("span", { class: "muted", style: "font-size: 13px" }, "Inventaire, carte, menu Échap… : les widgets s'effacent tant que le curseur de la souris est affiché. Le bandeau des alertes reste visible.")),
+        menus),
       h("p", { class: "muted", style: "margin: 0" }, `${prettyKeys(s.shortcuts["overlay-next"] ?? "")} passe d'une disposition à l'autre, même en jeu. Choisissez dans l'écran Minuteurs quels minuteurs apparaissent dans le widget Minuteurs.`),
     );
   }
