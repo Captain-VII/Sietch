@@ -25,6 +25,9 @@ dist-ssr
 
 # Outil sietch-scan
 tools/sietch-scan/target
+# Relevés de la mémoire du jeu : restent en local
+tools/sietch-scan/*.txt
+tools/sietch-scan/*.bin
 
 # Python (outils)
 __pycache__/
