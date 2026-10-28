@@ -130,7 +130,10 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   `m_CurrentSeat` ; `docs/personnage-en-direct.md`). **Diagnostic** dans Paramètres › Sans BattlEye (`live.rs::Diagnostic`) :
   structures, personnage, dernière lecture, lectures réussies/manquées, arme, véhicule, ressources.
 - Menace du ver : widget affiché seulement quand la menace dépasse 0 (sur le sable), 15 s de répit.
-- **Reste** : noms des zones en français (`docs/carte-en-direct.md`), durabilité (système d'entités du jeu).
+- **2026-10-28** : nom de zone en français (texte du widget du HUD, `ue.rs::ftext`) dans le widget Secteur ; coups portés
+  (baisse de vie des personnages proches, widget `hits` au centre) ; wiki traduit (`lib/translate.ts`, Google sans clé,
+  bloqué en mode navigateur par le relais de Vite) ; grille du mode édition (`widget-grid`, aimantation 20 px).
+- **Reste** : durabilité, trouvée en mémoire mais pas encore reliée aux objets (`docs/personnage-en-direct.md`).
 
 ## État au 2026-10-26 (fin de la session sur le Mac)
 
