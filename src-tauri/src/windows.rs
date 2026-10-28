@@ -324,10 +324,10 @@ mod tests {
     #[test]
     fn default_layout_follows_the_screen() {
         // Réglée sur 2560 × 1440 : on retrouve les positions choisies en jeu.
-        assert_eq!(default_pos("gauges", 2560.0, 1440.0), (1480.0, 620.0));
+        assert_eq!(default_pos("gauges", 2560.0, 1440.0), (1570.0, 620.0));
         // Sur 1920 × 1080 : coin collé au bord droit, arc toujours à droite du viseur.
         assert_eq!(default_pos("minimap", 1920.0, 1080.0), (1680.0, 40.0));
-        assert_eq!(default_pos("gauges", 1920.0, 1080.0), (1160.0, 440.0));
+        assert_eq!(default_pos("gauges", 1920.0, 1080.0), (1250.0, 440.0));
         assert_eq!(default_pos("gear", 1920.0, 1080.0), (1170.0, 888.0));
     }
 }
