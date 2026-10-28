@@ -81,6 +81,9 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 2. `cargo test`, `cargo clippy` et `tsc` en local, commit, push, puis tag `vX.Y.Z` poussé : `.github/workflows/release.yml` vérifie
    que le tag = la version, compile (cache Rust partagé avec la CI de `main`, LTO « thin »), signe et publie la release
    GitHub avec `latest.json`. Il ne refait ni lint ni tests (déjà passés en local et sur `main`).
+   Piège (v0.1.3) : la CI a été refusée à la création de la release (« Resource not accessible by integration »,
+   malgré `contents: write`). Contournement : `gh release create vX.Y.Z --verify-tag --notes-file …` en local puis
+   `gh run rerun <id>` ; l'action ajoute alors seulement les fichiers.
 3. Les Sietch installés lisent `releases/latest/download/latest.json` (`update.rs`) : au lancement + 30 s puis toutes les
    6 h, notification silencieuse ; l'installation se lance depuis Paramètres › À propos (installateur NSIS passif,
    puis relance). Rien en mode dev.
