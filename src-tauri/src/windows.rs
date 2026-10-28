@@ -125,10 +125,11 @@ fn default_pos(kind: &str, sw: f64, sh: f64) -> (f64, f64) {
         "coriolis" => right(2310.0, 310.0),
         "sector" => right(2270.0, 370.0),
         "timers" => right(2270.0, 440.0),
-        "gauges" => center(1480.0, 620.0),
+        // Vie, endurance, eau : calées contre le chevron du jeu à droite du viseur (même courbure).
+        "gauges" => center(1554.0, 620.0),
         "gear" => bottom(1490.0, 1248.0),
-        // Menace du ver : à droite de l'endurance (anneau du milieu de l'arc), à la même hauteur.
-        "threat" => center(1610.0, 685.0),
+        // Menace du ver : à gauche du viseur, à hauteur de l'endurance (à droite, le jeu affiche ses gains).
+        "threat" => center(950.0, 685.0),
         // Centré sur le viseur : la croix tombe au milieu de l'écran.
         "hits" => center(1160.0, 640.0),
         // Barres (cachées par défaut, remplacées par les anneaux) : en colonne à droite du viseur.
