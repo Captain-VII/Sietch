@@ -38,7 +38,7 @@ Les offsets des champs se relisent par réflexion à chaque lancement (`ue-field
 
 - **Emplacements du sac** : `m_BackpackInventoryComponent` → `m_Inventory` (`ItemInventory`) : liste interne des objets (`TArray` d'identifiants de 8 octets), non reflétée, placée juste avant `m_ClientMonitors` (offset de `m_ClientMonitors` − 0x18 ; nombre à +8). Capacité : `m_InitialMaxItemCount` de l'inventaire. Le sous-inventaire (200 places, vide) n'est pas compté. Lu : 9/35, **confirmé dans le jeu** (2026-10-27).
 - **Menace du ver** : composant `SandwormThreatSourceComponent` du personnage (outer = personnage) : `m_CurrentThreatBlobValue` / `m_CurrentSandwormAttackThreshold` (1000 par défaut). Sietch affiche le rapport en %, 100 = le ver attaque. Alerte à 75 % (réglable). Lu à 0 dans une base ; **valeurs sur le sable à vérifier**.
-- **Durabilité des équipements** : stockée dans le système d'entités du jeu (`ItemStackAndDurabilityStats`, objets `bUsesFgl`), pas dans des `UObject` : non lue pour l'instant.
+- **Durabilité des équipements** : stockée dans le système d'entités du jeu (`ItemStackAndDurabilityStats`, objets `bUsesFgl`), pas dans des `UObject` : non lue pour l'instant. Suite le 2026-10-28 ci-dessous.
 
 ## Arme en main, à bord d'un véhicule (disposition automatique)
 
@@ -56,3 +56,14 @@ du véhicule, le jeu remet parfois l'arme en main : on passe alors en Combat, c'
 
 Après un patch qui renomme un champ : `sietch-scan ue-fields BP_DunePlayerCharacter_C`, puis `ue-diff <adresse> 60`
 en sortant l'arme et en montant dans un véhicule, et mettre le nouveau nom dans `ARMED_FIELDS` / `VEHICLE_FIELDS` (`ue.rs`).
+
+## Durabilité (piste, 2026-10-28)
+
+`ItemStackAndDurabilityStats` (16 octets) : `MaxStackSize` (i32), `MaxDurability`, `DecayedMaxDurability`, `CurrentDurability` (f32).
+`sietch-scan dur-scan` relève les blocs plausibles (pile 1, environ 15 000), `dur-diff` liste ceux qui ont baissé depuis.
+
+- Après une vingtaine de tirs : 3 objets ont baissé, **maximum 100** (l'usure est en %), par exemple 98,78 → 98,41.
+- Chaque bloc est en double (+0x10 : copie) dans une fiche de **0x58 octets** : +0x20 un u32 commun à toutes les fiches (0x87AD9E2C),
+  +0x28 le bloc, +0x38 sa copie, +0x48 un numéro propre à la fiche (0x1C, 0x1FE, 0x1667, 0x61A…).
+- Ce numéro n'est **pas** l'identifiant d'objet du personnage (`m_EquippedPowerPackItemId` = 0x95CC6) : relier une fiche à un
+  emplacement d'équipement reste à trouver (table des entités, ou `m_EquipmentInventoryComponent` → objets → identifiants).

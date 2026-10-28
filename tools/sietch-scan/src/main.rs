@@ -535,7 +535,10 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             let (Ok(a), Ok(old)) = (u64::from_str_radix(p[0], 16), p[3].parse::<f32>()) else { continue };
             let Some(b) = g.read::<16>(a) else { continue };
             let now = f32::from_le_bytes(b[12..16].try_into().unwrap());
-            if now != old {
+            let max = f32::from_le_bytes(b[4..8].try_into().unwrap());
+            // Toujours un bloc valide (pile 1, même maximum), et une petite baisse : un objet qui s'use.
+            let same = b[0..4] == [1, 0, 0, 0] && p[1].parse::<f32>() == Ok(max);
+            if same && now > 0.0 && now < old && old - now < max * 0.2 {
                 n += 1;
                 println!("0x{a:X}  {old:.2} → {now:.2} (max {})", p[1]);
             }
