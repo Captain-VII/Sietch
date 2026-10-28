@@ -1,6 +1,6 @@
 # Feuille de route de Sietch
 
-État au 2026-10-28 : v0.1.2 installée, v0.1.3 en cours de publication, mises à jour automatiques en place. On avance par lots courts, validés en
+État au 2026-10-28 : v0.1.4 publiée, mises à jour automatiques vérifiées. On avance par lots courts, validés en
 dev par l'utilisateur, puis une release quand il le demande (voir `CLAUDE.md`).
 
 Légende : 🟢 prêt à faire · 🎮 demande le jeu sans BattlEye (l'utilisateur en jeu) · 🟡 dépend d'une info ou d'un choix ·
@@ -26,7 +26,7 @@ Légende : 🟢 prêt à faire · 🎮 demande le jeu sans BattlEye (l'utilisate
 
 But : que tout ce qui est livré marche sans surprise, en ligne comme en solo.
 
-- 🟢 Premier vrai test de la **mise à jour automatique** (0.1.2 installée → 0.1.3).
+- ✅ Premier vrai test de la **mise à jour automatique** : 0.1.2 → 0.1.3 réussi (2026-10-28).
 - 🎮 **Fond de Hagga refait** une fois la carte découverte : `tools/capture-carte.ps1` puis `tools/assembler-carte.py`,
   calé sur l'ancien fond (même cadrage, rien à réaligner).
 - 🎮 **Désert profond** : fond de carte, calibration, vérifier région automatique, ressources et lieux.
