@@ -19,6 +19,36 @@ let lastRegion: Region = "hagga";
 const hidden = new Set<MarkerType>();
 /** Catégories de points d'intérêt masquées, gardées d'une session à l'autre. */
 const hiddenPoi = new Set<string>(hiddenPoiKinds());
+/** Catégories dépliées dans le panneau des filtres. */
+const openGroups = new Set<string>();
+
+type FilterItem = { key: string; on: boolean; content: (Node | string)[] };
+
+/**
+ * Une catégorie du panneau des filtres : une ligne (clic = tout afficher ou masquer, avec le compte), et son détail
+ * dépliable, un bouton par élément.
+ */
+function filterGroup(label: string, items: FilterItem[], setAll: (on: boolean) => void, toggle: (key: string) => void, redraw: () => void): HTMLElement[] {
+  if (!items.length) return [];
+  const on = items.filter((i) => i.on).length;
+  const all = on === items.length;
+  const opened = openGroups.has(label);
+  const row = h("div", { class: "filter-row" },
+    h("button", { class: "chip filter-group", type: "button", "aria-pressed": String(on > 0), title: all ? "Tout masquer" : "Tout afficher", onclick: () => setAll(!all) },
+      label, h("span", { class: "muted" }, `${on}/${items.length}`)),
+    h("button", {
+      class: "chip", type: "button", "aria-expanded": String(opened), "aria-label": `Détail : ${label}`,
+      onclick: () => {
+        if (opened) openGroups.delete(label);
+        else openGroups.add(label);
+        redraw();
+      },
+    }, opened ? "▴" : "▾"),
+  );
+  if (!opened) return [row];
+  return [row, h("div", { class: "filter-detail", role: "group", "aria-label": `Détail : ${label}` },
+    ...items.map((i) => h("button", { class: "chip", type: "button", "aria-pressed": String(i.on), onclick: () => toggle(i.key) }, ...i.content)))];
+}
 
 export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
   let all: Marker[] = [];
@@ -29,9 +59,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   const mapEl = h("div", { class: "map", role: "application", "aria-label": "Carte, clic droit pour ajouter un marqueur" });
   const panel = h("aside", { class: "card side-panel", "aria-live": "polite" });
-  const chipsBox = h("div", { class: "row wrap" });
-  const poiChips = h("div", { class: "row wrap", "aria-label": "Points d'intérêt du jeu" });
-  const poiRow = h("div", { class: "row wrap", style: "--gap: 10px" }, h("span", { class: "label" }, "Lieux du jeu"), poiChips);
+  const chipsBox = h("div", { class: "filter-list", role: "group", "aria-label": "Mes marqueurs" });
+  const poiChips = h("div", { class: "filter-list", role: "group", "aria-label": "Lieux et ressources du jeu" });
   const regionBox = h("div", { class: "segmented", role: "group", "aria-label": "Région" });
   const countEl = h("span");
   const search = h("input", {
@@ -78,15 +107,18 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   const worldToMap = (x: number, y: number) => toWorldMap(mapData!, x, y);
 
+  /** Catégories de lieux et de ressources présentes dans la région affichée. */
+  let poiKinds: string[] = [];
+
   /** Catégories de points d'intérêt à cocher, avec le nombre de points de chacune. */
   function drawPoiChips() {
     const counts = new Map<string, number>();
-    const looks = new Map<string, { label: string; color: string; path: string }>();
+    const looks = new Map<string, { label: string; color: string; path: string; shape: string }>();
     /** Pictogramme de la catégorie dans son bouton, pour servir de légende. */
     const resIcon = (kind: string) => {
       const k = looks.get(kind);
       const el = h("span", { style: "display: inline-flex" });
-      el.innerHTML = k ? resourceSvg(k.path, k.color, 18) : poiSvg(kind, 18);
+      el.innerHTML = k ? resourceSvg(k.path, k.color, 18, k.shape) : poiSvg(kind, 18);
       return el;
     };
     if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
@@ -97,23 +129,32 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       counts.set(k.key, (counts.get(k.key) ?? 0) + 1);
       looks.set(k.key, k);
     }
-    mount(poiChips, [...counts].sort((a, b) => Number(a[0].startsWith("r:")) - Number(b[0].startsWith("r:")) || b[1] - a[1]).map(([kind, n]) => {
+    const sorted = [...counts].sort((a, b) => b[1] - a[1]);
+    poiKinds = sorted.map(([kind]) => kind);
+    const items = (res: boolean) => sorted.filter(([kind]) => kind.startsWith("r:") === res).map(([kind, n]) => {
       const k = looks.get(kind) ?? POI_KINDS[kind] ?? { label: kind, color: "#e9dfc9" };
-      return h("button", {
-        class: "chip", type: "button", "aria-pressed": String(!hiddenPoi.has(kind)),
-        onclick: () => {
-          if (hiddenPoi.has(kind)) hiddenPoi.delete(kind);
-          else hiddenPoi.add(kind);
-          try {
-            localStorage.setItem(POI_HIDDEN_KEY, JSON.stringify([...hiddenPoi]));
-          } catch {
-            // Stockage indisponible : le choix vaut pour cette session.
-          }
-          drawPoiChips();
-          drawGame();
-        },
-      }, resIcon(kind), `${k.label} (${n})`);
-    }));
+      return { key: kind, on: !hiddenPoi.has(kind), content: [resIcon(kind), `${k.label} (${n})`] };
+    });
+    const save = () => {
+      try {
+        localStorage.setItem(POI_HIDDEN_KEY, JSON.stringify([...hiddenPoi]));
+      } catch {
+        // Stockage indisponible : le choix vaut pour cette session.
+      }
+      drawPoiChips();
+      drawGame();
+    };
+    const setAll = (keys: string[], on: boolean) => {
+      for (const k of keys) {
+        if (on) hiddenPoi.delete(k);
+        else hiddenPoi.add(k);
+      }
+      save();
+    };
+    const toggle = (k: string) => setAll([k], hiddenPoi.has(k));
+    mount(poiChips,
+      ...filterGroup("Lieux du jeu", items(false), (on) => setAll(items(false).map((i) => i.key), on), toggle, drawPoiChips),
+      ...filterGroup("Ressources", items(true), (on) => setAll(items(true).map((i) => i.key), on), toggle, drawPoiChips));
   }
 
   /** Minuteur de réapparition d'une ressource récoltée ; relancé s'il existe déjà pour ce secteur. */
@@ -161,7 +202,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       const respawn = r.respawn > 0 ? ` · réapparaît en ${Math.round(r.respawn / 60)} min` : "";
       const size = k.ground ? 14 : 20;
       L.marker(toLatLng(p.x, p.y), {
-        icon: L.divIcon({ className: "map-pin", html: resourceSvg(k.path, k.color, size), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+        icon: L.divIcon({ className: "map-pin", html: resourceSvg(k.path, k.color, size, k.shape), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
         opacity: r.live ? 1 : 0.45,
         keyboard: false,
       })
@@ -424,24 +465,48 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   }
 
   function drawChips() {
-    mount(
-      chipsBox,
-      (Object.keys(MARKER_TYPES) as MarkerType[]).map((t) =>
-        h("button", {
-          class: "chip", type: "button", "aria-pressed": String(!hidden.has(t)),
-          onclick: () => {
-            if (hidden.has(t)) hidden.delete(t);
-            else hidden.add(t);
-            if (selected && hidden.has(selected.type) && !draft) selected = null;
-            drawChips();
-            drawMarkers();
-            drawPanel();
-          },
-        },
-          h("span", { class: "dot", style: `color: ${MARKER_TYPES[t].color}; background: ${hidden.has(t) ? "transparent" : MARKER_TYPES[t].color}` }),
-          MARKER_TYPES[t].label),
-      ),
-    );
+    const types = Object.keys(MARKER_TYPES) as MarkerType[];
+    const set = (list: MarkerType[], on: boolean) => {
+      for (const t of list) {
+        if (on) hidden.delete(t);
+        else hidden.add(t);
+      }
+      if (selected && hidden.has(selected.type) && !draft) selected = null;
+      drawChips();
+      drawMarkers();
+      drawPanel();
+    };
+    mount(chipsBox, ...filterGroup(
+      "Mes marqueurs",
+      types.map((t) => ({
+        key: t, on: !hidden.has(t),
+        content: [h("span", { class: "dot", style: `color: ${MARKER_TYPES[t].color}; background: ${hidden.has(t) ? "transparent" : MARKER_TYPES[t].color}` }), MARKER_TYPES[t].label],
+      })),
+      (on) => set(types, on),
+      (k) => set([k as MarkerType], hidden.has(k as MarkerType)),
+      drawChips,
+    ));
+  }
+
+  /** Tout afficher ou masquer, marqueurs comme lieux du jeu. */
+  function showAll(on: boolean) {
+    for (const t of Object.keys(MARKER_TYPES) as MarkerType[]) {
+      if (on) hidden.delete(t);
+      else hidden.add(t);
+    }
+    if (on) hiddenPoi.clear();
+    else for (const k of poiKinds) hiddenPoi.add(k);
+    try {
+      localStorage.setItem(POI_HIDDEN_KEY, JSON.stringify([...hiddenPoi]));
+    } catch {
+      // Stockage indisponible : le choix vaut pour cette session.
+    }
+    if (selected && hidden.has(selected.type) && !draft) selected = null;
+    drawChips();
+    drawPoiChips();
+    drawMarkers();
+    drawGame();
+    drawPanel();
   }
 
   function drawRegions() {
@@ -691,15 +756,27 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         bgBox,
       ),
     ),
-    h("div", { class: "row wrap" }, h("label", { class: "sr-only", for: "recherche-carte" }, "Rechercher sur la carte"), search, h("span", { class: "label" }, "Mes marqueurs"), chipsBox),
-      poiRow,
+    h("div", { class: "row wrap" }, h("label", { class: "sr-only", for: "recherche-carte" }, "Rechercher sur la carte"), search),
     liveBar,
     h("div", { class: "columns map-columns" },
       h("div", { class: "map-wrap" },
         mapEl,
         h("div", { class: "row spread muted", style: "font-size: 13px" }, h("span", {}, "Molette : zoom · Clic droit : nouveau marqueur"), countEl),
       ),
-      panel,
+      h("div", { class: "side-col" },
+        h("aside", { class: "card filters-card stack", style: "--gap: 10px" },
+          h("div", { class: "row spread" },
+            h("span", { class: "label" }, "Affichage"),
+            h("div", { class: "row", style: "--gap: 6px" },
+              h("button", { class: "btn", type: "button", onclick: () => showAll(true) }, "Tout"),
+              h("button", { class: "btn", type: "button", onclick: () => showAll(false) }, "Aucun"),
+            ),
+          ),
+          chipsBox,
+          poiChips,
+        ),
+        panel,
+      ),
     ),
   );
 

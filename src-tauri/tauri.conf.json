@@ -45,7 +45,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost https://media.awakening.wiki; font-src 'self' data:; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost https://media.awakening.wiki; font-src 'self' data:; frame-src https://duneawakening.th.gl; connect-src ipc: http://ipc.localhost"
     }
   },
   "plugins": {

@@ -313,16 +313,28 @@ async function loadMapImage() {
 }
 
 /** Pastille ronde de diamètre `d` centrée en (x, y), avec un pictogramme (grille 24 × 24) de taille `glyph`. */
-function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill: string, ring: string, path: string | undefined, stroke: string, glyph: number) {
+function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill: string, ring: string, path: string | undefined, stroke: string, glyph: number, shape?: string) {
   g.save();
   g.translate(x, y);
-  g.beginPath();
-  g.arc(0, 0, d / 2, 0, Math.PI * 2);
   g.fillStyle = fill;
-  g.fill();
   g.lineWidth = 1.2;
   g.strokeStyle = ring;
-  g.stroke();
+  if (shape) {
+    // Forme de la famille (repère des pictogrammes, rayon 16,5 autour de (12, 12)).
+    g.save();
+    g.scale(d / 33, d / 33);
+    g.translate(-12, -12);
+    const s = paths.get(shape) ?? paths.set(shape, new Path2D(shape)).get(shape)!;
+    g.fill(s);
+    g.lineWidth = (1.2 * 33) / d;
+    g.stroke(s);
+    g.restore();
+  } else {
+    g.beginPath();
+    g.arc(0, 0, d / 2, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+  }
   if (path) {
     // Silhouette pleine (voir lib/carte.ts), découpes en evenodd.
     g.scale(glyph / 24, glyph / 24);
@@ -461,7 +473,7 @@ function drawMinimap() {
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
       const size = look.ground ? 9 : 13;
       g.globalAlpha = r.live ? 1 : 0.45;
-      pin(g, px(p.x), py(p.y), size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.7);
+      pin(g, px(p.x), py(p.y), size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.6, look.shape);
     }
     g.globalAlpha = 1;
     // Flèche du joueur : yaw 0 = vers l'est, comme sur la grande carte.

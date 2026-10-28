@@ -18,9 +18,10 @@ import * as minuteurs from "./views/minuteurs";
 import * as overlay from "./views/overlay";
 import * as parametres from "./views/parametres";
 import * as stats from "./views/stats";
+import * as thgl from "./views/thgl";
 import * as wiki from "./views/wiki";
 
-export type ViewName = "accueil" | "overlay" | "carte" | "stats" | "minuteurs" | "builds" | "artisanat" | "wiki" | "parametres";
+export type ViewName = "accueil" | "overlay" | "carte" | "thgl" | "stats" | "minuteurs" | "builds" | "artisanat" | "wiki" | "parametres";
 
 export interface Ctx {
   timers: () => Timer[];
@@ -42,6 +43,7 @@ const VIEWS: Record<ViewName, { label: string; icon: string; module: ViewModule 
   accueil: { label: "Accueil", icon: "home", module: accueil },
   overlay: { label: "Overlay", icon: "layers", module: overlay },
   carte: { label: "Carte", icon: "map", module: carte },
+  thgl: { label: "Carte TH.GL", icon: "map", module: thgl },
   stats: { label: "Stats brutes", icon: "shield", module: stats },
   minuteurs: { label: "Minuteurs", icon: "timer", module: minuteurs },
   builds: { label: "Builds", icon: "shield", module: builds },
@@ -100,7 +102,7 @@ function sidebar() {
       h("span", { class: "sub" }, "DUNE AWAKENING"),
     )),
     h("div", { class: "nav" },
-      (["accueil", "overlay", "carte", "stats", "minuteurs", "builds", "artisanat", "wiki"] as ViewName[]).map(navButton),
+      (["accueil", "overlay", "carte", "thgl", "stats", "minuteurs", "builds", "artisanat", "wiki"] as ViewName[]).map(navButton),
       h("div", { class: "nav-sep" }),
       h("button", { class: "nav-link", type: "button", title: "dune.gaming.tools", onclick: () => void openExternal(DATABASE_URL) }, icon("external"), "Base de données"),
       navButton("parametres"),
