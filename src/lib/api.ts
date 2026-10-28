@@ -256,6 +256,7 @@ export const api = {
   importMapImage: (region: string, path: string) => invoke<string>("import_map_image", { region, path }),
   mapImage: (region: string) => invoke<string | null>("get_map_image", { region }),
   removeMapImage: (region: string) => invoke<void>("remove_map_image", { region }),
+  gameIcons: () => invoke<Record<string, string>>("get_game_icons"),
   /** Relit position.json ; renvoie son chemin. */
   reloadLiveConfig: () => invoke<string>("reload_live_config"),
 };

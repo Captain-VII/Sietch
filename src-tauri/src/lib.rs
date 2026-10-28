@@ -268,6 +268,21 @@ fn get_map_image(state: State<AppState>, region: String) -> Option<String> {
     Some(format!("data:{};base64,{}", image_mime(&bytes)?, base64(&bytes)))
 }
 
+/// Icônes de carte extraites des fichiers du jeu par l'utilisateur (`tools/sietch-assets`, dossier `jeu/icones-carte`),
+/// par nom court (« MarkerMineralAzurite ») ; vide sans extraction : Sietch garde alors ses pictogrammes.
+#[tauri::command]
+fn get_game_icons(state: State<AppState>) -> std::collections::BTreeMap<String, String> {
+    let Ok(dir) = std::fs::read_dir(state.dir.join("jeu").join("icones-carte")) else { return Default::default() };
+    dir.flatten()
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            let short = name.strip_suffix(".png")?.strip_prefix("T_UI_IconMap")?.trim_end_matches("_D").to_string();
+            let bytes = std::fs::read(e.path()).ok()?;
+            Some((short, format!("data:image/png;base64,{}", base64(&bytes))))
+        })
+        .collect()
+}
+
 #[tauri::command]
 fn remove_map_image(state: State<AppState>, region: String) -> Result<(), String> {
     let _ = std::fs::remove_file(map_image_path(&state, &region)?);
@@ -472,6 +487,7 @@ pub fn run() {
             import_map_image,
             get_map_image,
             remove_map_image,
+            get_game_icons,
             show_wiki,
             show_main,
             open_site,

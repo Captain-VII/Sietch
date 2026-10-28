@@ -75,6 +75,14 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
   `focusable(false)` ne suffit pas). Positions enregistrées en sortant du mode édition. En dev, la fenêtre principale
   reste cachée au démarrage (l'appli redémarre à chaque modification du Rust).
 
+## Icônes du jeu (local seulement)
+
+`tools/sietch-assets` (C#, CUE4Parse 1.2.2, UE 5.2) lit les archives du jeu, non chiffrées, en lecture seule.
+`dotnet run -c Release -- export <chemin> <dossier>` écrit des PNG. Il faut `oo2core_9_win64.dll` (OodleUE, GitHub
+WorkingRobot) à côté du binaire. Les icônes de carte vont dans `%APPDATA%\com.captainvii.sietch\jeu\icones-carte`
+(`get_game_icons`) ; sans elles, Sietch garde ses pictogrammes. **Jamais d'image du jeu dans le dépôt ni les
+releases.** La carte plein écran du jeu est en 3D (pas d'image) : le fond de Hagga reste celui des captures.
+
 ## Release et mises à jour
 
 1. Monter la version dans `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` et `package.json` (les trois identiques).

@@ -31,3 +31,6 @@ tools/sietch-scan/*.bin
 
 # Python (outils)
 __pycache__/
+
+tools/sietch-assets/bin/
+tools/sietch-assets/obj/

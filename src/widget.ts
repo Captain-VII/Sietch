@@ -4,7 +4,7 @@ import "./styles/widget.css";
 
 import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import { api, on, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
-import { hiddenPoiKinds, mapRegion, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
+import { gameImage, hiddenPoiKinds, loadGameIcons, mapRegion, POI_GAME_ICONS, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
@@ -313,7 +313,7 @@ async function loadMapImage() {
 }
 
 /** Pastille ronde de diamètre `d` centrée en (x, y), avec un pictogramme (grille 24 × 24) de taille `glyph`. */
-function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill: string, ring: string, path: string | undefined, stroke: string, glyph: number, shape?: string) {
+function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill: string, ring: string, path: string | undefined, stroke: string, glyph: number, shape?: string, img?: HTMLImageElement) {
   g.save();
   g.translate(x, y);
   g.fillStyle = fill;
@@ -335,7 +335,11 @@ function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill:
     g.fill();
     g.stroke();
   }
-  if (path) {
+  if (img) {
+    // Icône du jeu extraite en local, à la place du pictogramme.
+    const s = d * 0.8;
+    g.drawImage(img, -s / 2, -s / 2, s, s);
+  } else if (path) {
     // Silhouette pleine (voir lib/carte.ts), découpes en evenodd.
     g.scale(glyph / 24, glyph / 24);
     g.translate(-12, -12);
@@ -461,7 +465,10 @@ function drawMinimap() {
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
       // Pastille de sa couleur, pictogramme sombre (comme sur la grande carte).
       const look = POI_KINDS[poi.kind];
-      pin(g, px(p.x), py(p.y), 16, look?.color ?? "#e9dfc9", "#11131F", look?.path, "#11131F", 11);
+      const img = gameImage(POI_GAME_ICONS[poi.kind]);
+      // Avec l'icône du jeu (blanche) : pastille sombre bordée de la couleur du type.
+      if (img) pin(g, px(p.x), py(p.y), 16, "#11131F", look?.color ?? "#e9dfc9", undefined, "", 0, undefined, img);
+      else pin(g, px(p.x), py(p.y), 16, look?.color ?? "#e9dfc9", "#11131F", look?.path, "#11131F", 11);
     }
     // Ressources : pastille sombre, pictogramme de couleur ; pâles si elles ne sont plus chargées.
     const region = mapRegion(mapData);
@@ -473,7 +480,7 @@ function drawMinimap() {
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
       const size = look.ground ? 9 : 13;
       g.globalAlpha = r.live ? 1 : 0.45;
-      pin(g, px(p.x), py(p.y), size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.6, look.shape);
+      pin(g, px(p.x), py(p.y), size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.6, look.shape, gameImage(look.game));
     }
     g.globalAlpha = 1;
     // Flèche du joueur : yaw 0 = vers l'est, comme sur la grande carte.
@@ -717,7 +724,7 @@ async function start() {
         resources = r;
         drawMinimap();
       });
-      await loadMapImage();
+      await Promise.all([loadMapImage(), loadGameIcons()]);
       drawMinimap();
       await on.playerState(follow);
       await on.mapData(async (m) => {

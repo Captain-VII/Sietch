@@ -275,6 +275,8 @@ function handle(cmd: string, args: Record<string, any>): unknown {
     case "plugin:dialog|save":
     case "plugin:dialog|open":
       return null;
+    case "get_game_icons":
+      return {};
     default:
       if (cmd.startsWith("plugin:opener|")) {
         window.open(args.url, "_blank");

@@ -1,5 +1,32 @@
-import type { MapData } from "./api";
+import { api, type MapData } from "./api";
 import type { Region } from "./data";
+
+/**
+ * Icônes de carte du jeu, extraites en local par l'utilisateur (`tools/sietch-assets`, jamais dans le dépôt) :
+ * elles remplacent les pictogrammes de Sietch quand elles sont là.
+ */
+let gameIcons: Record<string, string> = {};
+/** Images décodées, pour la mini-carte (canvas). */
+const gameImages = new Map<string, HTMLImageElement>();
+
+export async function loadGameIcons() {
+  gameIcons = await api.gameIcons().catch(() => ({}));
+  await Promise.all(Object.entries(gameIcons).map(async ([id, url]) => {
+    const img = new Image();
+    img.src = url;
+    await img.decode().catch(() => undefined);
+    gameImages.set(id, img);
+  }));
+}
+
+export const gameIcon = (id: string | undefined) => (id && gameIcons[id]) || null;
+export const gameImage = (id: string | undefined) => (id ? gameImages.get(id) : undefined);
+
+/** Icône du jeu de chaque type de lieu. */
+export const POI_GAME_ICONS: Record<string, string> = {
+  station: "MarkerEcolab", base: "MarkerBase", epave: "MarkerShipwreck", mine: "MarkerCave", autel: "MarkerPointofinterest",
+  abri: "MarkerOutpost", moissonneuse: "MarkerVehicleHarvester", histoire: "Lore", evenement: "DynamicEvents",
+};
 
 /** Côté de la carte, en unités de Sietch (secteurs A1–I9 de 100). */
 export const SIZE = 900;
@@ -35,6 +62,12 @@ export const POI_KINDS: Record<string, { label: string; color: string; path: str
 /** Pastille d'un lieu : fond de sa couleur, silhouette sombre (l'inverse des ressources, pour les distinguer). */
 export function poiSvg(kind: string, size: number) {
   const k = POI_KINDS[kind] ?? { color: "#e9dfc9", path: "M12 7a5 5 0 1 0 0 10 5 5 0 1 0 0-10z" };
+  const img = gameIcon(POI_GAME_ICONS[kind]);
+  // Icône du jeu (blanche, cernée de noir) sur pastille sombre bordée de la couleur du type.
+  if (img) {
+    return `<svg width="${size}" height="${size}" viewBox="-6 -6 36 36" aria-hidden="true"><circle cx="12" cy="12" r="16.5" fill="#11131F" stroke="${k.color}" stroke-width="2.5"/>`
+      + `<image href="${img}" x="-1" y="-1" width="26" height="26"/></svg>`;
+  }
   return `<svg width="${size}" height="${size}" viewBox="-6 -6 36 36" aria-hidden="true"><circle cx="12" cy="12" r="16.5" fill="${k.color}" stroke="#11131F" stroke-width="2.5"/>`
     + `<path d="${k.path}" fill="#11131F" fill-rule="evenodd"/></svg>`;
 }
@@ -117,8 +150,18 @@ const RESOURCE_KINDS: Record<string, { label: string; color: string; icon: keyof
   Ornithopter: { label: "Ornithoptère", color: "#f1d7ff", icon: "ornithoptere", family: "recup" },
 };
 
+/** Icône du jeu de chaque ressource (par libellé). */
+const RES_GAME_ICONS: Record<string, string> = {
+  Azurite: "MarkerMineralAzurite", Rhyolite: "MarkerMineralRhyolite", Titane: "MarkerMineralTitaniumOre",
+  Stravidium: "MarkerMineralStravidiumOre", Basalte: "MarkerMineralBasalt", Bauxite: "MarkerMineralBauxite",
+  Magnétite: "MarkerMineralMagnetite", Dolomite: "MarkerMineralDolomite", Érythrite: "MarkerMineralErythrite",
+  Ferraille: "MarkerSalvageScrap", Électronique: "MarkerSandHighTechDebris", Carburant: "MarkerSalvageFuel",
+  Épice: "SpiceField", Eau: "MarkerWaterField", "Fibre végétale": "PlantFiber", Saguaro: "MarkerSaguaro",
+  Ornithoptère: "MarkerVehicleOrniLight",
+};
+
 /** Catégories déjà calculées : la mini-carte les demande à chaque image. */
-const kindCache = new Map<string, { key: string; label: string; color: string; path: string; shape: string; ground: boolean }>();
+const kindCache = new Map<string, { key: string; label: string; color: string; path: string; shape: string; game?: string; ground: boolean }>();
 
 /** Catégorie d'une ressource (clé de masquage `r:<nom>`), libellé, couleur, pictogramme, et si elle se ramasse au sol. */
 export function resourceKind(name: string) {
@@ -129,15 +172,19 @@ export function resourceKind(name: string) {
   // Variantes (« AzuriteOre_Cliffside ») : on garde la ressource de départ.
   const known = Object.keys(RESOURCE_KINDS).filter((n) => base === n || base.startsWith(`${n}_`))[0];
   const k = (known && RESOURCE_KINDS[known]) || { label: base.replace(/([a-z])([A-Z])/g, "$1 $2"), color: "#e9dfc9", icon: "pierre" as const, family: "roche" as const };
-  const kind = { key: `r:${k.label}`, label: k.label, color: k.color, path: RES_ICONS[k.icon], shape: FAMILY_SHAPES[k.family], ground };
+  const kind = { key: `r:${k.label}`, label: k.label, color: k.color, path: RES_ICONS[k.icon], shape: FAMILY_SHAPES[k.family], game: RES_GAME_ICONS[k.label], ground };
   kindCache.set(name, kind);
   return kind;
 }
 
 /** Pastille SVG d'une ressource : forme de sa famille, fond sombre, contour et silhouette dans sa couleur. */
-export function resourceSvg(path: string, color: string, size: number, shape: string = FAMILY_SHAPES.vegetal) {
+export function resourceSvg(path: string, color: string, size: number, shape: string = FAMILY_SHAPES.vegetal, game?: string) {
+  const img = gameIcon(game);
   return `<svg width="${size}" height="${size}" viewBox="-6 -6 36 36" aria-hidden="true"><path d="${shape}" fill="#11131F" fill-opacity="0.9" stroke="${color}" stroke-width="2.5"/>`
-    + `<path d="${path}" fill="${color}" fill-rule="evenodd" transform="translate(3.6 3.6) scale(.7)"/></svg>`;
+    + (img
+      ? `<image href="${img}" x="-1" y="-1" width="26" height="26"/>`
+      : `<path d="${path}" fill="${color}" fill-rule="evenodd" transform="translate(3.6 3.6) scale(.7)"/>`)
+    + `</svg>`;
 }
 
 /** Catégories de points d'intérêt masquées, partagées par la carte et la mini-carte. */

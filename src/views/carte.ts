@@ -3,7 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api, on, type MapData, type SeenResource, type Trail } from "../lib/api";
-import { hiddenPoiKinds, mapRegion, POI_HIDDEN_KEY, POI_KINDS, poiSvg, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
+import { hiddenPoiKinds, loadGameIcons, mapRegion, POI_HIDDEN_KEY, POI_KINDS, poiSvg, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   decodeMarkers, encodeMarkers, markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -113,12 +113,12 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   /** Catégories de points d'intérêt à cocher, avec le nombre de points de chacune. */
   function drawPoiChips() {
     const counts = new Map<string, number>();
-    const looks = new Map<string, { label: string; color: string; path: string; shape: string }>();
+    const looks = new Map<string, { label: string; color: string; path: string; shape: string; game?: string }>();
     /** Pictogramme de la catégorie dans son bouton, pour servir de légende. */
     const resIcon = (kind: string) => {
       const k = looks.get(kind);
       const el = h("span", { style: "display: inline-flex" });
-      el.innerHTML = k ? resourceSvg(k.path, k.color, 18, k.shape) : poiSvg(kind, 18);
+      el.innerHTML = k ? resourceSvg(k.path, k.color, 18, k.shape, k.game) : poiSvg(kind, 18);
       return el;
     };
     if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
@@ -202,7 +202,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       const respawn = r.respawn > 0 ? ` · réapparaît en ${Math.round(r.respawn / 60)} min` : "";
       const size = k.ground ? 14 : 20;
       L.marker(toLatLng(p.x, p.y), {
-        icon: L.divIcon({ className: "map-pin", html: resourceSvg(k.path, k.color, size, k.shape), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+        icon: L.divIcon({ className: "map-pin", html: resourceSvg(k.path, k.color, size, k.shape, k.game), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
         opacity: r.live ? 1 : 0.45,
         keyboard: false,
       })
@@ -782,6 +782,11 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   drawRegions();
   drawChips();
+  // Icônes du jeu extraites en local : elles remplacent les pictogrammes une fois chargées.
+  void loadGameIcons().then(() => {
+    drawPoiChips();
+    drawGame();
+  });
   requestAnimationFrame(() => {
     map.invalidateSize();
     map.fitBounds(bounds, { padding: [8, 8] });
