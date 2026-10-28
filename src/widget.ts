@@ -301,6 +301,41 @@ function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill:
   g.restore();
 }
 
+/** Position affichée : glisse vers la dernière lue (4 par seconde) au lieu de sauter, en 250 ms. */
+type View = { x: number; y: number; yaw: number };
+let view: View | null = null;
+let from: View | null = null;
+let target: View | null = null;
+let glideStart = 0;
+let glide = 0;
+const GLIDE_MS = 250;
+
+function follow(s: PlayerState | null) {
+  player = s;
+  const to = s ? { x: s.x, y: s.y, yaw: s.yaw } : null;
+  // Pas de glissement au premier point ni après un saut (plus de 200 m : téléportation, autre région).
+  if (!to || !view || Math.hypot(to.x - view.x, to.y - view.y) > 20_000) {
+    if (glide) cancelAnimationFrame(glide);
+    glide = 0;
+    view = target = to;
+    drawMinimap();
+    return;
+  }
+  from = { ...view };
+  target = to;
+  glideStart = performance.now();
+  if (!glide) glide = requestAnimationFrame(glideStep);
+}
+
+function glideStep(now: number) {
+  const k = Math.min(1, (now - glideStart) / GLIDE_MS);
+  // Rotation par le plus court chemin.
+  const turn = ((((target!.yaw - from!.yaw) % 360) + 540) % 360) - 180;
+  view = { x: from!.x + (target!.x - from!.x) * k, y: from!.y + (target!.y - from!.y) * k, yaw: from!.yaw + turn * k };
+  drawMinimap();
+  glide = k < 1 ? requestAnimationFrame(glideStep) : 0;
+}
+
 /** Trajet de la session (coordonnées du jeu) ; `null` coupe le tracé. */
 let trail: Trail = [];
 
@@ -342,7 +377,7 @@ function drawMinimap() {
   g.fill();
   g.clip();
 
-  const here = player && mapData ? worldToMap(mapData, player.x, player.y) : null;
+  const here = view && mapData ? worldToMap(mapData, view.x, view.y) : null;
   if (here && mapData) {
     const zoom = R / VIEW;
     const px = (x: number) => R + (x - here.x) * zoom;
@@ -400,7 +435,7 @@ function drawMinimap() {
     // Flèche du joueur : yaw 0 = vers l'est, comme sur la grande carte.
     g.save();
     g.translate(R, R);
-    g.rotate(((player!.yaw + 90) * Math.PI) / 180);
+    g.rotate(((view!.yaw + 90) * Math.PI) / 180);
     g.beginPath();
     g.moveTo(0, -9);
     g.lineTo(6.5, 7);
@@ -629,6 +664,7 @@ async function start() {
       card.classList.add("minimap");
       mount(card, canvas);
       [player, mapData, resources, trail] = await Promise.all([api.playerState(), api.mapData(), api.resources(), api.trail()]);
+      view = target = player ? { x: player.x, y: player.y, yaw: player.yaw } : null;
       // Pas de redessin ici : la position suivante (4 par seconde au plus) le fera.
       await on.trail((t) => (trail = t));
       await on.trailPoint((t) => trail.push(...t));
@@ -638,10 +674,7 @@ async function start() {
       });
       await loadMapImage();
       drawMinimap();
-      await on.playerState((s) => {
-        player = s;
-        drawMinimap();
-      });
+      await on.playerState(follow);
       await on.mapData(async (m) => {
         mapData = m;
         await loadMapImage();
