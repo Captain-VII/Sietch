@@ -153,8 +153,8 @@ BattlEye) ; Sietch affiche la position en direct. La chaîne et les chaînes de 
 `%APPDATA%\com.captainvii.sietch\` (pas dans le dépôt). Après un patch : refaire la recherche, méthode dans
 [docs/position-en-direct.md](docs/position-en-direct.md).
 
-**Suite** : feuille de route dans [docs/ROADMAP.md](docs/ROADMAP.md) : calibrer la carte (Hagga, Désert profond),
-puis outil de diagnostic, chaîne résistante aux patchs.
+**Suite** : feuille de route dans [docs/ROADMAP.md](docs/ROADMAP.md), refaite le 2026-10-28 en 5 lots (fiabiliser,
+inventaire réel, confort avec BattlEye, robustesse aux patchs, diffusion).
 Tenir la feuille de route à jour quand une étape avance.
 
 ## Concurrence et contexte
