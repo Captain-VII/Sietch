@@ -496,6 +496,11 @@ impl<'a> Ue<'a> {
             Some(block + self.field(ptr(self.m, block + 0x10), "Text")?)
         });
         let armed = self.flag(player_class, character, ARMED_FIELDS);
+        let attack = self.field(player_class, "m_WeaponComponent").map(|w| Attack {
+            weapon_at: character + w,
+            ammo: class_named(self, "WeaponActorComponent").and_then(|c| self.field(c, "m_CurrentAmmo")),
+            melee_at: self.field(player_class, "m_MeleeHitActors").map(|o| character + o),
+        });
         let vehicle = self.flag(player_class, character, VEHICLE_FIELDS);
         let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
         let root_class = ptr(self.m, root + 0x10);
@@ -518,7 +523,7 @@ impl<'a> Ue<'a> {
             sun: f(hydration_class, "CurrentSunExposure")?,
             heatstroke: f(hydration_class, "HeatstrokeThreshold")?,
         };
-        Some(Player { character, index, class: player_class, stats, stats_class, hydration, root, time_of_day, backpack, slots, worm, armed, vehicle, zone, sets, fields })
+        Some(Player { character, index, class: player_class, stats, stats_class, hydration, root, time_of_day, backpack, slots, worm, armed, vehicle, zone, attack, sets, fields })
     }
 }
 
@@ -573,10 +578,25 @@ pub struct Foe {
 }
 
 /// Coup porté : vie retirée à un personnage proche ; `kill` quand elle tombe à 0.
+/// `dist` (cm) et `off_aim` (degrés entre la visée et la cible) servent à ne garder que les coups du joueur.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Hit {
     pub damage: f32,
     pub kill: bool,
+    #[serde(skip)]
+    pub dist: f64,
+    #[serde(skip)]
+    pub off_aim: f64,
+}
+
+/// Ce qui trahit une attaque du joueur : munitions de l'arme en main, frappes au corps à corps.
+#[derive(Clone, Copy, Debug)]
+struct Attack {
+    /// Emplacement du pointeur `m_WeaponComponent` du personnage, et offset de `m_CurrentAmmo` dans le composant.
+    weapon_at: u64,
+    ammo: Option<u64>,
+    /// `m_MeleeHitActors` (TSet) : nombre d'éléments de son tableau à +8.
+    melee_at: Option<u64>,
 }
 
 /// Distance (cm) au-delà de laquelle une baisse de vie n'est pas comptée comme un coup du joueur.
@@ -697,6 +717,8 @@ pub struct Player {
     vehicle: Option<Flag>,
     /// FText du nom de la zone (widget du HUD).
     zone: Option<u64>,
+    /// Munitions et frappes au corps à corps, pour attribuer les coups portés.
+    attack: Option<Attack>,
     /// Jeux d'attributs du personnage : (classe, objet).
     sets: Vec<(String, u64)>,
     fields: Fields,
@@ -859,9 +881,19 @@ impl Player {
             && self.time_of_day.is_none_or(|w| still_there(m, w.obj, w.index, w.class))
     }
 
+    /// Munitions de l'arme en main et nombre de personnages dans la frappe au corps à corps en cours.
+    pub fn attack(&self, m: &dyn Mem) -> (Option<i32>, Option<u32>) {
+        let Some(a) = self.attack else { return (None, None) };
+        let ammo = a.ammo.and_then(|off| {
+            let w = ptr(m, a.weapon_at);
+            (w != 0).then(|| read::<4>(m, w + off).map(i32::from_le_bytes)).flatten()
+        });
+        (ammo, a.melee_at.and_then(|at| read::<4>(m, at + 8).map(u32::from_le_bytes)))
+    }
+
     /// Coups portés depuis la dernière lecture : baisse de la vie des personnages à moins de `HIT_RANGE`.
     /// La première lecture d'un personnage ne compte pas (vie de départ).
-    pub fn hits(&self, m: &dyn Mem, foes: &mut [Foe], at: [f64; 3]) -> Vec<Hit> {
+    pub fn hits(&self, m: &dyn Mem, foes: &mut [Foe], at: [f64; 3], yaw: f64) -> Vec<Hit> {
         let f = &self.fields;
         let mut hits = Vec::new();
         for foe in foes.iter_mut() {
@@ -878,8 +910,10 @@ impl Player {
             let Some(loc) = read::<24>(m, ptr(m, foe.actor + f.root_component) + f.location) else { continue };
             let v = |i: usize| f64::from_le_bytes(loc[i..i + 8].try_into().unwrap());
             let (dx, dy, dz) = (v(0) - at[0], v(8) - at[1], v(16) - at[2]);
-            if (dx * dx + dy * dy + dz * dz).sqrt() <= HIT_RANGE {
-                hits.push(Hit { damage: before - now, kill: now <= 0.0 && before > 0.0 });
+            let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+            if dist <= HIT_RANGE {
+                let off_aim = ((dy.atan2(dx).to_degrees() - yaw + 540.0) % 360.0 - 180.0).abs();
+                hits.push(Hit { damage: before - now, kill: now <= 0.0 && before > 0.0, dist, off_aim });
             }
         }
         hits

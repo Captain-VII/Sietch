@@ -189,6 +189,9 @@ pub fn spawn(app: AppHandle) {
         let mut alerts = crate::alerts::Alerts::default();
         // Disposition automatique : voulue (depuis quand), dernière appliquée.
         let (mut auto_want, mut auto_applied): (Option<(&str, Instant)>, Option<&str>) = (None, None);
+        // Dernière attaque du joueur (tir ou frappe) : seuls les coups qui la suivent sont les siens.
+        let (mut last_ammo, mut last_melee, mut last_attack): (Option<i32>, u32, Option<Instant>) = (None, 0, None);
+        let mut aim = 0.0;
         let (mut last_tables_try, mut last_player_try): (Option<Instant>, Option<Instant>) = (None, None);
         loop {
             let state = app.state::<AppState>();
@@ -326,6 +329,7 @@ pub fn spawn(app: AppHandle) {
                             Some(Some(s)) => {
                                 pos = Some((s.x, s.y, s.z));
                                 diag.source = "personnage".into();
+                                aim = s.yaw;
                                 let s = s.rounded();
                                 (diag.armed, diag.in_vehicle) = (s.armed, s.in_vehicle);
                                 // Disposition automatique : appliquée quand l'état du joueur tient 0,75 s (sortir
@@ -366,9 +370,23 @@ pub fn spawn(app: AppHandle) {
                         }
                         // Coups portés : baisse de la vie des personnages proches (liste tenue par le relevé ci-dessous).
                         if let (Some(p), Some((x, y, z))) = (player.as_ref(), pos) {
-                            for hit in p.hits(r, &mut resource_scan.foes, [x, y, z]) {
+                            let (ammo, melee) = p.attack(r);
+                            let melee = melee.unwrap_or(0);
+                            if ammo.zip(last_ammo).is_some_and(|(a, b)| a < b) || melee > last_melee {
+                                last_attack = Some(Instant::now());
+                            }
+                            (last_ammo, last_melee) = (ammo, melee);
+                            let recent = last_attack.is_some_and(|t| t.elapsed() < Duration::from_millis(1200));
+                            for hit in p.hits(r, &mut resource_scan.foes, [x, y, z], aim) {
+                                // À soi : juste après une attaque, sur une cible visée (ou au contact, corps à corps).
+                                if !(recent && (hit.off_aim < 35.0 || hit.dist < 600.0)) {
+                                    if cfg!(debug_assertions) {
+                                        eprintln!("[coup écarté] {:.1} à {:.0} m, {:.0}° de la visée, attaque récente : {recent}", hit.damage, hit.dist / 100.0, hit.off_aim);
+                                    }
+                                    continue;
+                                }
                                 if cfg!(debug_assertions) {
-                                    eprintln!("[coup] {:.1}{}", hit.damage, if hit.kill { " (tué)" } else { "" });
+                                    eprintln!("[coup] {:.1} à {:.0} m, {:.0}°{}", hit.damage, hit.dist / 100.0, hit.off_aim, if hit.kill { " (tué)" } else { "" });
                                 }
                                 let _ = app.emit("hit", &hit);
                             }
