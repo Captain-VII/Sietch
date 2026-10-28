@@ -82,6 +82,8 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 WorkingRobot) à côté du binaire. Les icônes de carte vont dans `%APPDATA%\com.captainvii.sietch\jeu\icones-carte`
 (`get_game_icons`) ; sans elles, Sietch garde ses pictogrammes. **Jamais d'image du jeu dans le dépôt ni les
 releases.** La carte plein écran du jeu est en 3D (pas d'image) : le fond de Hagga reste celui des captures.
+`T_Survival_WorldMap_MiniMap_D` (mini-carte du jeu) couvre exactement les bornes de la carte (±457200 / 355600) :
+c'est le repère pour recaler un fond de captures (corrélation des contours ; Hagga : [30.1, 27.1, 894, 891]).
 
 ## Release et mises à jour
 
