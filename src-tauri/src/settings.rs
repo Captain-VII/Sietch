@@ -76,8 +76,8 @@ pub struct Layout {
 /// Gardées en accord avec `PRESETS` de `src/views/overlay.ts`.
 pub const PRESETS: [(&str, &str, &[&str]); 3] = [
     ("exploration", "Exploration", &["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat", "hits"]),
-    // Les yeux sur le viseur : vie, endurance, eau, bouclier et ver seulement.
-    ("combat", "Combat", &["gauges", "gear", "threat", "hits"]),
+    // Les yeux sur le viseur : vie, endurance, eau, bouclier, ver, coups portés et mini-carte.
+    ("combat", "Combat", &["minimap", "gauges", "gear", "threat", "hits"]),
     // Se repérer et surveiller le ver ; le personnage compte moins.
     ("vehicule", "Véhicule", &["clock", "coriolis", "sector", "minimap", "threat", "hits"]),
 ];
@@ -202,7 +202,13 @@ impl Settings {
                 l.widgets.iter_mut().filter(|w| w.kind == "hits").for_each(|w| w.shown = true);
             }
         }
-        self.layouts_version = 2;
+        // Version 3 : la mini-carte s'affiche aussi en Combat.
+        if self.layouts_version < 3 {
+            for l in self.layouts.iter_mut().filter(|l| l.id == "combat") {
+                l.widgets.iter_mut().filter(|w| w.kind == "minimap").for_each(|w| w.shown = true);
+            }
+        }
+        self.layouts_version = 3;
         if !self.layouts.iter().any(|l| l.id == self.active_layout) {
             self.active_layout = self.layouts[0].id.clone();
         }
@@ -271,7 +277,7 @@ impl Default for Settings {
             map_images: BTreeMap::new(),
             gauge_rings: GAUGE_RINGS.iter().map(|s| s.to_string()).collect(),
             rings_version: 2,
-            layouts_version: 2,
+            layouts_version: 3,
             layouts: PRESETS.iter().map(|p| Layout::preset(p.0)).collect(),
             active_layout: "exploration".into(),
         }
@@ -346,7 +352,8 @@ mod tests {
         assert_eq!(ids, ["exploration", "combat", "vehicule"]);
         let map = s.layouts[2].widgets.iter().find(|w| w.kind == "minimap").unwrap();
         assert_eq!((map.shown, map.pos, map.scale), (true, Some([5, 6]), 1.5), "placée comme dans Exploration");
-        assert!(!s.layouts[1].widgets.iter().find(|w| w.kind == "minimap").unwrap().shown, "pas de mini-carte en combat");
+        assert!(s.layouts[1].widgets.iter().find(|w| w.kind == "minimap").unwrap().shown, "mini-carte aussi en combat");
+        assert!(!s.layouts[1].widgets.iter().find(|w| w.kind == "timers").unwrap().shown, "pas de minuteurs en combat");
         // Supprimée ensuite par l'utilisateur : elle ne revient pas.
         s.layouts.remove(1);
         s.normalize();

@@ -42,7 +42,7 @@ const DEFAULT_SETTINGS: Settings = {
   // Mêmes dispositions préfaites que `settings.rs` (PRESETS).
   layouts: ([
     ["exploration", "Exploration", ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat", "hits"]],
-    ["combat", "Combat", ["gauges", "gear", "threat", "hits"]],
+    ["combat", "Combat", ["minimap", "gauges", "gear", "threat", "hits"]],
     ["vehicule", "Véhicule", ["clock", "coriolis", "sector", "minimap", "threat", "hits"]],
   ] as const).map(([id, name, shown]) => ({
     id,

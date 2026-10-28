@@ -28,7 +28,7 @@ const LANDMARKS: WidgetKind[] = ["minimap", "clock", "coriolis", "sector", "time
 /** Dispositions préfaites : éléments affichés. Gardées en accord avec `PRESETS` de `settings.rs`. */
 const PRESETS: Record<string, { hint: string; shown: WidgetKind[] }> = {
   exploration: { hint: "Tout : repères, minuteurs, personnage.", shown: ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat", "hits"] },
-  combat: { hint: "Seulement le personnage, près du viseur.", shown: ["gauges", "gear", "threat", "hits"] },
+  combat: { hint: "Le personnage près du viseur, et la mini-carte.", shown: ["minimap", "gauges", "gear", "threat", "hits"] },
   vehicule: { hint: "Se repérer et surveiller le ver.", shown: ["clock", "coriolis", "sector", "minimap", "threat", "hits"] },
 };
 
