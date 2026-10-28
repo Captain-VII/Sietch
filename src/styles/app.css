@@ -241,7 +241,8 @@
   border-radius: var(--radius-lg);
 }
 
-.leaflet-container {
+/* `div.` : la feuille de Leaflet (gris clair) peut être chargée après celle-ci dans la version compilée. */
+div.leaflet-container {
   background: #151726;
   font-family: var(--font-body);
 }
