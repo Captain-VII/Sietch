@@ -378,8 +378,11 @@ pub fn spawn(app: AppHandle) {
                             (last_ammo, last_melee) = (ammo, melee);
                             let recent = last_attack.is_some_and(|t| t.elapsed() < Duration::from_millis(1200));
                             for hit in p.hits(r, &mut resource_scan.foes, [x, y, z], aim) {
-                                // À soi : juste après une attaque, sur une cible visée (ou au contact, corps à corps).
-                                if !(recent && (hit.off_aim < 35.0 || hit.dist < 600.0)) {
+                                // À soi : juste après un tir, sur une cible visée ; ou au contact, devant soi (corps à corps :
+                                // la liste des frappes du jeu ne bouge pas côté client, on s'en tient à la distance).
+                                let shot = recent && (hit.off_aim < 35.0 || hit.dist < 600.0);
+                                let melee = hit.dist < 300.0 && hit.off_aim < 60.0;
+                                if !(shot || melee) {
                                     if cfg!(debug_assertions) {
                                         eprintln!("[coup écarté] {:.1} à {:.0} m, {:.0}° de la visée, attaque récente : {recent}", hit.damage, hit.dist / 100.0, hit.off_aim);
                                     }
