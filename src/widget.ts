@@ -90,9 +90,42 @@ const SUNRISE = 6;
 const SUNSET = 18;
 let clockMode = "";
 
-/** Heure du jeu quand on la lit (modules sans BattlEye), sinon heure du serveur. */
-function drawClock(s: PlayerState | null) {
-  const t = s?.timeOfDay;
+/** Dernière heure lue (en heures), quand, et vitesse mesurée du jeu (heures par ms). */
+let readAt = 0;
+let readTime: number | null = null;
+let rate = 0;
+let shownMinute = -1;
+
+/** Heure lue : met à jour la vitesse sur les pas d'une minute, puis l'affichage. */
+function readClock(s: PlayerState | null) {
+  const t = s?.timeOfDay ?? null;
+  const at = performance.now();
+  if (t != null && readTime != null && t !== readTime) {
+    const step = t - readTime;
+    // Un pas d'une minute du jeu donne la vitesse ; les sauts (lecture en retard, minuit, sommeil) non.
+    if (Math.abs(step - 1 / 60) < 1e-4) rate = rate ? rate * 0.8 + (step / (at - readAt)) * 0.2 : step / (at - readAt);
+  }
+  if (t !== readTime) {
+    readTime = t;
+    readAt = at;
+  }
+  drawClock(t);
+}
+
+/**
+ * Heure du jeu quand on la lit (modules sans BattlEye), sinon heure du serveur. Entre deux lectures elle avance seule
+ * à la vitesse mesurée, au plus 5 minutes du jeu : la lecture prend parfois du retard et l'heure sautait de 3 minutes.
+ */
+function drawClock(read: number | null = readTime) {
+  let t = read;
+  if (t != null && rate) t += Math.min(5 / 60, rate * (performance.now() - readAt));
+  if (t != null) {
+    // Jamais en arrière, sauf vrai retour (minuit, heure du jeu changée).
+    const minute = Math.floor(t * 60 + 1e-6) % 1440;
+    if (minute < shownMinute && shownMinute - minute < 10) return;
+    shownMinute = minute;
+    t = minute / 60;
+  } else shownMinute = -1;
   if (t == null) {
     if (clockMode !== "serveur") {
       clockMode = "serveur";
@@ -102,8 +135,7 @@ function drawClock(s: PlayerState | null) {
   }
   const day = t >= SUNRISE && t < SUNSET;
   const mode = day ? "jour" : "nuit";
-  const hh = Math.floor(t);
-  const text = `${String(hh).padStart(2, "0")}:${String(Math.floor((t - hh) * 60)).padStart(2, "0")}`;
+  const text = `${String(Math.floor(shownMinute / 60)).padStart(2, "0")}:${String(shownMinute % 60).padStart(2, "0")}`;
   if (clockMode !== mode) {
     clockMode = mode;
     mount(card,
@@ -621,8 +653,9 @@ async function start() {
 
   switch (kind) {
     case "clock":
-      drawClock(await api.playerState());
-      await on.playerState(drawClock);
+      readClock(await api.playerState());
+      await on.playerState(readClock);
+      window.setInterval(() => drawClock(), 250);
       break;
     case "coriolis":
       mount(card, ...line("Coriolis", h("span", { class: "digits w-mid", "data-coriolis": "" })));
