@@ -7,6 +7,9 @@ import { h, icon, mount } from "./dom";
 import {
   FEATURED, getArticle, loadIndex, pageUrl, searchTitles, WIKI_LICENSE, WIKI_LICENSE_URL, WikiError,
 } from "./wiki";
+import { knownTitle, translateArticle, translateTitles } from "./translate";
+
+const LANG_KEY = "sietch-wiki-langue";
 
 export const DATABASE_URL = "https://dune.gaming.tools/items";
 
@@ -20,11 +23,19 @@ export async function openExternal(url: string) {
 export class WikiBrowser {
   readonly search = h("input", {
     class: "input search", type: "search", autocomplete: "off",
-    placeholder: "Rechercher sur awakening.wiki (en anglais : spice, sandworm…)",
+    placeholder: "Rechercher sur awakening.wiki (anglais, ou titre déjà traduit)",
   });
   readonly results = h("div", { class: "stack", style: "--gap: 6px", role: "list", "aria-label": "Résultats" });
   readonly article = h("div", { class: "wiki-article", "aria-live": "polite" });
   current: string | null = null;
+  /** Articles traduits en français (sinon le texte d'origine, en anglais). */
+  french = (() => {
+    try {
+      return localStorage.getItem(LANG_KEY) !== "en";
+    } catch {
+      return true;
+    }
+  })();
   private titles: string[] | null = null;
   private history: string[] = [];
   private pos = -1;
@@ -82,7 +93,12 @@ export class WikiBrowser {
   private matches(): string[] {
     const q = this.search.value.trim();
     if (!q) return FEATURED;
-    return this.titles ? searchTitles(this.titles, q) : [];
+    if (!this.titles) return [];
+    const found = searchTitles(this.titles, q);
+    // Titres déjà traduits : une recherche en français les retrouve aussi.
+    const lower = q.toLowerCase();
+    const fr = this.titles.filter((t) => !found.includes(t) && knownTitle(t)?.toLowerCase().includes(lower));
+    return [...found, ...fr].slice(0, 60);
   }
 
   private drawResults() {
@@ -103,10 +119,14 @@ export class WikiBrowser {
           class: `pick${this.compact ? " compact" : ""}`, type: "button", role: "listitem",
           "aria-pressed": String(t === this.current),
           onclick: () => void this.open(t),
-        }, h("span", { class: "title" }, t)),
+        }, h("span", { class: "title" }, this.label(t))),
       ),
       q && this.titles && !list.length ? h("p", { class: "muted", style: "margin: 4px" }, "Aucun article ne correspond.") : null,
     );
+  }
+
+  private label(title: string) {
+    return this.french ? knownTitle(title) ?? title : title;
   }
 
   private async retryIndex() {
@@ -127,11 +147,28 @@ export class WikiBrowser {
     this.current = title;
     this.drawResults();
     this.onChange();
+    if (this.french) {
+      // Titres de la liste traduits en arrière-plan, puis réaffichés.
+      void translateTitles(this.matches()).then((n) => n && this.drawResults()).catch(() => {});
+    }
     const token = ++this.loadToken;
     mount(this.article, h("p", { class: "muted" }, `Chargement de « ${title} »…`));
     try {
       const page = await getArticle(title);
       if (token !== this.loadToken) return;
+      if (this.french) {
+        mount(this.article, h("p", { class: "muted" }, `Traduction de « ${this.label(title)} »…`));
+        try {
+          const fr = await translateArticle(page.title, page.html);
+          if (token !== this.loadToken) return;
+          this.drawArticle(page.title, fr.html, fr.title);
+          return;
+        } catch {
+          if (token !== this.loadToken) return;
+          this.drawArticle(page.title, page.html, null, true);
+          return;
+        }
+      }
       this.drawArticle(page.title, page.html);
     } catch (e) {
       if (token !== this.loadToken) return;
@@ -146,7 +183,8 @@ export class WikiBrowser {
     }
   }
 
-  private drawArticle(title: string, html: string) {
+  /** `frTitle` : article traduit ; `failed` : la traduction a échoué, le texte reste en anglais. */
+  private drawArticle(title: string, html: string, frTitle: string | null = null, failed = false) {
     const body = h("div", { class: "wiki-content" });
     body.innerHTML = html; // déjà nettoyé par sanitize()
     mount(
@@ -154,18 +192,33 @@ export class WikiBrowser {
       h("header", { class: "row wrap spread", style: "align-items: flex-start" },
         h("div", { class: "stack", style: "--gap: 6px" },
           h("span", { class: "eyebrow", style: "font-size: 12px" }, "awakening.wiki"),
-          h("h2", { class: "h2", style: "font-size: 22px" }, title)),
+          h("h2", { class: "h2", style: "font-size: 22px" }, frTitle ?? title),
+          frTitle && frTitle !== title ? h("span", { class: "muted", style: "font-size: 12px" }, title) : null),
         h("div", { class: "row wrap" },
+          h("button", { class: "btn", type: "button", onclick: () => this.setFrench(!this.french) }, this.french ? "Texte original" : "Traduire en français"),
           h("button", { class: "btn", type: "button", onclick: () => void openExternal(pageUrl(title)) }, icon("external", 16), "Page d'origine"),
           h("button", { class: "btn", type: "button", onclick: () => void openExternal(DATABASE_URL) }, "Base de données")),
       ),
+      failed ? h("p", { class: "muted" }, "Traduction indisponible pour le moment : article affiché en anglais.") : null,
       body,
       h("p", { class: "muted wiki-credit" },
         "Contenu du ", h("a", { href: "#", "data-external": pageUrl(title) }, "Dune: Awakening Community Wiki"),
         " sous licence ", h("a", { href: "#", "data-external": WIKI_LICENSE_URL }, WIKI_LICENSE),
-        ", mis en forme pour Sietch (menus du wiki retirés)."),
+        frTitle ? ", traduit automatiquement en français (Google Traduction) et mis en forme pour Sietch." : ", mis en forme pour Sietch (menus du wiki retirés)."),
     );
     this.article.scrollTop = 0;
     this.article.closest(".main, .content")?.scrollTo?.({ top: 0 });
+  }
+
+  /** Passe du français au texte d'origine (choix gardé), et rouvre l'article courant. */
+  setFrench(on: boolean) {
+    this.french = on;
+    try {
+      localStorage.setItem(LANG_KEY, on ? "fr" : "en");
+    } catch {
+      // Choix gardé pour cette session seulement.
+    }
+    this.drawResults();
+    if (this.current) void this.open(this.current, false);
   }
 }

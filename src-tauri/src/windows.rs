@@ -106,6 +106,7 @@ fn widget_size(kind: &str) -> (f64, f64) {
         "gauges" => (110.0, 200.0),
         "gear" => (200.0, 72.0),
         "threat" => (170.0, 70.0),
+        "hits" => (240.0, 160.0),
         "health" | "stamina" | "hydration" | "power" | "inventory" => (230.0, 52.0),
         _ => (180.0, 64.0),
     }
@@ -128,6 +129,8 @@ fn default_pos(kind: &str, sw: f64, sh: f64) -> (f64, f64) {
         "gear" => bottom(1490.0, 1248.0),
         // Menace du ver : à droite de l'endurance (anneau du milieu de l'arc), à la même hauteur.
         "threat" => center(1610.0, 685.0),
+        // Centré sur le viseur : la croix tombe au milieu de l'écran.
+        "hits" => center(1160.0, 640.0),
         // Barres (cachées par défaut, remplacées par les anneaux) : en colonne à droite du viseur.
         "health" => center(1560.0, 800.0),
         "stamina" => center(1560.0, 852.0),

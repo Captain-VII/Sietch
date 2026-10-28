@@ -100,6 +100,10 @@ export function startLiveUpdates(getTimers: () => Timer[]) {
       void syncClock();
     }
   };
-  update();
-  return window.setInterval(update, 500);
+  // Calé juste après chaque changement de seconde : un intervalle fixe dérive et saute parfois une seconde.
+  const tick = () => {
+    update();
+    window.setTimeout(tick, 1000 - (now() % 1000) + 20);
+  };
+  tick();
 }

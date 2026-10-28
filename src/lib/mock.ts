@@ -41,13 +41,13 @@ const DEFAULT_SETTINGS: Settings = {
   gaugeRings: ["health", "stamina", "hydration", "power", "inventory"],
   // Mêmes dispositions préfaites que `settings.rs` (PRESETS).
   layouts: ([
-    ["exploration", "Exploration", ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat"]],
-    ["combat", "Combat", ["gauges", "gear", "threat"]],
-    ["vehicule", "Véhicule", ["clock", "coriolis", "sector", "minimap", "threat"]],
+    ["exploration", "Exploration", ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat", "hits"]],
+    ["combat", "Combat", ["gauges", "gear", "threat", "hits"]],
+    ["vehicule", "Véhicule", ["clock", "coriolis", "sector", "minimap", "threat", "hits"]],
   ] as const).map(([id, name, shown]) => ({
     id,
     name,
-    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear", "threat"] as const)
+    widgets: (["clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear", "threat", "hits"] as const)
       .map((kind) => ({ kind, shown: (shown as readonly string[]).includes(kind), pos: null, scale: 1, opacity: 100 })),
   })),
   activeLayout: "exploration",
@@ -77,7 +77,7 @@ function simPlayer(): PlayerState {
     heat: 0, heatMax: 100, sunExposure: 0, heatstroke: 100,
     // Une journée du jeu en 4 minutes.
     timeOfDay: Math.floor(((t / 10) % 24) * 60) / 60,
-    volume: 268.5, volumeMax: 1750, slots: 16, slotsMax: 35, wormThreat: 40, armed: null, inVehicle: null,
+    volume: 268.5, volumeMax: 1750, slots: 16, slotsMax: 35, wormThreat: 40, armed: null, inVehicle: null, zone: "Sud du Bassin de Hagga",
     x: Math.cos(t * 0.15) * 400000 - 50000, y: Math.sin(t * 0.15) * 400000 - 50000, z: 0,
     // Tangente au cercle parcouru.
     yaw: Math.round(((t * 0.15 * 180) / Math.PI + 90) % 360),

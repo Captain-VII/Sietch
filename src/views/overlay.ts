@@ -16,6 +16,7 @@ const WIDGET_LABELS: Record<WidgetKind, string> = {
   gauges: "Fonctions vitales",
   gear: "Équipement",
   threat: "Menace du ver",
+  hits: "Coups portés",
   worm: "Ver",
 };
 /** Valeurs du personnage : en barres (un widget chacune) ou en anneaux (widgets Fonctions vitales et Équipement). */
@@ -26,9 +27,9 @@ const LANDMARKS: WidgetKind[] = ["minimap", "clock", "coriolis", "sector", "time
 
 /** Dispositions préfaites : éléments affichés. Gardées en accord avec `PRESETS` de `settings.rs`. */
 const PRESETS: Record<string, { hint: string; shown: WidgetKind[] }> = {
-  exploration: { hint: "Tout : repères, minuteurs, personnage.", shown: ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat"] },
-  combat: { hint: "Seulement le personnage, près du viseur.", shown: ["gauges", "gear", "threat"] },
-  vehicule: { hint: "Se repérer et surveiller le ver.", shown: ["clock", "coriolis", "sector", "minimap", "threat"] },
+  exploration: { hint: "Tout : repères, minuteurs, personnage.", shown: ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat", "hits"] },
+  combat: { hint: "Seulement le personnage, près du viseur.", shown: ["gauges", "gear", "threat", "hits"] },
+  vehicule: { hint: "Se repérer et surveiller le ver.", shown: ["clock", "coriolis", "sector", "minimap", "threat", "hits"] },
 };
 
 /** Widgets de l'overlay : dispositions, éléments affichés, comportement. */
@@ -150,7 +151,7 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
           h("div", { class: "segmented", role: "group", "aria-label": "Style des jauges" },
             h("button", { type: "button", "aria-pressed": String(rings), onclick: () => style(true) }, "Anneaux"),
             h("button", { type: "button", "aria-pressed": String(!rings), onclick: () => style(false) }, "Barres"))),
-        h("div", { class: "row wrap", style: "--gap: 8px" }, rings ? RING_WIDGETS.map(chip) : STATS.map(chip), chip("threat")),
+        h("div", { class: "row wrap", style: "--gap: 8px" }, rings ? RING_WIDGETS.map(chip) : STATS.map(chip), chip("threat"), chip("hits")),
         rings
           ? h("details", {},
               h("summary", { class: "muted", style: "cursor: pointer; font-size: 13px" }, "Valeurs dans les anneaux (toutes dispositions)"),

@@ -364,20 +364,30 @@ pub fn spawn(app: AppHandle) {
                             Some(None) => player = None,
                             None => {}
                         }
-                        // Ressources autour du joueur : un passage sur la table des objets toutes les 15 s,
+                        // Coups portés : baisse de la vie des personnages proches (liste tenue par le relevé ci-dessous).
+                        if let (Some(p), Some((x, y, z))) = (player.as_ref(), pos) {
+                            for hit in p.hits(r, &mut resource_scan.foes, [x, y, z]) {
+                                if cfg!(debug_assertions) {
+                                    eprintln!("[coup] {:.1}{}", hit.damage, if hit.kill { " (tué)" } else { "" });
+                                }
+                                let _ = app.emit("hit", &hit);
+                            }
+                        }
+                        // Ressources et personnages autour du joueur : un passage sur la table des objets toutes les 5 s,
                         // découpé en morceaux de 20 000 objets par tick pour ne pas figer la lecture du personnage.
                         if player.is_none() {
                             // Personnage perdu (relance du jeu…) : les classes connues ne valent plus.
                             resource_scan = Default::default();
                             scanning = false;
-                        } else if !scanning && last_resources.is_none_or(|i| i.elapsed() > Duration::from_secs(15)) {
+                        } else if !scanning && last_resources.is_none_or(|i| i.elapsed() > Duration::from_secs(5)) {
                             scanning = true;
                             scan_started = Instant::now();
                         }
                         if scanning
                             && let Some(t) = tables
                             && let Some(mut u) = ue::Ue::open(r, t)
-                            && let Some(found) = u.resources_step(&mut resource_scan, 20_000)
+                            && let Some(p) = player.as_ref()
+                            && let Some(found) = u.resources_step(&mut resource_scan, p, 20_000)
                         {
                             scanning = false;
                             let took = scan_started.elapsed().as_secs_f32();
@@ -385,7 +395,7 @@ pub fn spawn(app: AppHandle) {
                             last_resources = Some(Instant::now());
                             let region = state.map_data.lock().unwrap().as_ref().map(|m| region_of(&m.layer)).unwrap_or("hagga");
                             if cfg!(debug_assertions) {
-                                eprintln!("[ressources] {} autour du joueur, {} connues, passage en ~{took:.1} s", found.len(), seen.len());
+                                eprintln!("[ressources] {} autour du joueur, {} connues, {} personnages, passage en ~{took:.1} s", found.len(), seen.len(), resource_scan.foes.len());
                             }
                             let (added, changed) = seen.update(region, found);
                             if added {

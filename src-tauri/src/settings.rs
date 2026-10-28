@@ -57,9 +57,10 @@ pub struct Settings {
 pub const GAUGE_RINGS: [&str; 5] = ["health", "stamina", "hydration", "power", "inventory"];
 
 /// `threat` : menace du ver, widget à part près du viseur (avant : un anneau du widget Équipement).
-pub const WIDGET_KINDS: [&str; 13] = [
+/// `hits` : croix et chiffres des dégâts portés, au centre de l'écran.
+pub const WIDGET_KINDS: [&str; 14] = [
     "clock", "coriolis", "sector", "timers", "health", "stamina", "hydration", "power", "inventory", "minimap", "gauges", "gear",
-    "threat",
+    "threat", "hits",
 ];
 
 /// Une disposition : un ensemble de widgets placés à l'écran.
@@ -74,11 +75,11 @@ pub struct Layout {
 /// Dispositions préfaites : identifiant, nom et éléments affichés (les autres sont décochés).
 /// Gardées en accord avec `PRESETS` de `src/views/overlay.ts`.
 pub const PRESETS: [(&str, &str, &[&str]); 3] = [
-    ("exploration", "Exploration", &["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat"]),
+    ("exploration", "Exploration", &["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat", "hits"]),
     // Les yeux sur le viseur : vie, endurance, eau, bouclier et ver seulement.
-    ("combat", "Combat", &["gauges", "gear", "threat"]),
+    ("combat", "Combat", &["gauges", "gear", "threat", "hits"]),
     // Se repérer et surveiller le ver ; le personnage compte moins.
-    ("vehicule", "Véhicule", &["clock", "coriolis", "sector", "minimap", "threat"]),
+    ("vehicule", "Véhicule", &["clock", "coriolis", "sector", "minimap", "threat", "hits"]),
 ];
 
 /// Disposition préfaite voulue d'après l'état du joueur (modules sans BattlEye) : Véhicule à bord, Combat arme en
@@ -195,7 +196,13 @@ impl Settings {
                 self.layouts.push(l);
             }
         }
-        self.layouts_version = 1;
+        // Version 2 : les coups portés (`hits`) s'affichent dans les dispositions préfaites déjà là.
+        if self.layouts_version < 2 {
+            for l in self.layouts.iter_mut().filter(|l| PRESETS.iter().any(|p| p.0 == l.id)) {
+                l.widgets.iter_mut().filter(|w| w.kind == "hits").for_each(|w| w.shown = true);
+            }
+        }
+        self.layouts_version = 2;
         if !self.layouts.iter().any(|l| l.id == self.active_layout) {
             self.active_layout = self.layouts[0].id.clone();
         }
@@ -264,7 +271,7 @@ impl Default for Settings {
             map_images: BTreeMap::new(),
             gauge_rings: GAUGE_RINGS.iter().map(|s| s.to_string()).collect(),
             rings_version: 2,
-            layouts_version: 1,
+            layouts_version: 2,
             layouts: PRESETS.iter().map(|p| Layout::preset(p.0)).collect(),
             active_layout: "exploration".into(),
         }
@@ -344,6 +351,22 @@ mod tests {
         s.layouts.remove(1);
         s.normalize();
         assert_eq!(s.layouts.len(), 2);
+    }
+
+    #[test]
+    fn hits_are_shown_once_in_existing_presets() {
+        let mut s: Settings = serde_json::from_str(
+            r#"{"layoutsVersion":1,"layouts":[{"id":"combat","name":"Combat","widgets":[]},{"id":"perso","name":"Perso","widgets":[]}]}"#,
+        )
+        .unwrap();
+        s.normalize();
+        let hits = |s: &Settings, i: usize| s.layouts[i].widgets.iter().find(|w| w.kind == "hits").unwrap().shown;
+        assert!(hits(&s, 0), "affiché dans une disposition préfaite");
+        assert!(!hits(&s, 1), "décoché dans une disposition de l'utilisateur");
+        // Décoché ensuite par l'utilisateur : il le reste.
+        s.layouts[0].widgets.iter_mut().find(|w| w.kind == "hits").unwrap().shown = false;
+        s.normalize();
+        assert!(!hits(&s, 0));
     }
 
     #[test]

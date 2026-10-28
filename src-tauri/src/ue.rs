@@ -339,12 +339,13 @@ impl<'a> Ue<'a> {
     /// Le jeu ne charge que les environs : la mémoire des points déjà vus est tenue par `live.rs`.
     /// Avance le relevé d'au plus `budget` objets ; renvoie la liste quand la table a été parcourue en entier.
     /// Découpé pour ne pas bloquer la lecture du personnage (un passage complet coûte ~1 s en debug).
-    pub fn resources_step(&mut self, scan: &mut ResourceScan, budget: u32) -> Option<Vec<Resource>> {
+    /// Relève aussi, au passage, les jeux d'attributs des autres personnages (`ResourceScan::foes`).
+    pub fn resources_step(&mut self, scan: &mut ResourceScan, player: &Player, budget: u32) -> Option<Vec<Resource>> {
         let head = read::<24>(self.m, self.table)?;
         let num = u32_at(&head, 20);
         let end = scan.next.saturating_add(budget).min(num);
         for i in scan.next..end {
-            if let Some(r) = self.resource_at(i, &mut scan.kinds) {
+            if let Some(r) = self.resource_at(i, scan, player) {
                 scan.found.push(r);
             }
         }
@@ -353,22 +354,35 @@ impl<'a> Ue<'a> {
             return None;
         }
         scan.next = 0;
+        // Liste des personnages renouvelée : on garde la vie déjà lue de ceux qui étaient là.
+        let old = std::mem::take(&mut scan.foes);
+        scan.foes = std::mem::take(&mut scan.foes_found);
+        for f in &mut scan.foes {
+            f.health = old.iter().find(|o| o.set == f.set && o.index == f.index).and_then(|o| o.health);
+        }
         Some(std::mem::take(&mut scan.found))
     }
 
     /// Générateur de ressources à l'index `i` de la table des objets, s'il y en a un.
-    fn resource_at(&mut self, i: u32, kinds: &mut HashMap<u64, Option<String>>) -> Option<Resource> {
+    fn resource_at(&mut self, i: u32, scan: &mut ResourceScan, player: &Player) -> Option<Resource> {
         let o = self.object(i)?;
         let b = read::<0x28>(self.m, o)?;
         if u32_at(&b, 0x08) & TEMPLATE != 0 {
             return None;
         }
         let class = u64_at(&b, 0x10);
-        let kind = match kinds.get(&class) {
+        if class == player.stats_class {
+            let actor = u64_at(&b, 0x20);
+            if actor != player.character {
+                scan.foes_found.push(Foe { set: o, index: i, class, actor, health: None });
+            }
+            return None;
+        }
+        let kind = match scan.kinds.get(&class) {
             Some(k) => k.clone(),
             None => {
                 let k = self.resource_class(class);
-                kinds.insert(class, k.clone());
+                scan.kinds.insert(class, k.clone());
                 k
             }
         };
@@ -474,6 +488,13 @@ impl<'a> Ue<'a> {
         });
         // Arme en main, à bord d'un véhicule : pour choisir la disposition de l'overlay. Noms candidats, à confirmer
         // en jeu avec `sietch-scan ue-diff` (docs/personnage-en-direct.md) ; aucun trouvé = pas de changement automatique.
+        // Nom de la zone, tel que le jeu l'affiche (donc dans sa langue) : texte du widget en haut à droite.
+        let zone = class_named(self, "W_MapAreaInformationHUDWidget_C").and_then(|c| {
+            let (name_at, owner_at) = (self.field(c, "m_MapAreaName")?, self.field(c, "m_PlayerCharacter")?);
+            let w = all.iter().find(|a| a.2 == c && a.1 & TEMPLATE == 0 && ptr(self.m, a.0 + owner_at) == character)?.0;
+            let block = ptr(self.m, w + name_at);
+            Some(block + self.field(ptr(self.m, block + 0x10), "Text")?)
+        });
         let armed = self.flag(player_class, character, ARMED_FIELDS);
         let vehicle = self.flag(player_class, character, VEHICLE_FIELDS);
         let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
@@ -481,6 +502,8 @@ impl<'a> Ue<'a> {
         let mut f = |class: u64, n: &str| self.field(class, n);
         let fields = Fields {
             location: f(root_class, "RelativeLocation")?,
+            attach_parent: f(root_class, "AttachParent")?,
+            root_component: f(player_class, "RootComponent")?,
             rotation: f(root_class, "RelativeRotation")?,
             health: f(stats_class, "CurrentHealth")?,
             health_max: f(stats_class, "MaxHealth")?,
@@ -495,7 +518,7 @@ impl<'a> Ue<'a> {
             sun: f(hydration_class, "CurrentSunExposure")?,
             heatstroke: f(hydration_class, "HeatstrokeThreshold")?,
         };
-        Some(Player { character, index, class: player_class, stats, hydration, root, time_of_day, backpack, slots, worm, armed, vehicle, sets, fields })
+        Some(Player { character, index, class: player_class, stats, stats_class, hydration, root, time_of_day, backpack, slots, worm, armed, vehicle, zone, sets, fields })
     }
 }
 
@@ -533,7 +556,31 @@ pub struct ResourceScan {
     next: u32,
     found: Vec<Resource>,
     kinds: HashMap<u64, Option<String>>,
+    /// Jeux d'attributs des autres personnages (PNJ, créatures) croisés pendant le passage en cours.
+    foes_found: Vec<Foe>,
+    /// Ceux du dernier passage complet, avec leur dernière vie lue (coups portés).
+    pub foes: Vec<Foe>,
 }
+
+/// Autre personnage suivi pour les coups portés : son jeu d'attributs, son acteur et sa dernière vie lue.
+#[derive(Clone, Copy, Debug)]
+pub struct Foe {
+    set: u64,
+    index: u32,
+    class: u64,
+    actor: u64,
+    health: Option<f32>,
+}
+
+/// Coup porté : vie retirée à un personnage proche ; `kill` quand elle tombe à 0.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Hit {
+    pub damage: f32,
+    pub kill: bool,
+}
+
+/// Distance (cm) au-delà de laquelle une baisse de vie n'est pas comptée comme un coup du joueur.
+const HIT_RANGE: f64 = 15_000.0;
 
 /// Générateur de ressources : nom (voir `resource_name`), position (cm) et délai de réapparition (s).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -610,6 +657,9 @@ fn scan_regions<T>(
 pub struct Fields {
     location: u64,
     rotation: u64,
+    attach_parent: u64,
+    /// RootComponent d'un acteur (même offset pour le personnage et les PNJ).
+    root_component: u64,
     health: u64,
     health_max: u64,
     stamina: u64,
@@ -630,6 +680,8 @@ pub struct Player {
     index: u32,
     class: u64,
     stats: u64,
+    /// Classe des jeux d'attributs (DuneCharacterAttributeSet), partagée par les PNJ.
+    stats_class: u64,
     hydration: u64,
     root: u64,
     /// TimeOfDayComponent et offset de m_TimeOfDayServer.
@@ -643,6 +695,8 @@ pub struct Player {
     /// Arme en main, à bord d'un véhicule.
     armed: Option<Flag>,
     vehicle: Option<Flag>,
+    /// FText du nom de la zone (widget du HUD).
+    zone: Option<u64>,
     /// Jeux d'attributs du personnage : (classe, objet).
     sets: Vec<(String, u64)>,
     fields: Fields,
@@ -659,6 +713,22 @@ struct Slots {
 /// Arme : booléen. Véhicule : siège occupé (pointeur faible, toutes les places), sinon conducteur seul.
 pub const ARMED_FIELDS: &[&str] = &["m_bHasWeaponInHand"];
 pub const VEHICLE_FIELDS: &[&str] = &["m_CurrentSeat", "m_bIsDriving"];
+
+/// Chaîne affichée d'un `FText` : données du texte → historique (+0x10) → chaîne affichée (+0x40, `FString`).
+/// Relevé sur le widget du nom de zone (2026-10-28) : c'est la chaîne localisée, pas le texte source anglais.
+fn ftext(m: &dyn Mem, at: u64) -> Option<String> {
+    let history = ptr(m, ptr(m, at) + 0x10);
+    let s = ptr(m, history + 0x40);
+    let b = read::<12>(m, s)?;
+    let (data, len) = (u64_at(&b, 0), u32_at(&b, 8) as usize);
+    if data == 0 || !(2..=128).contains(&len) {
+        return None;
+    }
+    let mut buf = vec![0u8; (len - 1) * 2];
+    (m.read_into(data, &mut buf) == buf.len())
+        .then(|| String::from_utf16_lossy(&buf.chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>()))
+        .filter(|s| !s.trim().is_empty())
+}
 
 /// Indicateur lu dans un objet : booléen (octet et masque) ou pointeur (non nul = vrai).
 #[derive(Clone, Copy, Debug)]
@@ -735,6 +805,8 @@ pub struct PlayerState {
     /// Arme en main, à bord d'un véhicule ; `None` tant que le champ n'est pas connu.
     pub armed: Option<bool>,
     pub in_vehicle: Option<bool>,
+    /// Nom de la zone affiché par le jeu (« Sud du Bassin de Hagga ») ; None s'il n'a pas été trouvé.
+    pub zone: Option<String>,
     pub x: f64,
     pub y: f64,
     pub z: f64,
@@ -770,6 +842,7 @@ impl PlayerState {
             worm_threat: self.worm_threat.map(|v| v.round()),
             armed: self.armed,
             in_vehicle: self.in_vehicle,
+            zone: self.zone.clone(),
             x: m(self.x),
             y: m(self.y),
             z: m(self.z),
@@ -786,6 +859,32 @@ impl Player {
             && self.time_of_day.is_none_or(|w| still_there(m, w.obj, w.index, w.class))
     }
 
+    /// Coups portés depuis la dernière lecture : baisse de la vie des personnages à moins de `HIT_RANGE`.
+    /// La première lecture d'un personnage ne compte pas (vie de départ).
+    pub fn hits(&self, m: &dyn Mem, foes: &mut [Foe], at: [f64; 3]) -> Vec<Hit> {
+        let f = &self.fields;
+        let mut hits = Vec::new();
+        for foe in foes.iter_mut() {
+            if !still_there(m, foe.set, foe.index, foe.class) {
+                foe.health = None;
+                continue;
+            }
+            let Some(now) = read::<4>(m, ptr(m, foe.set + f.health + 0x10)).map(f32::from_le_bytes).filter(|v| v.is_finite())
+            else {
+                continue;
+            };
+            let before = foe.health.replace(now);
+            let Some(before) = before.filter(|b| now < *b - 0.5) else { continue };
+            let Some(loc) = read::<24>(m, ptr(m, foe.actor + f.root_component) + f.location) else { continue };
+            let v = |i: usize| f64::from_le_bytes(loc[i..i + 8].try_into().unwrap());
+            let (dx, dy, dz) = (v(0) - at[0], v(8) - at[1], v(16) - at[2]);
+            if (dx * dx + dy * dy + dz * dz).sqrt() <= HIT_RANGE {
+                hits.push(Hit { damage: before - now, kill: now <= 0.0 && before > 0.0 });
+            }
+        }
+        hits
+    }
+
     /// Lit l'instantané ; `None` si le personnage a disparu (mort, changement de carte…).
     pub fn read(&self, m: &dyn Mem) -> Option<PlayerState> {
         if !self.alive(m) {
@@ -796,7 +895,16 @@ impl Player {
         let attr = |obj: u64, off: u64| read::<4>(m, obj + off + 0xC).map(f32::from_le_bytes);
         // La vie (FglGameplayAttributeData) : valeur à jour dans le bloc pointé à +0x10.
         let health = read::<4>(m, ptr(m, self.stats + f.health + 0x10)).map(f32::from_le_bytes)?;
-        let loc = read::<24>(m, self.root + f.location)?;
+        // À bord d'un véhicule, le personnage est attaché à un siège : sa position devient relative au siège.
+        // On remonte les attaches jusqu'au composant racine (le véhicule), dont la position est celle du monde.
+        let mut top = self.root;
+        for _ in 0..8 {
+            match ptr(m, top + f.attach_parent) {
+                0 => break,
+                p => top = p,
+            }
+        }
+        let loc = read::<24>(m, top + f.location)?;
         let v = |i: usize| f64::from_le_bytes(loc[i..i + 8].try_into().unwrap());
         Some(PlayerState {
             health,
@@ -826,11 +934,12 @@ impl Player {
             }),
             armed: self.armed.and_then(|f| f.read(m)),
             in_vehicle: self.vehicle.and_then(|f| f.read(m)),
+            zone: self.zone.and_then(|t| ftext(m, t)),
             x: v(0),
             y: v(8),
             z: v(16),
             // FRotator : Pitch, Yaw, Roll (f64).
-            yaw: read::<24>(m, self.root + f.rotation).map(|b| f64::from_le_bytes(b[8..16].try_into().unwrap()))?,
+            yaw: read::<24>(m, top + f.rotation).map(|b| f64::from_le_bytes(b[8..16].try_into().unwrap()))?,
         })
     }
 }

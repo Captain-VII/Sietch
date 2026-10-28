@@ -50,7 +50,7 @@ export interface Settings {
   activeLayout: string;
 }
 
-export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory" | "minimap" | "gauges" | "gear" | "threat" | "worm";
+export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory" | "minimap" | "gauges" | "gear" | "threat" | "hits" | "worm";
 
 /** Carte de la région lue dans le jeu : limites (cm), zones (cercles x, y, rayon) et points d'intérêt. */
 export interface MapData {
@@ -106,6 +106,8 @@ export interface PlayerState {
   /** Arme en main, à bord d'un véhicule ; null tant que le champ n'est pas connu. */
   armed: boolean | null;
   inVehicle: boolean | null;
+  /** Nom de la zone affiché par le jeu, dans sa langue (« Sud du Bassin de Hagga »). */
+  zone: string | null;
   x: number;
   y: number;
   z: number;
@@ -133,6 +135,12 @@ export interface UpdateInfo {
 
 /** Trajet de la session, en coordonnées du jeu ; `null` coupe le tracé (téléportation, mort). */
 export type Trail = ([number, number] | null)[];
+
+/** Coup porté : vie retirée à un personnage proche, `kill` quand elle tombe à 0. */
+export interface Hit {
+  damage: number;
+  kill: boolean;
+}
 
 /** Écran de diagnostic des modules sans BattlEye (`live.rs::Diagnostic`). */
 export interface Diagnostic {
@@ -254,6 +262,8 @@ export const on = {
   // Trajet remplacé (effacé, changement de région) ou prolongé de quelques points.
   trail: (fn: (t: Trail) => void) => listen<Trail>("trail", (e) => fn(e.payload)),
   trailPoint: (fn: (t: Trail) => void) => listen<Trail>("trail-point", (e) => fn(e.payload)),
+  /** Coup porté à un personnage proche (modules sans BattlEye). */
+  hit: (fn: (h: Hit) => void) => listen<Hit>("hit", (e) => fn(e.payload)),
   playerState: (fn: (s: PlayerState) => void) => listen<PlayerState>("player-state", (e) => fn(e.payload)),
   position: (fn: (p: PlayerPosition) => void) => listen<PlayerPosition>("player-position", (e) => fn(e.payload)),
   widgetsEdit: (fn: (editing: boolean) => void) => listen<boolean>("widgets-edit", (e) => fn(e.payload)),

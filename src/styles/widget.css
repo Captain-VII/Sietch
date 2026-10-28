@@ -313,18 +313,20 @@ body {
     0 1px 3px rgba(4, 5, 10, 0.8);
 }
 
+/* `filter` et `visibility` : l'opacité réglée par widget est écrite sur l'élément et écraserait `opacity`. */
 .widget.threat.calm {
-  opacity: 0.55;
+  filter: opacity(0.55);
 }
 
 /* Hors du sable (menace à 0 depuis un moment) : le widget s'efface. */
 .widget.threat.off {
-  opacity: 0;
+  visibility: hidden;
 }
 
 /* Mode édition : toujours visible, pour pouvoir le placer. */
 .editing .widget.threat.off {
-  opacity: 0.55;
+  visibility: visible;
+  filter: opacity(0.55);
 }
 
 .widget.threat.danger .w-ring {
@@ -399,4 +401,64 @@ body {
 .w-timer.ready .w-name,
 .w-timer.ready .w-mid {
   color: var(--violet-light);
+}
+
+/* Coups portés : croix rouge discrète sur le viseur, chiffre qui monte à droite et s'efface. */
+.widget.hits {
+  position: relative;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.w-cross {
+  width: 18px;
+  height: 18px;
+  opacity: 0;
+  stroke: #ff4d4d;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  fill: none;
+  filter: drop-shadow(0 0 1px rgba(4, 5, 10, 0.9));
+}
+
+.w-cross.on {
+  animation: hit-cross 260ms ease-out;
+}
+
+.w-cross.kill {
+  stroke: #ff2020;
+  stroke-width: 2.2;
+}
+
+@keyframes hit-cross {
+  0% { opacity: 0.95; transform: scale(1.25); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+.w-dmg {
+  position: absolute;
+  left: calc(50% + 18px + var(--dx, 0px));
+  top: calc(50% - 16px);
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffd2c2;
+  pointer-events: none;
+  animation: hit-number 900ms ease-out forwards;
+}
+
+.w-dmg.kill {
+  color: #ff6b6b;
+  font-size: 17px;
+}
+
+@keyframes hit-number {
+  0% { opacity: 0; transform: translateY(4px); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-36px); }
+}
+
+/* Mode édition : une croix visible pour placer le widget. */
+.editing .w-cross {
+  opacity: 0.6;
 }

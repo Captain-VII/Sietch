@@ -3,7 +3,7 @@ import "./styles/components.css";
 import "./styles/widget.css";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, on, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
+import { api, on, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
 import { hiddenPoiKinds, mapRegion, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
@@ -52,6 +52,9 @@ function drawTimers() {
 
 // ---------- Secteur ----------
 
+/** Nom de la zone lu dans le jeu (modules sans BattlEye), affiché à la place de la région. */
+let zone: string | null = null;
+
 /** Secteur en direct si la position est connue et la carte calibrée, sinon dernier marqueur. */
 async function drawSector() {
   const p = live.position;
@@ -59,7 +62,7 @@ async function drawSector() {
   if (p && t) {
     const m = toMap(t, p.x, p.y);
     const sector = sectorOf(Math.max(0, Math.min(899, m.x)), Math.max(0, Math.min(899, m.y)));
-    const region = settings.liveRegion === "profond" ? "Désert profond" : "Hagga";
+    const region = zone ?? (settings.liveRegion === "profond" ? "Désert profond" : "Hagga");
     mount(card, ...line("Secteur", h("span", { class: "digits w-mid live" }, `${sector} · ${region}`)));
     return;
   }
@@ -77,7 +80,7 @@ function sectorKey() {
   const t = p ? solveAffine(settings.calibration[settings.liveRegion]) : null;
   if (!p || !t) return "aucun";
   const m = toMap(t, p.x, p.y);
-  return sectorOf(m.x, m.y);
+  return `${sectorOf(m.x, m.y)}|${zone}`;
 }
 
 // ---------- Heure du jeu (jour ou nuit) ----------
@@ -178,6 +181,30 @@ function drawThreat(s: PlayerState | null) {
   if (onSand) threatHide = window.setTimeout(() => drawThreat(s), THREAT_LINGER);
 }
 let threatHide = 0;
+
+// ---------- Coups portés ----------
+
+/** Croix rouge discrète au centre (le viseur) et chiffre des dégâts qui monte à côté puis s'efface. */
+function mountCross() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "-8 -8 16 16");
+  svg.classList.add("w-cross");
+  svg.innerHTML = '<path d="M-5 -5 L-2 -2 M5 -5 L2 -2 M-5 5 L-2 2 M5 5 L2 2"/>';
+  mount(card, svg);
+}
+
+function showHit(hit: Hit) {
+  const cross = card.querySelector<SVGElement>(".w-cross")!;
+  cross.classList.toggle("kill", hit.kill);
+  // Relance l'animation à chaque coup, même rapproché.
+  cross.classList.remove("on");
+  void cross.getBoundingClientRect();
+  cross.classList.add("on");
+  const n = h("span", { class: `w-dmg digits${hit.kill ? " kill" : ""}` }, String(Math.round(hit.damage)));
+  n.style.setProperty("--dx", `${Math.round(Math.random() * 24 - 6)}px`);
+  card.append(n);
+  n.addEventListener("animationend", () => n.remove());
+}
 
 function drawGauges(s: PlayerState | null) {
   const rings = settings.gaugeRings.filter((k) => RING_GROUPS[kind]!.includes(k));
@@ -511,6 +538,12 @@ async function start() {
       drawGauges(await api.playerState());
       await on.playerState(drawGauges);
       break;
+    case "hits":
+      card.classList.add("hits");
+      // Croix posée dès le départ : visible en mode édition pour placer le widget.
+      mountCross();
+      await on.hit(showHit);
+      break;
     case "threat":
       card.classList.add("threat");
       drawThreat(await api.playerState());
@@ -545,6 +578,13 @@ async function start() {
       await startLive();
       // Le secteur change rarement : on ne redessine qu'à chaque changement.
       let lastKey = sectorKey();
+      zone = (await api.playerState())?.zone ?? null;
+      await on.playerState((s) => {
+        if (s.zone === zone) return;
+        zone = s.zone;
+        lastKey = sectorKey();
+        void drawSector();
+      });
       live.subscribe(() => {
         const key = sectorKey();
         if (key !== lastKey) {
