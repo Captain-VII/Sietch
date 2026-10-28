@@ -70,7 +70,7 @@ But : qu'une mise à jour du jeu ne casse rien, ou se répare vite.
   vraisemblance, comme pour le volume du sac.
 - 🎮 Après chaque patch du jeu : `sietch-scan ue` puis vérification des champs, procédure dans la doc.
 
-## Lot 5 — Diffusion (si l'utilisateur le veut)
+## Lot 5 — Diffusion (plus tard, si besoin de partager)
 
 - 🟢 README avec captures et GIF, page d'installation.
 - 🔴 Lire le contrat d'utilisation de Funcom avant de diffuser les modules sans BattlEye.
@@ -85,7 +85,8 @@ But : qu'une mise à jour du jeu ne casse rien, ou se répare vite.
 - Traduction automatique du wiki : seul un service non officiel était gratuit, sans garantie de marcher (retirée le
   2026-10-28).
 
-## Questions ouvertes
+## Décisions (2026-10-28)
 
-- Serveur privé : hébergé où, avec quel accès ? (outils de serveur : sauvegardes avant Coriolis, réglages, redémarrages)
-- Sietch reste un outil perso, ou il sera diffusé à d'autres joueurs ? (décide du lot 5 et de l'anglais)
+- **Jeu en solo**, avec ce personnage : pas de serveur privé, donc pas d'outils de serveur (sauvegardes, réglages,
+  redémarrages). Les modules sans BattlEye restent la priorité.
+- **Outil perso**, partagé plus tard si besoin : le lot 5 (diffusion, anglais, signature) attend ce besoin.
