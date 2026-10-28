@@ -109,6 +109,8 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
 - **Fond de carte** (local, jamais dans le dépôt) : captures de l'utilisateur assemblées puis retouchées zone par zone
   (`captures-carte\hagga\retouche-*.webp`). Pour capturer : masquer l'overlay (Ctrl+Maj+O) et les filtres
   « Événements/Dangers » de la carte du jeu, même zoom (dézoom maximum).
+  Capture automatique : `tools/capture-carte.ps1 -Out <dossier> -Seconds 240` (écran principal, jeu au premier plan, une image
+  quand la vue change) pendant que l'utilisateur fait glisser la carte, puis `tools/assembler-carte.py`.
 - **Sac** : emplacements occupés (sous l'anneau du volume). **Ver** : menace en % du seuil d'attaque, anneau + alerte.
   **Menus du jeu** (`menu.rs`) : widgets effacés tant que la fenêtre `UnrealWindow` est au premier plan avec le curseur
   affiché (inventaire, carte, Échap) ; Windows seul, rien de lu dans le jeu, marche avec BattlEye. Validé en jeu.
