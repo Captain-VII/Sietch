@@ -1,5 +1,5 @@
 # Publie une version de Sietch : pousser un tag `vX.Y.Z` (égal à la version de tauri.conf.json).
-# Vérifie, compile, signe le paquet de mise à jour et crée la release GitHub avec latest.json,
+# Compile, signe le paquet de mise à jour et crée la release GitHub avec latest.json,
 # que les Sietch installés consultent pour se mettre à jour.
 # Secrets : TAURI_SIGNING_PRIVATE_KEY et TAURI_SIGNING_PRIVATE_KEY_PASSWORD (clé gardée hors du dépôt).
 name: Release
@@ -30,26 +30,20 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
 
+      # Même cache que la CI de main (windows.yml) : la compilation repart de ses objets au lieu de zéro.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: sietch-windows
+          save-if: false
 
       - name: Dépendances
         run: npm ci
 
+      # Lint et tests : déjà passés sur main pour ce commit (windows.yml) et en local avant le tag ; pas refaits ici.
       - name: Types
         run: npx tsc --noEmit -p .
-
-      - name: Lint Rust
-        working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
-
-      - name: Tests Rust
-        working-directory: src-tauri
-        run: cargo test
 
       - name: Compilation et release
         uses: tauri-apps/tauri-action@v0

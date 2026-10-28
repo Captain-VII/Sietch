@@ -31,6 +31,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # Partagé avec release.yml (qui ne fait que le relire).
+          shared-key: sietch-windows
 
       - name: Dépendances
         run: npm ci
