@@ -168,7 +168,7 @@ body {
 }
 
 .w-bar.stamina > span {
-  background: #e6cf95;
+  background: #cde8a4;
 }
 
 .w-bar.hydration > span {
@@ -255,7 +255,7 @@ body {
 }
 
 .w-ring.health { --ring: #e05a4f; }
-.w-ring.stamina { --ring: #e6cf95; }
+.w-ring.stamina { --ring: #cde8a4; }
 .w-ring.hydration { --ring: #6fb6e8; }
 .w-ring.power { --ring: #7fd1b9; }
 .w-ring.inventory { --ring: #b9ad93; }
