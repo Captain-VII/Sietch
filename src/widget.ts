@@ -2,7 +2,7 @@ import "./styles/theme.css";
 import "./styles/components.css";
 import "./styles/widget.css";
 
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import { api, on, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
 import { hiddenPoiKinds, mapRegion, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
@@ -218,7 +218,8 @@ function drawGauges(s: PlayerState | null) {
     if (kind === "gauges") {
       const half = (rings.length - 1) / 2 || 1;
       card.querySelectorAll<HTMLElement>(".w-ring").forEach((el, i) => {
-        el.style.transform = `translateX(${(14 - ((i - half) / half) ** 2 * 28).toFixed(1)}px)`;
+        // 22 px d'écart entre le milieu et les bouts : la pente du chevron du jeu.
+        el.style.transform = `translateX(${(11 - ((i - half) / half) ** 2 * 22).toFixed(1)}px)`;
       });
     }
   }
@@ -458,6 +459,13 @@ function editControls() {
       void getCurrentWindow().startDragging();
     }
   });
+  // Lâché, le widget s'aimante : son centre se cale sur le point de la grille le plus proche.
+  let snapTimer = 0;
+  void getCurrentWindow().onMoved(() => {
+    if (!document.documentElement.classList.contains("editing")) return;
+    window.clearTimeout(snapTimer);
+    snapTimer = window.setTimeout(() => void snapToGrid(), 250);
+  });
   window.addEventListener("wheel", (e) => {
     const w = config(settings);
     if (!document.documentElement.classList.contains("editing") || !w) return;
@@ -467,6 +475,73 @@ function editControls() {
     badge.textContent = `${Math.round(scale * 100)} %`;
     void api.setSettings(settings);
   });
+}
+
+// ---------- Grille du mode édition ----------
+
+/** Pas de la grille (px logiques), compté depuis le viseur (centre de l'écran) : points d'accroche des widgets. */
+const GRID = 20;
+
+async function snapToGrid() {
+  const win = getCurrentWindow();
+  const m = await currentMonitor();
+  if (!m) return;
+  const [p, s] = await Promise.all([win.outerPosition(), win.outerSize()]);
+  const step = GRID * m.scaleFactor;
+  const snap = (pos: number, size: number, origin: number) =>
+    Math.round(origin + Math.round((pos + size / 2 - origin) / step) * step - size / 2);
+  const x = snap(p.x, s.width, m.position.x + m.size.width / 2);
+  const y = snap(p.y, s.height, m.position.y + m.size.height / 2);
+  if (x !== p.x || y !== p.y) await win.setPosition(new PhysicalPosition(x, y));
+}
+
+/** Tout l'écran, traversé par la souris : points tous les 20 px, lignes tous les 40, axes et croix au viseur. */
+function startGrid() {
+  document.body.classList.add("grid");
+  const canvas = h("canvas", { class: "w-grid" });
+  mount(document.getElementById("app")!, canvas);
+  const draw = () => {
+    const dpr = window.devicePixelRatio || 1;
+    const [w, hgt] = [window.innerWidth, window.innerHeight];
+    canvas.width = w * dpr;
+    canvas.height = hgt * dpr;
+    const g = canvas.getContext("2d")!;
+    g.scale(dpr, dpr);
+    const [cx, cy] = [w / 2, hgt / 2];
+    const nx = Math.ceil(cx / GRID);
+    const ny = Math.ceil(cy / GRID);
+    g.lineWidth = 1;
+    for (let i = -nx; i <= nx; i++) {
+      if (i % 2) continue;
+      g.strokeStyle = i === 0 ? "rgba(255, 210, 140, 0.45)" : i % 8 === 0 ? "rgba(255, 255, 255, 0.22)" : "rgba(255, 255, 255, 0.09)";
+      g.beginPath();
+      g.moveTo(Math.round(cx + i * GRID) + 0.5, 0);
+      g.lineTo(Math.round(cx + i * GRID) + 0.5, hgt);
+      g.stroke();
+    }
+    for (let j = -ny; j <= ny; j++) {
+      if (j % 2) continue;
+      g.strokeStyle = j === 0 ? "rgba(255, 210, 140, 0.45)" : j % 8 === 0 ? "rgba(255, 255, 255, 0.22)" : "rgba(255, 255, 255, 0.09)";
+      g.beginPath();
+      g.moveTo(0, Math.round(cy + j * GRID) + 0.5);
+      g.lineTo(w, Math.round(cy + j * GRID) + 0.5);
+      g.stroke();
+    }
+    // Points d'accroche entre les lignes.
+    g.fillStyle = "rgba(255, 255, 255, 0.18)";
+    for (let i = -nx; i <= nx; i++) for (let j = -ny; j <= ny; j++) if (i % 2 || j % 2) g.fillRect(Math.round(cx + i * GRID) - 1, Math.round(cy + j * GRID) - 1, 2, 2);
+    // Croix du viseur.
+    g.strokeStyle = "#ffb347";
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(cx - 18, cy);
+    g.lineTo(cx + 18, cy);
+    g.moveTo(cx, cy - 18);
+    g.lineTo(cx, cy + 18);
+    g.stroke();
+  };
+  draw();
+  window.addEventListener("resize", draw);
 }
 
 // ---------- Démarrage ----------
@@ -494,6 +569,7 @@ async function startBanner() {
 
 async function start() {
   if ((kind as string) === "banner") return startBanner();
+  if ((kind as string) === "grid") return startGrid();
   [settings, timers] = await Promise.all([api.settings(), api.timers()]);
   await syncClock();
   apply(settings);

@@ -487,6 +487,63 @@ Structures d'Unreal Engine (noms et objets du jeu) :
         Ok(())
     }
 
+    /// `ItemStackAndDurabilityStats` (16 octets) : pile (i32), max, max après usure, actuelle (f32).
+    /// Les objets d'équipement ne s'empilent pas (pile = 1). Relevé gardé dans `durabilite.txt` pour `dur-diff`.
+    fn dur_scan(max: Option<f32>) -> Result<(), String> {
+        let mut g = Game::open()?;
+        let regions: Vec<Region> = g.regions().into_iter().filter(|r| r.private).collect();
+        let f = |b: &[u8], i: usize| f32::from_le_bytes(b[i..i + 4].try_into().unwrap());
+        let mut hits: Vec<(u64, f32, f32, f32)> = Vec::new();
+        g.each_chunk(&regions, |_, at, b| {
+            let mut i = 0;
+            while i + 16 <= b.len() && i < CHUNK {
+                if b[i..i + 4] == [1, 0, 0, 0] {
+                    let (m, d, c) = (f(b, i + 4), f(b, i + 8), f(b, i + 12));
+                    let plausible = (10.0..=100_000.0).contains(&m) && m.fract() == 0.0 && d <= m && d >= m * 0.3 && (0.0..=d).contains(&c);
+                    if plausible && max.is_none_or(|x| (m - x).abs() < 0.5) {
+                        hits.push((at + i as u64, m, d, c));
+                    }
+                }
+                i += 4;
+            }
+        });
+        let text: String = hits.iter().map(|(a, m, d, c)| format!("{a:X} {m} {d} {c}\n")).collect();
+        fs::write("durabilite.txt", text).map_err(|e| e.to_string())?;
+        let mut by_max = std::collections::BTreeMap::<i64, usize>::new();
+        for h in &hits {
+            *by_max.entry(h.1 as i64).or_default() += 1;
+        }
+        let mut top: Vec<_> = by_max.into_iter().collect();
+        top.sort_by_key(|e| std::cmp::Reverse(e.1));
+        for (m, n) in top.iter().take(15) {
+            println!("max {m:>6} : {n}");
+        }
+        for (a, m, d, c) in hits.iter().take(20) {
+            println!("0x{a:X}  {c:.1} / {d:.1} (max {m})");
+        }
+        eprintln!("{} bloc(s) plausibles, gardés dans durabilite.txt", hits.len());
+        Ok(())
+    }
+
+    /// Relit les blocs de `dur-scan` : ceux dont la durabilité actuelle a changé depuis (objet utilisé).
+    fn dur_diff() -> Result<(), String> {
+        let g = Game::open()?;
+        let text = fs::read_to_string("durabilite.txt").map_err(|_| "lance d'abord dur-scan")?;
+        let mut n = 0;
+        for line in text.lines() {
+            let p: Vec<&str> = line.split(' ').collect();
+            let (Ok(a), Ok(old)) = (u64::from_str_radix(p[0], 16), p[3].parse::<f32>()) else { continue };
+            let Some(b) = g.read::<16>(a) else { continue };
+            let now = f32::from_le_bytes(b[12..16].try_into().unwrap());
+            if now != old {
+                n += 1;
+                println!("0x{a:X}  {old:.2} → {now:.2} (max {})", p[1]);
+            }
+        }
+        eprintln!("{n} bloc(s) changé(s)");
+        Ok(())
+    }
+
     fn walk_strings(g: &Game, addr: u64, len: usize, depth: u32, path: String, seen: &mut std::collections::HashSet<u64>) {
         if !seen.insert(addr) {
             return;
@@ -628,6 +685,8 @@ Structures d'Unreal Engine (noms et objets du jeu) :
             "ue-diff" => ue_diff(arg(1).ok_or("numéro ou adresse manquant")?, arg(2).map(parse_num).transpose()?.unwrap_or(30)),
             "ue-classes" => ue_classes(arg(1).unwrap_or("PersistentLevel"), arg(2).map(parse_num).transpose()?.unwrap_or(80) as usize),
             "find-text" => find_text(arg(1).ok_or("texte manquant")?),
+            "dur-scan" => dur_scan(arg(1).map(|s| s.parse::<f32>().map_err(|_| "maximum illisible")).transpose()?),
+            "dur-diff" => dur_diff(),
             "strings" => strings(
                 parse_num(arg(1).ok_or("adresse manquante")?)?,
                 arg(2).map(parse_num).transpose()?.unwrap_or(0x60) as usize,

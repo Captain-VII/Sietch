@@ -126,7 +126,7 @@ fn default_pos(kind: &str, sw: f64, sh: f64) -> (f64, f64) {
         "sector" => right(2270.0, 370.0),
         "timers" => right(2270.0, 440.0),
         // Vie, endurance, eau : calées contre le chevron du jeu à droite du viseur (même courbure).
-        "gauges" => center(1554.0, 620.0),
+        "gauges" => center(1570.0, 620.0),
         "gear" => bottom(1490.0, 1248.0),
         // Menace du ver : à gauche du viseur, à hauteur de l'endurance (à droite, le jeu affiche ses gains).
         "threat" => center(950.0, 685.0),
@@ -204,6 +204,25 @@ fn apply_widgets(app: &AppHandle) {
         let _ = win.set_ignore_cursor_events(!editing && settings.overlay_click_through);
     }
     apply_banner(app, on, area);
+    apply_grid(app, on && editing, area);
+}
+
+/// Grille du mode édition : tout l'écran principal, centrée sur le viseur, traversée par la souris.
+/// Les widgets lâchés s'aimantent à ses points (`widget.ts`). Créée en dernier : elle passe devant, mais
+/// transparente et sans clic, elle ne gêne pas le déplacement des widgets.
+fn apply_grid(app: &AppHandle, on: bool, area: Option<(f64, f64, f64, f64)>) {
+    let existing = app.get_webview_window("widget-grid");
+    match (on, existing, area) {
+        (false, Some(win), _) => {
+            let _ = win.destroy();
+        }
+        (true, None, Some((left, top, sw, sh))) => {
+            if let Some(win) = widget_window(app, "widget-grid", "grid", (sw, sh), (left, top)) {
+                let _ = win.set_ignore_cursor_events(true);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Bandeau des alertes, en haut au centre de l'écran : vide (donc invisible) tant qu'aucune alerte

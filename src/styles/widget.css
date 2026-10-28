@@ -462,3 +462,11 @@ body {
 .editing .w-cross {
   opacity: 0.6;
 }
+
+/* Grille du mode édition (fenêtre plein écran, traversée par la souris). */
+body.grid .w-grid {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
