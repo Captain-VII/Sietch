@@ -34,3 +34,4 @@ __pycache__/
 
 tools/sietch-assets/bin/
 tools/sietch-assets/obj/
+tools/sietch-assets/*.dll
