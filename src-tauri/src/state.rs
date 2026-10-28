@@ -23,6 +23,8 @@ pub struct AppState {
     pub live_status: Mutex<LiveStatus>,
     /// Écran de diagnostic des modules sans BattlEye.
     pub diagnostic: Mutex<crate::live::Diagnostic>,
+    /// Journal de la partie en cours (`session.rs`).
+    pub session: Mutex<crate::session::Session>,
     /// Dernier état du personnage lu (pour les widgets qui s'ouvrent après coup).
     pub player_state: Mutex<Option<crate::ue::PlayerState>>,
     /// Écran « Stats brutes » ouvert : le fil des modules relit tous les attributs.
@@ -66,6 +68,7 @@ impl AppState {
             dnd_item: Mutex::new(None),
             live_status: Mutex::new(LiveStatus::default()),
             diagnostic: Mutex::new(Default::default()),
+            session: Mutex::new(Default::default()),
             player_state: Mutex::new(None),
             raw_wanted: AtomicBool::new(false),
             map_data: Mutex::new(None),

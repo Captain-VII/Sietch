@@ -136,6 +136,15 @@ export interface UpdateInfo {
 /** Trajet de la session, en coordonnées du jeu ; `null` coupe le tracé (téléportation, mort). */
 export type Trail = ([number, number] | null)[];
 
+/** Journal de la partie en cours (modules sans BattlEye) : distance en mètres. */
+export interface Session {
+  start: number | null;
+  distance: number;
+  hits: number;
+  kills: number;
+  damage: number;
+}
+
 /** Coup porté : vie retirée à un personnage proche, `kill` quand elle tombe à 0. */
 export interface Hit {
   damage: number;
@@ -243,6 +252,7 @@ export const api = {
   installUpdate: () => invoke<void>("install_update"),
   clearTrail: () => invoke<void>("clear_trail"),
   diagnostic: () => invoke<Diagnostic>("get_diagnostic"),
+  session: () => invoke<Session>("get_session"),
   importMapImage: (region: string, path: string) => invoke<string>("import_map_image", { region, path }),
   mapImage: (region: string) => invoke<string | null>("get_map_image", { region }),
   removeMapImage: (region: string) => invoke<void>("remove_map_image", { region }),

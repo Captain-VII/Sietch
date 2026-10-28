@@ -225,6 +225,8 @@ pub fn spawn(app: AppHandle) {
                 if state.playtime.lock().unwrap().update(game.is_some() && !sim, now_ms()) {
                     let _ = app.emit("playtime", &*state.playtime.lock().unwrap());
                 }
+                let start = state.playtime.lock().unwrap().current;
+                state.session.lock().unwrap().follow(start);
                 // Le personnage se retrouve par les noms d'Unreal Engine : plus besoin de chaîne de pointeurs.
                 let configured = sim || cfg!(windows);
                 let waiting = !sim && clean_checks < CLEAN_CHECKS;
@@ -391,16 +393,17 @@ pub fn spawn(app: AppHandle) {
                                 if cfg!(debug_assertions) {
                                     eprintln!("[coup] {:.1} à {:.0} m, {:.0}°{}", hit.damage, hit.dist / 100.0, hit.off_aim, if hit.kill { " (tué)" } else { "" });
                                 }
+                                state.session.lock().unwrap().hit(hit.damage, hit.kill);
                                 let _ = app.emit("hit", &hit);
                             }
                         }
-                        // Ressources et personnages autour du joueur : un passage sur la table des objets toutes les 5 s,
-                        // découpé en morceaux de 20 000 objets par tick pour ne pas figer la lecture du personnage.
+                        // Ressources et personnages autour du joueur : un passage sur la table des objets, relancé 1 s après le précédent,
+                        // découpé en morceaux (`SCAN_BUDGET` objets par tick) pour ne pas figer la lecture du personnage.
                         if player.is_none() {
                             // Personnage perdu (relance du jeu…) : les classes connues ne valent plus.
                             resource_scan = Default::default();
                             scanning = false;
-                        } else if !scanning && last_resources.is_none_or(|i| i.elapsed() > Duration::from_secs(5)) {
+                        } else if !scanning && last_resources.is_none_or(|i| i.elapsed() > Duration::from_secs(1)) {
                             scanning = true;
                             scan_started = Instant::now();
                         }
@@ -408,7 +411,7 @@ pub fn spawn(app: AppHandle) {
                             && let Some(t) = tables
                             && let Some(mut u) = ue::Ue::open(r, t)
                             && let Some(p) = player.as_ref()
-                            && let Some(found) = u.resources_step(&mut resource_scan, p, 20_000)
+                            && let Some(found) = u.resources_step(&mut resource_scan, p, SCAN_BUDGET)
                         {
                             scanning = false;
                             let took = scan_started.elapsed().as_secs_f32();
@@ -450,6 +453,7 @@ pub fn spawn(app: AppHandle) {
                     diag.reads += 1;
                     diag.last_read = Some(now_ms());
                     diag.last_position = Some([x, y, z]);
+                    state.session.lock().unwrap().moved([x, y]);
                 } else {
                     diag.failures += 1;
                     diag.source.clear();
@@ -477,6 +481,9 @@ pub fn spawn(app: AppHandle) {
         }
     });
 }
+
+/// Objets relevés par tick (ressources, personnages) : la version installée lit bien plus vite que le debug.
+const SCAN_BUDGET: u32 = if cfg!(debug_assertions) { 20_000 } else { 40_000 };
 
 /// Points gardés au plus pour le trajet (~80 km à un point tous les 20 m).
 const TRAIL_MAX: usize = 4000;

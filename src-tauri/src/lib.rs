@@ -3,6 +3,7 @@ mod engine;
 mod live;
 mod menu;
 mod playtime;
+mod session;
 mod settings;
 mod shortcuts;
 mod state;
@@ -286,6 +287,11 @@ fn get_resources(state: State<AppState>) -> Vec<live::SeenResource> {
 
 /// Trajet de la session (modules sans BattlEye).
 #[tauri::command]
+fn get_session(state: State<AppState>) -> session::Session {
+    state.session.lock().unwrap().clone()
+}
+
+#[tauri::command]
 fn get_diagnostic(state: State<AppState>) -> live::Diagnostic {
     state.diagnostic.lock().unwrap().clone()
 }
@@ -461,6 +467,7 @@ pub fn run() {
             get_resources,
             get_trail,
             get_diagnostic,
+            get_session,
             clear_trail,
             import_map_image,
             get_map_image,

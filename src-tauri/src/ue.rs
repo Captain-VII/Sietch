@@ -374,7 +374,12 @@ impl<'a> Ue<'a> {
         if class == player.stats_class {
             let actor = u64_at(&b, 0x20);
             if actor != player.character {
-                scan.foes_found.push(Foe { set: o, index: i, class, actor, health: None });
+                let foe = Foe { set: o, index: i, class, actor, health: None };
+                // Suivi tout de suite (ennemi qui vient d'apparaître), sans attendre la fin du passage.
+                if !scan.foes.iter().any(|f| f.set == o && f.index == i) {
+                    scan.foes.push(foe);
+                }
+                scan.foes_found.push(foe);
             }
             return None;
         }

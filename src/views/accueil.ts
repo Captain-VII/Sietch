@@ -1,5 +1,5 @@
 import type { Ctx, ViewHandle } from "../main";
-import { api, on, prettyKeys, SHORTCUT_LABELS, type Playtime, type Timer } from "../lib/api";
+import { api, on, prettyKeys, SHORTCUT_LABELS, type Playtime, type Session, type Timer } from "../lib/api";
 import { builds, DEFAULT_CHECKLIST, getChecklist, getNotes, markers, MARKER_TYPES, REGIONS, sectorOf, setChecklist, setNotes, type CheckItem } from "../lib/data";
 import { h, icon, mount } from "../lib/dom";
 import { coriolisNext, now, remaining } from "../lib/time";
@@ -72,6 +72,8 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
   // Temps de jeu : session en cours, aujourd'hui et les 7 derniers jours (heure locale).
   const playBox = h("div", { class: "stack", style: "--gap: 14px" });
   let play: Playtime | null = null;
+  // Journal de la partie : lu dans le jeu (sans BattlEye) ; vide avec BattlEye, et alors non affiché.
+  let sess: Session | null = null;
   const drawPlay = () => {
     if (!play) return;
     const now = Date.now();
@@ -96,8 +98,20 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
           h("span", { title: fmt(m) },
             h("i", { style: `height: ${Math.round((m / max) * 100)}%` }),
             days[new Date(day0 - (6 - i) * 86_400_000).getDay()]))),
+      play.current != null && sess && (sess.distance >= 1 || sess.hits)
+        ? h("div", { class: "stack", style: "--gap: 6px" },
+          h("span", { class: "label" }, "Cette partie"),
+          h("div", { class: "row spread" }, h("span", { class: "soft" }, "Distance"),
+            h("span", { class: "digits" }, sess.distance >= 1000 ? `${(sess.distance / 1000).toFixed(1).replace(".", ",")} km` : `${Math.round(sess.distance)} m`)),
+          h("div", { class: "row spread" }, h("span", { class: "soft" }, "Coups portés"), h("span", { class: "digits" }, String(sess.hits))),
+          h("div", { class: "row spread" }, h("span", { class: "soft" }, "Éliminations"), h("span", { class: "digits" }, String(sess.kills))),
+          h("div", { class: "row spread" }, h("span", { class: "soft" }, "Dégâts infligés"), h("span", { class: "digits" }, Math.round(sess.damage).toLocaleString("fr-FR"))))
+        : null,
     );
   };
+  const pollSession = () => api.session().then((s) => { sess = s; drawPlay(); }).catch(() => {});
+  void pollSession();
+  const sessTick = window.setInterval(pollSession, 5_000);
   void api.playtime().then((p) => { play = p; drawPlay(); });
   const stopPlay = on.playtime((p) => { play = p; drawPlay(); });
   const playTick = window.setInterval(drawPlay, 30_000);
@@ -224,6 +238,7 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     onTimers: drawTimers,
     dispose: () => {
       window.clearInterval(playTick);
+      window.clearInterval(sessTick);
       void stopPlay.then((un) => un());
     },
   };
