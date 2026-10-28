@@ -17,16 +17,6 @@ export default defineConfig(() => ({
     watch: { ignored: ["**/src-tauri/**"] },
     // Mode navigateur : relaie les requêtes du wiki (sinon bloquées par CORS).
     proxy: {
-      // Traduction des articles (lib/translate.ts), en mode navigateur.
-      "/__gtr": {
-        target: "https://translate.googleapis.com",
-        changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/__gtr/, ""),
-        // Google refuse (429) les requêtes qui portent les en-têtes du navigateur : on ne les transmet pas.
-        configure: (proxy) => proxy.on("proxyReq", (req) => {
-          for (const name of req.getHeaderNames()) if (/^(sec-|origin|referer|cookie|accept-language|user-agent)/.test(name)) req.removeHeader(name);
-        }),
-      },
       "/__wiki": {
         target: "https://awakening.wiki",
         changeOrigin: true,

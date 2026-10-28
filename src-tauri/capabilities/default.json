@@ -26,9 +26,6 @@
       "allow": [
         {
           "url": "https://awakening.wiki/*"
-        },
-        {
-          "url": "https://translate.googleapis.com/translate_a/*"
         }
       ]
     }
