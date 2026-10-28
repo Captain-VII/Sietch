@@ -90,3 +90,6 @@ But : qu'une mise à jour du jeu ne casse rien, ou se répare vite.
 - **Jeu en solo**, avec ce personnage : pas de serveur privé, donc pas d'outils de serveur (sauvegardes, réglages,
   redémarrages). Les modules sans BattlEye restent la priorité.
 - **Outil perso**, partagé plus tard si besoin : le lot 5 (diffusion, anglais, signature) attend ce besoin.
+- **TH.GL** : leur carte est intégrée en iframe (onglet « Carte TH.GL »), comme ils le proposent (th.gl/developers,
+  lien visible gardé). Leurs icônes et données ne sont pas reprises, ni celles du jeu : nos pictogrammes sont dessinés
+  pour Sietch. Avant de diffuser Sietch, leur confirmer l'usage dans une application de bureau.
