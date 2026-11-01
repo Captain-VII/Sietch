@@ -81,7 +81,8 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 `dotnet run -c Release -- export <chemin> <dossier>` écrit des PNG. Il faut `oo2core_9_win64.dll` (OodleUE, GitHub
 WorkingRobot) à côté du binaire. Les icônes de carte vont dans `%APPDATA%\com.captainvii.sietch\jeu\icones-carte`
 (`get_game_icons`) ; sans elles, Sietch garde ses pictogrammes. **Jamais d'image du jeu dans le dépôt ni les
-releases.** La carte plein écran du jeu est en 3D (pas d'image). Depuis le 2026-11-02, le fond de Hagga est la texture officielle
+releases.** Sauvegarde personnelle de ces fichiers (icônes, fonds, captures) dans le dépôt **privé**
+`Captain-VII/Sietch-donnees-jeu` (clone `C:\Users\Admin\Claude\Sietch-donnees-jeu`, README pour restaurer) : jamais public. La carte plein écran du jeu est en 3D (pas d'image). Depuis le 2026-11-02, le fond de Hagga est la texture officielle
 `T_Survival_WorldMap_MiniMap_D` (4096 px, JPEG dans `cartes\hagga`, calage [0, 0, 900, 900]) : d'un seul bloc, juste
 par construction. Les captures assemblées gardaient 20 à 130 m d'écart selon les morceaux (sauvegarde : `cartes\hagga.captures`).
 `T_Survival_WorldMap_MiniMap_D` (mini-carte du jeu) couvre exactement les bornes de la carte (±457200 / 355600) :
