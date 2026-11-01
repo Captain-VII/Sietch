@@ -58,6 +58,8 @@ export interface MapData {
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
   areas: { kind: number; circles: [number, number, number][] }[];
   pois: { kind: string; name: string; x: number; y: number; z: number }[];
+  /** Lieux nommés, avec leur nom tel que le jeu l'affiche (« Communications du sud »). */
+  places: { name: string; x: number; y: number }[];
 }
 
 /** Générateur de ressources vu dans le jeu ; `live` s'il est chargé autour du joueur en ce moment. */
@@ -202,6 +204,10 @@ export interface PlayerPosition {
   x: number;
   y: number;
   z: number;
+  /** Orientation du corps en degrés (0 = est, 90 = sud) ; null avec la chaîne de pointeurs. */
+  yaw: number | null;
+  /** Orientation de la caméra (la souris) : la mini-carte tourne avec elle ; null si elle n'est pas lue. */
+  camera?: number | null;
   at: number;
 }
 

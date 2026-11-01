@@ -3,7 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api, on, type MapData, type SeenResource, type Trail } from "../lib/api";
-import { hiddenPoiKinds, loadGameIcons, mapRegion, POI_HIDDEN_KEY, POI_KINDS, poiSvg, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
+import { gameIcon, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, MARKER_GAME_ICONS, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_HIDDEN_KEY, POI_KINDS, poiSvg, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   decodeMarkers, encodeMarkers, markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -170,16 +170,52 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     toast("Minuteur lancé", `${name} · ${place} : prêt dans ${Math.round(r.respawn / 60)} min.`);
   }
 
+  /** Remplit un cercle du motif de hachures du jeu (motif SVG défini une fois dans le calque de la carte). */
+  function hatch(c: L.Circle, kind: number, img: string) {
+    const el = c.getElement();
+    const svg = el instanceof SVGElement ? el.ownerSVGElement : null;
+    if (!el || !svg) return;
+    const id = `sietch-hatch-${kind}`;
+    if (!svg.getElementById(id)) {
+      const ns = "http://www.w3.org/2000/svg";
+      const defs = svg.querySelector("defs") ?? svg.insertBefore(document.createElementNS(ns, "defs"), svg.firstChild);
+      const pattern = document.createElementNS(ns, "pattern");
+      const image = document.createElementNS(ns, "image");
+      Object.entries({ id, patternUnits: "userSpaceOnUse", width: "32", height: "20" }).forEach(([k, v]) => pattern.setAttribute(k, v));
+      Object.entries({ href: img, width: "32", height: "20" }).forEach(([k, v]) => image.setAttribute(k, v));
+      pattern.appendChild(image);
+      defs.appendChild(pattern);
+    }
+    el.setAttribute("fill", `url(#${id})`);
+  }
+
+  /** Nom du lieu nommé du jeu le plus proche (à moins de 200 m), pour donner à chaque icône son vrai nom. */
+  function placeName(x: number, y: number) {
+    let best: { name: string; d: number } | null = null;
+    for (const pl of mapData?.places ?? []) {
+      const d = Math.hypot(pl.x - x, pl.y - y);
+      if (d < 20_000 && (!best || d < best.d)) best = { name: pl.name, d };
+    }
+    return best?.name ?? null;
+  }
+
   function drawGame() {
     gameLayer.clearLayers();
     drawPoiChips();
     drawTrail();
     if (!mapData || mapRegion(mapData) !== region) return;
     const scale = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
-    for (const a of mapData.areas) {
-      for (const [x, y, r] of a.circles) {
-        const p = worldToMap(x, y);
-        L.circle(toLatLng(p.x, p.y), { radius: r * scale, color: "#c9a861", weight: 1, opacity: 0.35, fillOpacity: 0.06, interactive: false }).addTo(gameLayer);
+    // Zones de danger : hachures du jeu (sable tambour, sables mouvants) ou icône au centre (radiations).
+    for (const { kind, x, y, r } of hazardCircles(mapData)) {
+      const hz = HAZARDS[kind];
+      const img = hz ? gameIcon(hz.icon) : null;
+      const color = hz?.color ?? "#c9a861";
+      const p = worldToMap(x, y);
+      const ll = toLatLng(p.x, p.y);
+      const c = L.circle(ll, { radius: r * scale, color, weight: 1, opacity: 0.6, fillColor: color, fillOpacity: hz?.pattern && img ? 0.6 : 0.08, interactive: false }).addTo(gameLayer);
+      if (hz?.pattern && img) hatch(c, kind, img);
+      else if (img) {
+        L.marker(ll, { interactive: false, keyboard: false, icon: L.divIcon({ className: "", iconSize: [18, 18], html: `<img src="${img}" width="18" height="18" alt="">` }) }).addTo(gameLayer);
       }
     }
     for (const poi of mapData.pois) {
@@ -190,7 +226,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         icon: L.divIcon({ className: "map-pin", html: poiSvg(poi.kind, 24), iconSize: [24, 24], iconAnchor: [12, 12] }),
         keyboard: false,
       })
-        .bindTooltip(`${kind.label} · ${sectorOf(p.x, p.y)}`, { className: "marker-tip", direction: "top", offset: [0, -6] })
+        .bindTooltip([placeName(poi.x, poi.y), kind.label, sectorOf(p.x, p.y)].filter(Boolean).join(" · "), { className: "marker-tip", direction: "top", offset: [0, -6] })
         .addTo(gameLayer);
     }
     // Ressources : petits points sans contour ; pâles quand elles ne sont plus chargées (déjà vues).
@@ -307,23 +343,30 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   // ---------- Position en direct (modules sans BattlEye) ----------
   const liveLayer = L.layerGroup().addTo(map);
-  // Flèche du joueur, tournée selon son orientation (0° = est, la flèche dessinée pointe vers le nord).
-  const liveDot = L.marker([0, 0], {
-    interactive: false,
-    keyboard: false,
-    icon: L.divIcon({
-      className: "player-arrow",
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-      html: '<svg viewBox="0 0 28 28" width="28" height="28"><path d="M14 2 L24 25 L14 19 L4 25 Z" fill="#f1d7ff" stroke="#11131F" stroke-width="2" stroke-linejoin="round"/></svg>',
-    }),
-  });
+  // Flèche du joueur, tournée selon son orientation (0° = est, les deux flèches pointent vers le nord) :
+  // celle du jeu si ses icônes sont extraites, sinon celle de Sietch.
+  const playerIcon = () => {
+    const img = gameIcon(PLAYER_GAME_ICON);
+    return img
+      ? L.divIcon({
+        className: "player-arrow", iconSize: [36, 36], iconAnchor: [18, 36 * PLAYER_PIVOT_Y],
+        html: `<img src="${img}" width="36" height="36" alt="" style="transform-origin: 50% ${PLAYER_PIVOT_Y * 100}%">`,
+      })
+      : L.divIcon({
+        className: "player-arrow", iconSize: [28, 28], iconAnchor: [14, 14],
+        html: '<svg viewBox="0 0 28 28" width="28" height="28"><path d="M14 2 L24 25 L14 19 L4 25 Z" fill="#f1d7ff" stroke="#11131F" stroke-width="2" stroke-linejoin="round"/></svg>',
+      });
+  };
+  const liveDot = L.marker([0, 0], { interactive: false, keyboard: false, icon: playerIcon() });
+  // Orientation de l'état du personnage : seulement si la position n'en donne pas (chaîne de pointeurs).
   let yaw: number | null = null;
-  const stopYaw = on.playerState((s) => {
-    yaw = s.yaw;
-    const el = liveDot.getElement()?.querySelector("svg");
-    if (el) el.style.transform = `rotate(${yaw + 90}deg)`;
-  });
+  const stopYaw = on.playerState((s) => (yaw = s.yaw));
+  /** Angle affiché, sans retour à 0 : la flèche tourne par le plus court chemin (179° → −179° = 2°). */
+  let shownYaw: number | null = null;
+  let panning = false;
+  /** Animation de la flèche en cours (requestAnimationFrame). */
+  let frame = 0;
+  map.on("moveend", () => (panning = false));
   const liveHalo = L.circleMarker([0, 0], { radius: 18, color: "#4FA3D9", weight: 2, fill: false, className: "live-halo", interactive: false });
   const liveBar = h("div", { class: "live-bar", role: "status", "aria-live": "polite" });
   let follow = true;
@@ -337,8 +380,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   let liveBarKey = "";
 
   /** Position du joueur sur la carte affichée, si la région et la calibration le permettent. */
-  function livePoint(): { x: number; y: number } | null {
-    const p = live.position;
+  function livePoint(p = live.predicted()): { x: number; y: number } | null {
     const s = ctx.settings();
     // Carte lue dans le jeu : calage automatique, sans calibration.
     if (p && mapData) return mapRegion(mapData) === region ? worldToMap(p.x, p.y) : null;
@@ -356,16 +398,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   function drawLive() {
     const st = live.status;
     const s = ctx.settings();
-    const pt = livePoint();
-    liveLayer.clearLayers();
-    if (pt) {
-      const ll = toLatLng(Math.max(0, Math.min(SIZE, pt.x)), Math.max(0, Math.min(SIZE, pt.y)));
-      liveHalo.setLatLng(ll).addTo(liveLayer);
-      liveDot.setLatLng(ll).addTo(liveLayer);
-      const arrow = liveDot.getElement()?.querySelector("svg");
-      if (arrow && yaw !== null) arrow.style.transform = `rotate(${yaw + 90}deg)`;
-      if (follow && !map.getBounds().pad(-0.25).contains(ll)) map.panTo(ll, { animate: true });
-    }
+    const pt = placePlayer();
+    if (live.position && !frame) frame = requestAnimationFrame(animate);
     liveBar.hidden = !st.enabled;
     if (!st.enabled) return;
     const pts = s.calibration[region] ?? [];
@@ -423,6 +457,36 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   });
   const stopLive = live.subscribe(drawLive);
 
+  /** Place la flèche du joueur à sa position prolongée ; appelé à chaque image tant que la position arrive. */
+  function placePlayer() {
+    const pt = livePoint();
+    if (!pt) {
+      liveLayer.clearLayers();
+      return null;
+    }
+    const ll = toLatLng(Math.max(0, Math.min(SIZE, pt.x)), Math.max(0, Math.min(SIZE, pt.y)));
+    liveHalo.setLatLng(ll);
+    liveDot.setLatLng(ll);
+    if (!liveLayer.hasLayer(liveDot)) liveLayer.addLayer(liveHalo).addLayer(liveDot);
+    const a = live.position?.yaw ?? yaw;
+    const arrow = liveDot.getElement()?.querySelector<HTMLElement | SVGElement>("svg, img");
+    if (arrow && a !== null) {
+      shownYaw = shownYaw === null ? a : shownYaw + (((((a - shownYaw) % 360) + 540) % 360) - 180);
+      arrow.style.transform = `rotate(${shownYaw + 90}deg)`;
+    }
+    // Un seul déplacement de la carte à la fois : relancé à chaque image, il saccaderait.
+    if (follow && !panning && !map.getBounds().pad(-0.25).contains(ll)) {
+      panning = true;
+      map.panTo(ll, { animate: true });
+    }
+    return pt;
+  }
+
+  function animate() {
+    placePlayer();
+    frame = live.position ? requestAnimationFrame(animate) : 0;
+  }
+
   function startDraft(x: number, y: number) {
     selected = { id: uid("m"), region, type: "autre", name: "", x, y, note: "", updatedAt: Date.now() };
     draft = true;
@@ -443,13 +507,24 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     const list = visible();
     for (const m of list) {
       const isSel = selected?.id === m.id;
-      const dot = L.circleMarker(toLatLng(m.x, m.y), {
-        radius: isSel ? 10 : 7,
-        color: isSel ? "#F2E6D0" : "#11131F",
-        weight: isSel ? 3 : 2,
-        fillColor: MARKER_TYPES[m.type].color,
-        fillOpacity: 1,
-      });
+      const img = gameIcon(MARKER_GAME_ICONS[m.type]);
+      const color = MARKER_TYPES[m.type].color;
+      const size = isSel ? 34 : 26;
+      // Icône du jeu sur pastille sombre bordée de la couleur du type (blanc si sélectionné), sinon un point de couleur.
+      const dot = img
+        ? L.marker(toLatLng(m.x, m.y), {
+          icon: L.divIcon({
+            className: "", iconSize: [size, size],
+            html: `<svg width="${size}" height="${size}" viewBox="-6 -6 36 36"><circle cx="12" cy="12" r="16.5" fill="#11131F" stroke="${isSel ? "#F2E6D0" : color}" stroke-width="${isSel ? 3.5 : 2.5}"/><image href="${img}" x="-1" y="-1" width="26" height="26"/></svg>`,
+          }),
+        })
+        : L.circleMarker(toLatLng(m.x, m.y), {
+          radius: isSel ? 10 : 7,
+          color: isSel ? "#F2E6D0" : "#11131F",
+          weight: isSel ? 3 : 2,
+          fillColor: color,
+          fillOpacity: 1,
+        });
       dot.bindTooltip(m.name || "Nouveau marqueur", { className: "marker-tip", direction: "top", offset: [0, -8], permanent: isSel });
       dot.on("click", () => select(m));
       dot.addTo(layer);
@@ -786,6 +861,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   void loadGameIcons().then(() => {
     drawPoiChips();
     drawGame();
+    drawMarkers();
+    liveDot.setIcon(playerIcon());
   });
   requestAnimationFrame(() => {
     map.invalidateSize();
@@ -817,6 +894,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     dispose: () => {
       resize.disconnect();
       stopLive();
+      cancelAnimationFrame(frame);
       void stopMapData.then((un) => un());
       void stopResources.then((un) => un());
       void stopTrail.then((un) => un());

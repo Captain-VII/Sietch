@@ -102,7 +102,8 @@ fn widget_size(kind: &str) -> (f64, f64) {
         "timers" => (250.0, 170.0),
         "sector" => (250.0, 64.0),
         "coriolis" => (210.0, 64.0),
-        "minimap" => (200.0, 200.0),
+        // Disque de 200 px et, dessous, le nom de la zone et le secteur.
+        "minimap" => (200.0, 228.0),
         "gauges" => (110.0, 200.0),
         "gear" => (200.0, 72.0),
         "threat" => (170.0, 70.0),
@@ -120,11 +121,12 @@ fn default_pos(kind: &str, sw: f64, sh: f64) -> (f64, f64) {
     let center = |x: f64, y: f64| (sw / 2.0 + (x - 1280.0), sh / 2.0 + (y - 720.0));
     let bottom = |x: f64, y: f64| (sw / 2.0 + (x - 1280.0), sh - (1440.0 - y));
     match kind {
+        // Mini-carte et son nom de zone : 228 px de haut ; l'heure et la suite commencent 22 px plus bas.
         "minimap" => right(2320.0, 40.0),
-        "clock" => right(2340.0, 250.0),
-        "coriolis" => right(2310.0, 310.0),
-        "sector" => right(2270.0, 370.0),
-        "timers" => right(2270.0, 440.0),
+        "clock" => right(2340.0, 290.0),
+        "coriolis" => right(2310.0, 350.0),
+        "sector" => right(2270.0, 410.0),
+        "timers" => right(2270.0, 480.0),
         // Vie, endurance, eau : calées contre le chevron du jeu à droite du viseur (même courbure).
         "gauges" => center(1570.0, 620.0),
         "gear" => bottom(1490.0, 1248.0),

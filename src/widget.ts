@@ -4,7 +4,7 @@ import "./styles/widget.css";
 
 import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import { api, on, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
-import { gameImage, hiddenPoiKinds, loadGameIcons, mapRegion, POI_GAME_ICONS, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
+import { gameImage, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_GAME_ICONS, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
@@ -38,6 +38,8 @@ function drawTimers() {
     .filter((t) => t.inOverlay)
     .sort((a, b) => Number(b.fired) - Number(a.fired) || remaining(a) - remaining(b))
     .slice(0, 5);
+  // Rien de lancé : widget caché (visible en mode édition, pour le placer).
+  card.classList.toggle("off", !list.length);
   mount(
     card,
     h("span", { class: "w-label" }, "Minuteurs"),
@@ -293,6 +295,15 @@ const VIEW = 60;
 /** Rayon du disque, en pixels CSS (fenêtre de 200 × 200 avant l'échelle). */
 const R = 100;
 const canvas = h("canvas", { class: "w-minimap" }) as HTMLCanvasElement;
+/** Sous la mini-carte : nom de la zone affiché par le jeu et secteur (« Est du Bouclier · F6 »). */
+const minimapName = h("div", { class: "w-minimap-name" });
+
+function drawMinimapName() {
+  const here = view && mapData ? worldToMap(mapData, view.x, view.y) : null;
+  const sector = here ? sectorOf(Math.max(0, Math.min(899, here.x)), Math.max(0, Math.min(899, here.y))) : null;
+  const text = [player?.zone, sector].filter(Boolean).join(" · ");
+  if (minimapName.textContent !== text) minimapName.textContent = text;
+}
 let mapData: MapData | null = null;
 let mapImg: { img: HTMLImageElement; rect: [number, number, number, number] } | null = null;
 let player: PlayerState | null = null;
@@ -310,6 +321,17 @@ async function loadMapImage() {
   img.src = url;
   await img.decode().catch(() => undefined);
   mapImg = { img, rect: settings.mapImages[region] ?? [0, 0, SIZE, SIZE] };
+}
+
+/** Motifs de hachures du jeu, réduits pour la mini-carte (préparés une fois par icône). */
+const hatches = new Map<string, CanvasPattern | null>();
+function hatchPattern(g: CanvasRenderingContext2D, id: string, img: HTMLImageElement) {
+  if (!hatches.has(id)) {
+    const p = g.createPattern(img, "repeat");
+    p?.setTransform(new DOMMatrix().scale(0.2));
+    hatches.set(id, p);
+  }
+  return hatches.get(id)!;
 }
 
 /** Pastille ronde de diamètre `d` centrée en (x, y), avec un pictogramme (grille 24 × 24) de taille `glyph`. */
@@ -349,39 +371,60 @@ function pin(g: CanvasRenderingContext2D, x: number, y: number, d: number, fill:
   g.restore();
 }
 
-/** Position affichée : glisse vers la dernière lue (4 par seconde) au lieu de sauter, en 250 ms. */
-type View = { x: number; y: number; yaw: number };
+/** Position affichée : la dernière lue (~120 par seconde), prolongée selon la vitesse (`live.predicted`). */
+/** `yaw` : orientation du corps (la flèche) ; `cam` : celle de la caméra (la carte tourne avec), null = nord en haut. */
+type View = { x: number; y: number; yaw: number; cam: number | null };
 let view: View | null = null;
-let from: View | null = null;
-let target: View | null = null;
-let glideStart = 0;
-let glide = 0;
-const GLIDE_MS = 250;
+let frame = 0;
 
+/** État du personnage : sert de position seulement quand la position rapide ne vient pas. */
 function follow(s: PlayerState | null) {
   player = s;
-  const to = s ? { x: s.x, y: s.y, yaw: s.yaw } : null;
-  // Pas de glissement au premier point ni après un saut (plus de 200 m : téléportation, autre région).
-  if (!to || !view || Math.hypot(to.x - view.x, to.y - view.y) > 20_000) {
-    if (glide) cancelAnimationFrame(glide);
-    glide = 0;
-    view = target = to;
-    drawMinimap();
-    return;
-  }
-  from = { ...view };
-  target = to;
-  glideStart = performance.now();
-  if (!glide) glide = requestAnimationFrame(glideStep);
+  if (live.position) return;
+  view = s ? { x: s.x, y: s.y, yaw: s.yaw, cam: null } : null;
+  drawMinimap();
 }
 
-function glideStep(now: number) {
-  const k = Math.min(1, (now - glideStart) / GLIDE_MS);
-  // Rotation par le plus court chemin.
-  const turn = ((((target!.yaw - from!.yaw) % 360) + 540) % 360) - 180;
-  view = { x: from!.x + (target!.x - from!.x) * k, y: from!.y + (target!.y - from!.y) * k, yaw: from!.yaw + turn * k };
-  drawMinimap();
-  glide = k < 1 ? requestAnimationFrame(glideStep) : 0;
+/** Angle sans retour à 0 : on tourne par le plus court chemin depuis `from` (179° → −179° = 2°). */
+const unwrap = (from: number, to: number) => from + (((((to - from) % 360) + 540) % 360) - 180);
+
+/**
+ * Temps de rattrapage du lissage (ms), assez long pour gommer les à-coups. La cible est prolongée d'autant :
+ * le lissage n'ajoute alors aucun retard tant que le mouvement est régulier.
+ */
+const SMOOTH_MS = 40;
+let lastFrame = 0;
+
+/**
+ * Redessine à chaque image tant que la position arrive ; rien quand le joueur ne bouge pas.
+ * L'affichage rattrape la position prolongée en douceur au lieu d'y sauter : les petites erreurs de prolongation
+ * et l'irrégularité des lectures ne se voient plus.
+ */
+function animate(now = performance.now()) {
+  const p = live.predicted(Date.now() + SMOOTH_MS);
+  if (p) {
+    const k = lastFrame ? 1 - Math.exp(-(now - lastFrame) / SMOOTH_MS) : 1;
+    const a = p.yaw ?? player?.yaw ?? view?.yaw ?? 0;
+    // Premier point, saut (téléportation) ou caméra qui apparaît : on se place directement.
+    const jump = !view || Math.hypot(p.x - view.x, p.y - view.y) > 20_000 || (p.camera == null) !== (view.cam == null);
+    const next: View = jump
+      ? { x: p.x, y: p.y, yaw: a, cam: p.camera ?? null }
+      : {
+        x: view!.x + (p.x - view!.x) * k,
+        y: view!.y + (p.y - view!.y) * k,
+        yaw: view!.yaw + (unwrap(view!.yaw, a) - view!.yaw) * k,
+        cam: p.camera == null ? null : view!.cam! + (unwrap(view!.cam!, p.camera) - view!.cam!) * k,
+      };
+    // Écart invisible (moins d'un centimètre, d'un centième de degré) : pas de redessin.
+    const moved = !view || Math.abs(next.x - view.x) > 1 || Math.abs(next.y - view.y) > 1
+      || Math.abs(next.yaw - view.yaw) > 0.01 || Math.abs((next.cam ?? 0) - (view.cam ?? 0)) > 0.01;
+    if (moved) {
+      view = next;
+      drawMinimap();
+    }
+  }
+  lastFrame = p ? now : 0;
+  frame = p ? requestAnimationFrame(animate) : 0;
 }
 
 /** Trajet de la session (coordonnées du jeu) ; `null` coupe le tracé. */
@@ -410,8 +453,12 @@ function drawTrail(g: CanvasRenderingContext2D, m: MapData, px: (x: number) => n
   g.setLineDash([]);
 }
 
-/** Nord en haut, joueur au centre ; fond (si importé), zones, trajet, lieux, ressources et flèche du joueur. */
+/**
+ * Joueur au centre, la carte tournée pour que la caméra regarde vers le haut (nord en haut sans caméra) ;
+ * fond (si importé), zones, trajet, lieux, ressources (icônes droites) et flèche du joueur (orientation du corps).
+ */
 function drawMinimap() {
+  drawMinimapName();
   const scale = config(settings)?.scale ?? 1;
   const dpr = window.devicePixelRatio * scale;
   if (canvas.width !== Math.round(2 * R * dpr)) canvas.width = canvas.height = Math.round(2 * R * dpr);
@@ -426,10 +473,23 @@ function drawMinimap() {
   g.clip();
 
   const here = view && mapData ? worldToMap(mapData, view.x, view.y) : null;
+  // Rotation de la carte : la direction de la caméra (0° = est) passe en haut.
+  const turn = view?.cam == null ? 0 : (-(view.cam + 90) * Math.PI) / 180;
+  const [cos, sin] = [Math.cos(turn), Math.sin(turn)];
   if (here && mapData) {
     const zoom = R / VIEW;
     const px = (x: number) => R + (x - here.x) * zoom;
     const py = (y: number) => R + (y - here.y) * zoom;
+    /** Point de la carte tourné autour du joueur : pour placer les icônes, qui restent droites. */
+    const at = (x: number, y: number): [number, number] => {
+      const [dx, dy] = [px(x) - R, py(y) - R];
+      return [R + dx * cos - dy * sin, R + dx * sin + dy * cos];
+    };
+    // Fond, grille, zones et trajet : dessinés dans le repère tourné.
+    g.save();
+    g.translate(R, R);
+    g.rotate(turn);
+    g.translate(-R, -R);
     if (mapImg) {
       const [x0, y0, x1, y1] = mapImg.rect;
       g.globalAlpha = 0.85;
@@ -447,17 +507,35 @@ function drawMinimap() {
       g.lineTo(px(SIZE), py(i * 100));
       g.stroke();
     }
+    // Zones de danger : hachures du jeu (sable tambour, sables mouvants) ; icône des radiations posée plus bas, droite.
     const unit = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
-    g.strokeStyle = "rgba(201, 168, 97, 0.4)";
-    for (const a of mapData.areas) {
-      for (const [x, y, r] of a.circles) {
-        const p = worldToMap(mapData, x, y);
-        g.beginPath();
-        g.arc(px(p.x), py(p.y), r * unit * zoom, 0, Math.PI * 2);
-        g.stroke();
+    const radiation: [number, number, HTMLImageElement][] = [];
+    for (const { kind, x, y, r } of hazardCircles(mapData)) {
+      const hz = HAZARDS[kind];
+      const img = hz ? gameImage(hz.icon) : undefined;
+      const fill = hz?.pattern && img ? hatchPattern(g, hz.icon, img) : null;
+      const p = worldToMap(mapData, x, y);
+      const rr = r * unit * zoom;
+      if (Math.hypot(px(p.x) - R, py(p.y) - R) > R + rr) continue;
+      g.strokeStyle = hz?.color ?? "rgba(201, 168, 97, 0.4)";
+      g.beginPath();
+      g.arc(px(p.x), py(p.y), rr, 0, Math.PI * 2);
+      if (fill) {
+        g.globalAlpha = 0.6;
+        g.fillStyle = fill;
+        g.fill();
       }
+      g.globalAlpha = 0.6;
+      g.stroke();
+      g.globalAlpha = 1;
+      if (img && !hz!.pattern) radiation.push([p.x, p.y, img]);
     }
     drawTrail(g, mapData, px, py, here);
+    g.restore();
+    for (const [x, y, img] of radiation) {
+      const [cx, cy] = at(x, y);
+      g.drawImage(img, cx - 7, cy - 7, 14, 14);
+    }
     const masked = new Set(hiddenPoiKinds());
     for (const poi of mapData.pois) {
       if (masked.has(poi.kind)) continue;
@@ -467,8 +545,9 @@ function drawMinimap() {
       const look = POI_KINDS[poi.kind];
       const img = gameImage(POI_GAME_ICONS[poi.kind]);
       // Avec l'icône du jeu (blanche) : pastille sombre bordée de la couleur du type.
-      if (img) pin(g, px(p.x), py(p.y), 16, "#11131F", look?.color ?? "#e9dfc9", undefined, "", 0, undefined, img);
-      else pin(g, px(p.x), py(p.y), 16, look?.color ?? "#e9dfc9", "#11131F", look?.path, "#11131F", 11);
+      const [x, y] = at(p.x, p.y);
+      if (img) pin(g, x, y, 16, "#11131F", look?.color ?? "#e9dfc9", undefined, "", 0, undefined, img);
+      else pin(g, x, y, 16, look?.color ?? "#e9dfc9", "#11131F", look?.path, "#11131F", 11);
     }
     // Ressources : pastille sombre, pictogramme de couleur ; pâles si elles ne sont plus chargées.
     const region = mapRegion(mapData);
@@ -480,24 +559,31 @@ function drawMinimap() {
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
       const size = look.ground ? 9 : 13;
       g.globalAlpha = r.live ? 1 : 0.45;
-      pin(g, px(p.x), py(p.y), size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.6, look.shape, gameImage(look.game));
+      const [x, y] = at(p.x, p.y);
+      pin(g, x, y, size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.6, look.shape, gameImage(look.game));
     }
     g.globalAlpha = 1;
-    // Flèche du joueur : yaw 0 = vers l'est, comme sur la grande carte.
+    // Flèche du joueur : orientation du corps (0 = est), dans le repère tourné de la carte.
     g.save();
     g.translate(R, R);
-    g.rotate(((view!.yaw + 90) * Math.PI) / 180);
-    g.beginPath();
-    g.moveTo(0, -9);
-    g.lineTo(6.5, 7);
-    g.lineTo(0, 3.5);
-    g.lineTo(-6.5, 7);
-    g.closePath();
-    g.fillStyle = "#b46be0";
-    g.fill();
-    g.lineWidth = 1.5;
-    g.strokeStyle = "#f1d7ff";
-    g.stroke();
+    g.rotate(((view!.yaw + 90) * Math.PI) / 180 + turn);
+    const arrow = gameImage(PLAYER_GAME_ICON);
+    if (arrow) {
+      // Flèche du jeu, tournée autour du centre de son anneau.
+      g.drawImage(arrow, -13, -26 * PLAYER_PIVOT_Y, 26, 26);
+    } else {
+      g.beginPath();
+      g.moveTo(0, -9);
+      g.lineTo(6.5, 7);
+      g.lineTo(0, 3.5);
+      g.lineTo(-6.5, 7);
+      g.closePath();
+      g.fillStyle = "#b46be0";
+      g.fill();
+      g.lineWidth = 1.5;
+      g.strokeStyle = "#f1d7ff";
+      g.stroke();
+    }
     g.restore();
   }
   g.restore();
@@ -514,7 +600,8 @@ function drawMinimap() {
   g.shadowBlur = 3;
   g.fillStyle = "#f3e7cf";
   g.font = "600 11px Jost, sans-serif";
-  g.fillText("N", R, 11);
+  // « N » sur l'anneau, là où se trouve le nord de la carte tournée.
+  g.fillText("N", R + (R - 11) * sin, R - (R - 11) * cos);
   g.font = "600 13px Jost, sans-serif";
   g.fillText(here ? sectorOf(Math.max(0, Math.min(899, here.x)), Math.max(0, Math.min(899, here.y))) : "Position inconnue", R, 2 * R - 16);
   g.shadowBlur = 0;
@@ -714,10 +801,10 @@ async function start() {
       break;
     case "minimap": {
       card.classList.add("minimap");
-      mount(card, canvas);
+      mount(card, canvas, minimapName);
       [player, mapData, resources, trail] = await Promise.all([api.playerState(), api.mapData(), api.resources(), api.trail()]);
-      view = target = player ? { x: player.x, y: player.y, yaw: player.yaw } : null;
-      // Pas de redessin ici : la position suivante (4 par seconde au plus) le fera.
+      view = player ? { x: player.x, y: player.y, yaw: player.yaw, cam: null } : null;
+      // Pas de redessin ici : la position suivante le fera.
       await on.trail((t) => (trail = t));
       await on.trailPoint((t) => trail.push(...t));
       await on.resources((r) => {
@@ -727,6 +814,10 @@ async function start() {
       await Promise.all([loadMapImage(), loadGameIcons()]);
       drawMinimap();
       await on.playerState(follow);
+      await startLive();
+      live.subscribe(() => {
+        if (!frame && live.position) frame = requestAnimationFrame(animate);
+      });
       await on.mapData(async (m) => {
         mapData = m;
         await loadMapImage();

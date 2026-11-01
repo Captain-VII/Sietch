@@ -27,7 +27,7 @@ export function render(root: HTMLElement, _ctx: Ctx): ViewHandle {
       ? `${shown.length} valeurs sur ${stats.length}, relues chaque seconde`
       : live.status.active
         ? "Lecture en cours…"
-        : "Rien à lire : le jeu doit tourner sans BattlEye, avec la position en direct activée (Paramètres › Sans BattlEye).";
+        : "Rien à lire : le jeu doit tourner sans BattlEye.";
     mount(list, sets.map((set) =>
       h("section", { class: "card tight" },
         h("h2", { class: "section-title" }, setLabel(set)),

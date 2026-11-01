@@ -265,7 +265,7 @@ impl<'a> Ue<'a> {
     pub fn map_data(&mut self) -> Option<MapData> {
         let head = read::<24>(self.m, self.table)?;
         let mut class_names: HashMap<u64, String> = HashMap::new();
-        let (mut bounds, mut areas, mut pois, mut layer_name) = (None, Vec::new(), Vec::new(), String::new());
+        let (mut bounds, mut areas, mut pois, mut places, mut layer_name) = (None, Vec::new(), Vec::new(), Vec::new(), String::new());
         for i in 0..u32_at(&head, 20) {
             let Some(o) = self.object(i) else { continue };
             let Some(b) = read::<0x28>(self.m, o) else { continue };
@@ -297,9 +297,13 @@ impl<'a> Ue<'a> {
                 && let Some(p) = self.poi(o, class)
             {
                 pois.push(p);
+            } else if cname == "DuneStaticMarkerActor"
+                && let Some(p) = self.place(o, class)
+            {
+                places.push(p);
             }
         }
-        Some(MapData { layer: layer_name, bounds: bounds?, areas, pois })
+        Some(MapData { layer: layer_name, bounds: bounds?, areas, pois, places })
     }
 
     /// Zones de la carte (BP_WorldMapAreasData_C.Areas) : type et cercles (centre et rayon en cm).
@@ -335,6 +339,20 @@ impl<'a> Ue<'a> {
         Some(Poi { kind: kind.into(), name: name.trim_start_matches("CB_").into(), x, y, z })
     }
 
+    /// Lieu nommé de la carte du jeu (DuneStaticMarkerActor) : son nom tel que le jeu l'affiche, dans sa langue.
+    fn place(&mut self, obj: u64, class: u64) -> Option<Place> {
+        let mut name = None;
+        for field in ["m_DisplayName", "m_ChosenDisplayName"] {
+            if name.is_none()
+                && let Some(off) = self.field_cached(class, field)
+            {
+                name = ftext(self.m, obj + off);
+            }
+        }
+        let [x, y, _] = self.location(obj, class)?;
+        Some(Place { name: name?, x, y })
+    }
+
     /// Générateurs de ressources chargés autour du joueur (classes dérivées de `ResourceSpawner`).
     /// Le jeu ne charge que les environs : la mémoire des points déjà vus est tenue par `live.rs`.
     /// Avance le relevé d'au plus `budget` objets ; renvoie la liste quand la table a été parcourue en entier.
@@ -360,6 +378,7 @@ impl<'a> Ue<'a> {
         for f in &mut scan.foes {
             f.health = old.iter().find(|o| o.set == f.set && o.index == f.index).and_then(|o| o.health);
         }
+        scan.places = std::mem::take(&mut scan.places_found);
         Some(std::mem::take(&mut scan.found))
     }
 
@@ -371,6 +390,20 @@ impl<'a> Ue<'a> {
             return None;
         }
         let class = u64_at(&b, 0x10);
+        let marker = match scan.markers.get(&class) {
+            Some(m) => *m,
+            None => {
+                let m = self.name_at(class + 0x18).as_deref() == Some("DuneStaticMarkerActor");
+                scan.markers.insert(class, m);
+                m
+            }
+        };
+        if marker {
+            if let Some(p) = self.place(o, class) {
+                scan.places_found.push(p);
+            }
+            return None;
+        }
         if class == player.stats_class {
             let actor = u64_at(&b, 0x20);
             if actor != player.character {
@@ -507,6 +540,15 @@ impl<'a> Ue<'a> {
             melee_at: self.field(player_class, "m_MeleeHitActors").map(|o| character + o),
         });
         let vehicle = self.flag(player_class, character, VEHICLE_FIELDS);
+        // Caméra : Pawn.Controller → Controller.ControlRotation. Facultative (sinon, la mini-carte garde le nord en haut).
+        let camera = (|| {
+            let controller = ptr(self.m, character + self.field(player_class, "Controller")?);
+            (controller != 0).then_some(())?;
+            Some(controller + self.field(ptr(self.m, controller + 0x10), "ControlRotation")?)
+        })();
+        if cfg!(debug_assertions) {
+            eprintln!("[personnage] caméra : {}", camera.map_or("introuvable".into(), |c| format!("0x{c:X}")));
+        }
         let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
         let root_class = ptr(self.m, root + 0x10);
         let mut f = |class: u64, n: &str| self.field(class, n);
@@ -528,7 +570,7 @@ impl<'a> Ue<'a> {
             sun: f(hydration_class, "CurrentSunExposure")?,
             heatstroke: f(hydration_class, "HeatstrokeThreshold")?,
         };
-        Some(Player { character, index, class: player_class, stats, stats_class, hydration, root, time_of_day, backpack, slots, worm, armed, vehicle, zone, attack, sets, fields })
+        Some(Player { character, index, class: player_class, stats, stats_class, hydration, root, time_of_day, backpack, slots, worm, armed, vehicle, zone, camera, attack, sets, fields })
     }
 }
 
@@ -570,6 +612,11 @@ pub struct ResourceScan {
     foes_found: Vec<Foe>,
     /// Ceux du dernier passage complet, avec leur dernière vie lue (coups portés).
     pub foes: Vec<Foe>,
+    /// Lieux nommés chargés autour du joueur : passage en cours, puis dernier passage complet.
+    places_found: Vec<Place>,
+    pub places: Vec<Place>,
+    /// Classes déjà vues : `DuneStaticMarkerActor` (lieu nommé) ou non.
+    markers: HashMap<u64, bool>,
 }
 
 /// Autre personnage suivi pour les coups portés : son jeu d'attributs, son acteur et sa dernière vie lue.
@@ -643,6 +690,14 @@ pub struct Poi {
     pub z: f64,
 }
 
+/// Lieu nommé (« Communications du sud ») et sa position, en cm.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Place {
+    pub name: String,
+    pub x: f64,
+    pub y: f64,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct MapData {
     /// Calque de carte de la région, ex. « BP_MapLayer_Survival_1_C_… » (Bassin de Hagga).
@@ -650,6 +705,7 @@ pub struct MapData {
     pub bounds: Bounds,
     pub areas: Vec<Area>,
     pub pois: Vec<Poi>,
+    pub places: Vec<Place>,
 }
 
 /// Parcourt des zones par blocs de 16 Mio (qui se chevauchent de 32 octets) jusqu'au premier résultat.
@@ -722,6 +778,8 @@ pub struct Player {
     vehicle: Option<Flag>,
     /// FText du nom de la zone (widget du HUD).
     zone: Option<u64>,
+    /// Orientation de la caméra (souris) : ControlRotation du contrôleur du joueur (FRotator).
+    camera: Option<u64>,
     /// Munitions et frappes au corps à corps, pour attribuer les coups portés.
     attack: Option<Attack>,
     /// Jeux d'attributs du personnage : (classe, objet).
@@ -924,16 +982,17 @@ impl Player {
         hits
     }
 
-    /// Lit l'instantané ; `None` si le personnage a disparu (mort, changement de carte…).
-    pub fn read(&self, m: &dyn Mem) -> Option<PlayerState> {
+    /// Orientation de la caméra (la souris), en degrés : la mini-carte tourne avec elle.
+    pub fn camera_yaw(&self, m: &dyn Mem) -> Option<f64> {
+        read::<24>(m, self.camera?).map(|b| f64::from_le_bytes(b[8..16].try_into().unwrap())).filter(|y| y.is_finite())
+    }
+
+    /// Position (x, y, z) et orientation du corps seules : quelques lectures, pour le suivi rapide de la carte.
+    pub fn pose(&self, m: &dyn Mem) -> Option<[f64; 4]> {
         if !self.alive(m) {
             return None;
         }
         let f = &self.fields;
-        // FGameplayAttributeData : CurrentValue (f32) à +0xC.
-        let attr = |obj: u64, off: u64| read::<4>(m, obj + off + 0xC).map(f32::from_le_bytes);
-        // La vie (FglGameplayAttributeData) : valeur à jour dans le bloc pointé à +0x10.
-        let health = read::<4>(m, ptr(m, self.stats + f.health + 0x10)).map(f32::from_le_bytes)?;
         // À bord d'un véhicule, le personnage est attaché à un siège : sa position devient relative au siège.
         // On remonte les attaches jusqu'au composant racine (le véhicule), dont la position est celle du monde.
         let mut top = self.root;
@@ -945,6 +1004,22 @@ impl Player {
         }
         let loc = read::<24>(m, top + f.location)?;
         let v = |i: usize| f64::from_le_bytes(loc[i..i + 8].try_into().unwrap());
+        // FRotator : Pitch, Yaw, Roll (f64).
+        let yaw = read::<24>(m, top + f.rotation).map(|b| f64::from_le_bytes(b[8..16].try_into().unwrap()))?;
+        [v(0), v(8), v(16), yaw].iter().all(|n| n.is_finite()).then_some([v(0), v(8), v(16), yaw])
+    }
+
+    /// Lit l'instantané ; `None` si le personnage a disparu (mort, changement de carte…).
+    pub fn read(&self, m: &dyn Mem) -> Option<PlayerState> {
+        if !self.alive(m) {
+            return None;
+        }
+        let f = &self.fields;
+        // FGameplayAttributeData : CurrentValue (f32) à +0xC.
+        let attr = |obj: u64, off: u64| read::<4>(m, obj + off + 0xC).map(f32::from_le_bytes);
+        // La vie (FglGameplayAttributeData) : valeur à jour dans le bloc pointé à +0x10.
+        let health = read::<4>(m, ptr(m, self.stats + f.health + 0x10)).map(f32::from_le_bytes)?;
+        let [x, y, z, yaw] = self.pose(m)?;
         Some(PlayerState {
             health,
             health_max: attr(self.stats, f.health_max)?,
@@ -974,11 +1049,10 @@ impl Player {
             armed: self.armed.and_then(|f| f.read(m)),
             in_vehicle: self.vehicle.and_then(|f| f.read(m)),
             zone: self.zone.and_then(|t| ftext(m, t)),
-            x: v(0),
-            y: v(8),
-            z: v(16),
-            // FRotator : Pitch, Yaw, Roll (f64).
-            yaw: read::<24>(m, top + f.rotation).map(|b| f64::from_le_bytes(b[8..16].try_into().unwrap()))?,
+            x,
+            y,
+            z,
+            yaw,
         })
     }
 }

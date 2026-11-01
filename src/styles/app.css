@@ -654,9 +654,11 @@ div.leaflet-container {
 }
 
 /* Flèche du joueur : tournée selon son orientation, en douceur. */
-.player-arrow svg {
+.player-arrow svg,
+.player-arrow img {
   display: block;
-  transition: transform 0.25s linear;
+  /* Court : l'orientation arrive 20 fois par seconde. */
+  transition: transform 0.06s linear;
   filter: drop-shadow(0 0 3px rgba(4, 5, 10, 0.9));
 }
 

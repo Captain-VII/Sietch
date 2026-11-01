@@ -269,14 +269,16 @@ fn get_map_image(state: State<AppState>, region: String) -> Option<String> {
 }
 
 /// Icônes de carte extraites des fichiers du jeu par l'utilisateur (`tools/sietch-assets`, dossier `jeu/icones-carte`),
-/// par nom court (« MarkerMineralAzurite ») ; vide sans extraction : Sietch garde alors ses pictogrammes.
+/// par nom court (« MarkerMineralAzurite » pour `T_UI_IconMap…`, « PickupPlant » pour les autres `T_UI_Icon…`) ;
+/// vide sans extraction : Sietch garde alors ses pictogrammes.
 #[tauri::command]
 fn get_game_icons(state: State<AppState>) -> std::collections::BTreeMap<String, String> {
     let Ok(dir) = std::fs::read_dir(state.dir.join("jeu").join("icones-carte")) else { return Default::default() };
     dir.flatten()
         .filter_map(|e| {
             let name = e.file_name().into_string().ok()?;
-            let short = name.strip_suffix(".png")?.strip_prefix("T_UI_IconMap")?.trim_end_matches("_D").to_string();
+            let base = name.strip_suffix(".png")?;
+            let short = base.strip_prefix("T_UI_IconMap").or_else(|| base.strip_prefix("T_UI_Icon"))?.trim_end_matches("_D").to_string();
             let bytes = std::fs::read(e.path()).ok()?;
             Some((short, format!("data:image/png;base64,{}", base64(&bytes))))
         })

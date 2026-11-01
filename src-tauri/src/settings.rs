@@ -27,7 +27,8 @@ pub struct Settings {
     pub auto_layout: bool,
     /// Action → combinaison, ex. "overlay" → "Ctrl+Shift+O".
     pub shortcuts: BTreeMap<String, String>,
-    /// Modules sans BattlEye (position en direct). Désactivés par défaut.
+    /// Modules sans BattlEye (position en direct). Toujours actifs : plus de réglage, seul le garde-fou
+    /// BattlEye de `live.rs` décide (2026-11-01).
     pub live_modules: bool,
     /// Région où se trouve le joueur : "hagga" ou "profond".
     pub live_region: String,
@@ -75,11 +76,11 @@ pub struct Layout {
 /// Dispositions préfaites : identifiant, nom et éléments affichés (les autres sont décochés).
 /// Gardées en accord avec `PRESETS` de `src/views/overlay.ts`.
 pub const PRESETS: [(&str, &str, &[&str]); 3] = [
-    ("exploration", "Exploration", &["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat", "hits"]),
+    ("exploration", "Exploration", &["clock", "coriolis", "timers", "minimap", "gauges", "gear", "threat", "hits"]),
     // Les yeux sur le viseur : vie, endurance, eau, bouclier, ver, coups portés et mini-carte.
     ("combat", "Combat", &["minimap", "gauges", "gear", "threat", "hits"]),
     // Se repérer et surveiller le ver ; le personnage compte moins.
-    ("vehicule", "Véhicule", &["clock", "coriolis", "sector", "minimap", "threat", "hits"]),
+    ("vehicule", "Véhicule", &["clock", "coriolis", "minimap", "threat", "hits"]),
 ];
 
 /// Disposition préfaite voulue d'après l'état du joueur (modules sans BattlEye) : Véhicule à bord, Combat arme en
@@ -150,6 +151,7 @@ impl Settings {
     pub fn normalize(&mut self) {
         // Anneaux du widget Jauges : seulement des valeurs connues, sans doublon.
         // L'anneau du ver (version 1) est devenu le widget `threat` : affiché dans les dispositions existantes.
+        self.live_modules = true;
         let show_threat = self.rings_version < 2;
         self.rings_version = 2;
         let mut rings = std::collections::BTreeSet::new();
@@ -208,7 +210,13 @@ impl Settings {
                 l.widgets.iter_mut().filter(|w| w.kind == "minimap").for_each(|w| w.shown = true);
             }
         }
-        self.layouts_version = 3;
+        // Version 4 : le secteur s'affiche sous la mini-carte, le widget Secteur est décoché partout.
+        if self.layouts_version < 4 {
+            for l in &mut self.layouts {
+                l.widgets.iter_mut().filter(|w| w.kind == "sector").for_each(|w| w.shown = false);
+            }
+        }
+        self.layouts_version = 4;
         if !self.layouts.iter().any(|l| l.id == self.active_layout) {
             self.active_layout = self.layouts[0].id.clone();
         }
@@ -270,14 +278,14 @@ impl Default for Settings {
             overlay_only_in_game: true,
             auto_layout: true,
             shortcuts,
-            live_modules: false,
+            live_modules: true,
             live_region: "hagga".into(),
             calibration: BTreeMap::new(),
             player_alerts: Default::default(),
             map_images: BTreeMap::new(),
             gauge_rings: GAUGE_RINGS.iter().map(|s| s.to_string()).collect(),
             rings_version: 2,
-            layouts_version: 3,
+            layouts_version: 4,
             layouts: PRESETS.iter().map(|p| Layout::preset(p.0)).collect(),
             active_layout: "exploration".into(),
         }

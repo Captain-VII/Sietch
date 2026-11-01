@@ -98,6 +98,10 @@ pub struct Position {
     pub x: f64,
     pub y: f64,
     pub z: f64,
+    /// Orientation du corps en degrés (0 = est, 90 = sud) ; `None` avec la chaîne de pointeurs.
+    pub yaw: Option<f64>,
+    /// Orientation de la caméra (la souris), pour faire tourner la mini-carte ; `None` si elle n'est pas trouvée.
+    pub camera: Option<f64>,
     pub at: i64,
 }
 
@@ -135,6 +139,19 @@ fn processes(sys: &mut System) -> Vec<(String, u32)> {
         .values()
         .map(|p| (p.name().to_string_lossy().to_lowercase(), p.pid().as_u32()))
         .collect()
+}
+
+/// Rythme de la boucle : position et caméra toutes les 8 ms (~120 par seconde : une lecture fraîche à chaque image,
+/// quelques lectures mémoire à chaque fois), le reste (personnage, ressources…) toutes les ~250 ms.
+const TICK_MS: u64 = 8;
+const HEAVY_EVERY: u64 = 250 / TICK_MS;
+/// Processus (jeu, BattlEye) vérifiés toutes les ~2 s : pendant un tour complet, donc un multiple de `HEAVY_EVERY`.
+const PROCESS_EVERY: u64 = HEAVY_EVERY * 8;
+
+/// Simulation : un tour complet toutes les ~40 s ; orientation = sens de la marche.
+fn sim_pose() -> [f64; 4] {
+    let t = now_ms() as f64 / 1000.0 * 0.15;
+    [t.cos() * 40_000.0 + 10_000.0, t.sin() * 40_000.0 - 5_000.0, 1_200.0, t.cos().atan2(-t.sin()).to_degrees()]
 }
 
 /// Vérifications d'affilée (une toutes les 2 s) sans BattlEye, même processus du jeu, avant d'ouvrir le jeu.
@@ -182,6 +199,9 @@ pub fn spawn(app: AppHandle) {
         // Ressources déjà croisées, gardées d'une session à l'autre (fichier local).
         let seen_file = app.state::<AppState>().dir.join("ressources-vues.json");
         let mut seen = Seen::load(&seen_file);
+        // Lieux nommés déjà croisés : le jeu ne charge que ceux des environs.
+        let places_file = app.state::<AppState>().dir.join("lieux-vus.json");
+        let mut places = Places::load(&places_file);
         *app.state::<AppState>().resources.lock().unwrap() = seen.list();
         let mut last_resources: Option<Instant> = None;
         let mut resource_scan = ue::ResourceScan::default();
@@ -199,10 +219,27 @@ pub fn spawn(app: AppHandle) {
                 (cfg, cfg_error) = load_config(&app);
                 reader = None;
             }
+            // Entre deux tours complets : seulement la position, pour une carte sans retard.
+            if !tick.is_multiple_of(HEAVY_EVERY) {
+                if status.active {
+                    let (pose, camera) = if status.source == "simulation" {
+                        (Some(sim_pose()), None)
+                    } else {
+                        let rp = reader.as_ref().zip(player.as_ref());
+                        (rp.and_then(|(r, p)| p.pose(r)), rp.and_then(|(r, p)| p.camera_yaw(r)))
+                    };
+                    if let Some([x, y, z, yaw]) = pose {
+                        let _ = app.emit("player-position", Position { x, y, z, yaw: Some(yaw), camera, at: now_ms() });
+                    }
+                }
+                tick += 1;
+                std::thread::sleep(Duration::from_millis(TICK_MS));
+                continue;
+            }
             let enabled = state.settings.lock().unwrap().live_modules;
 
             // Processus : toutes les 2 secondes suffisent.
-            if tick.is_multiple_of(8) {
+            if tick.is_multiple_of(PROCESS_EVERY) {
                 let sim = simulation();
                 let (game, battleye) = if sim {
                     (Some(0), false)
@@ -270,9 +307,9 @@ pub fn spawn(app: AppHandle) {
             }
             if status.active {
                 let pos = if status.source == "simulation" {
-                    let t = now_ms() as f64 / 1000.0;
-                    // Un tour complet toutes les ~40 s.
-                    Some(((t * 0.15).cos() * 40_000.0 + 10_000.0, (t * 0.15).sin() * 40_000.0 - 5_000.0, 1_200.0))
+                    let [x, y, z, yaw] = sim_pose();
+                    aim = yaw;
+                    Some((x, y, z))
                 } else {
                     if reader.is_none()
                         && let Some(pid) = game_pid
@@ -305,11 +342,18 @@ pub fn spawn(app: AppHandle) {
                                 player = u.find_player();
                                 // Personnage (re)trouvé : nouvelle région possible, on relit la carte.
                                 if player.is_some() {
-                                    let map = u.map_data();
+                                    let mut map = u.map_data();
                                     if cfg!(debug_assertions)
                                         && let Some(m) = &map
                                     {
-                                        eprintln!("[carte] {:?}, {} zones, {} points", m.bounds, m.areas.len(), m.pois.len());
+                                        eprintln!("[carte] {:?}, {} zones, {} points, {} lieux nommés", m.bounds, m.areas.len(), m.pois.len(), m.places.len());
+                                    }
+                                    // Lieux nommés : ceux d'ici plus ceux déjà vus dans la région.
+                                    if let Some(m) = map.as_mut() {
+                                        if places.add(region_of(&m.layer), &m.places) {
+                                            let _ = fs::write(&places_file, places.to_json());
+                                        }
+                                        m.places = places.list(region_of(&m.layer));
                                     }
                                     // Région automatique : celle du calque de carte lu dans le jeu.
                                     if let Some(m) = &map {
@@ -421,6 +465,14 @@ pub fn spawn(app: AppHandle) {
                             if cfg!(debug_assertions) {
                                 eprintln!("[ressources] {} autour du joueur, {} connues, {} personnages, passage en ~{took:.1} s", found.len(), seen.len(), resource_scan.foes.len());
                             }
+                            // Lieux nommés croisés pendant ce passage : la carte les affiche dès qu'il y en a un nouveau.
+                            if places.add(region, &resource_scan.places) {
+                                let _ = fs::write(&places_file, places.to_json());
+                                if let Some(m) = state.map_data.lock().unwrap().as_mut() {
+                                    m.places = places.list(region);
+                                    let _ = app.emit("map-data", &*m);
+                                }
+                            }
                             let (added, changed) = seen.update(region, found);
                             if added {
                                 let _ = fs::write(&seen_file, seen.to_json());
@@ -445,6 +497,7 @@ pub fn spawn(app: AppHandle) {
                         {
                             pos = r.position(&chain, cfg.coordinates == "f32");
                             diag.source = "chaine".into();
+                            aim = f64::NAN;
                         }
                     }
                     pos
@@ -459,7 +512,8 @@ pub fn spawn(app: AppHandle) {
                     diag.source.clear();
                 }
                 if let Some((x, y, z)) = pos {
-                    let _ = app.emit("player-position", Position { x, y, z, at: now_ms() });
+                    let camera = reader.as_ref().zip(player.as_ref()).and_then(|(r, p)| p.camera_yaw(r));
+                    let _ = app.emit("player-position", Position { x, y, z, yaw: Some(aim).filter(|a| a.is_finite()), camera, at: now_ms() });
                     let mut trail = state.trail.lock().unwrap();
                     if let Some(step) = trail_step(&trail, [x, y]) {
                         if trail.len() >= TRAIL_MAX {
@@ -477,7 +531,7 @@ pub fn spawn(app: AppHandle) {
             *state.diagnostic.lock().unwrap() = diag.clone();
 
             tick += 1;
-            std::thread::sleep(Duration::from_millis(250));
+            std::thread::sleep(Duration::from_millis(TICK_MS));
         }
     });
 }
@@ -517,6 +571,37 @@ pub struct SeenResource {
 }
 
 /// Mémoire des ressources croisées, une entrée par générateur (région, nom, position au mètre).
+/// Lieux nommés déjà vus, par région (fichier local `lieux-vus.json`).
+#[derive(Default, Serialize, Deserialize)]
+struct Places(std::collections::BTreeMap<String, Vec<ue::Place>>);
+
+impl Places {
+    fn load(path: &std::path::Path) -> Self {
+        fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    }
+
+    /// Ajoute les lieux pas encore connus (même nom à moins de 50 m : le même lieu). Vrai s'il y en a eu.
+    fn add(&mut self, region: &str, found: &[ue::Place]) -> bool {
+        let list = self.0.entry(region.into()).or_default();
+        let mut added = false;
+        for p in found {
+            if !list.iter().any(|q| q.name == p.name && (q.x - p.x).hypot(q.y - p.y) < 5_000.0) {
+                list.push(p.clone());
+                added = true;
+            }
+        }
+        added
+    }
+
+    fn list(&self, region: &str) -> Vec<ue::Place> {
+        self.0.get(region).cloned().unwrap_or_default()
+    }
+
+    fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap_or_default()
+    }
+}
+
 #[derive(Default)]
 struct Seen(std::collections::BTreeMap<String, SeenResource>);
 
@@ -724,6 +809,17 @@ mod memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn places_merge_same_name_nearby_and_keep_regions_apart() {
+        let p = |name: &str, x: f64| ue::Place { name: name.into(), x, y: 0.0 };
+        let mut known = Places::default();
+        assert!(known.add("hagga", &[p("Communications du sud", 0.0)]));
+        assert!(!known.add("hagga", &[p("Communications du sud", 3_000.0)]), "même lieu à 30 m");
+        assert!(known.add("hagga", &[p("Communications du sud", 90_000.0)]), "même nom, autre lieu");
+        assert!(known.add("profond", &[p("Communications du sud", 0.0)]), "autre région");
+        assert_eq!(known.list("hagga").len(), 2);
+    }
 
     #[test]
     fn trail_keeps_a_point_every_20_m_and_cuts_jumps() {

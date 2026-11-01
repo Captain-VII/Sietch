@@ -64,13 +64,30 @@ body {
 }
 
 .editing .widget.minimap {
-  border-radius: 50%;
+  border-radius: 100px 100px 14px 14px;
 }
 
 .w-minimap {
   display: block;
   width: 200px;
   height: 200px;
+}
+
+.w-minimap-name {
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+  font-family: var(--font-label);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow:
+    0 0 2px rgba(4, 5, 10, 0.9),
+    0 1px 3px rgba(4, 5, 10, 0.8);
 }
 
 .w-label {
@@ -319,12 +336,13 @@ body {
 }
 
 /* Hors du sable (menace à 0 depuis un moment) : le widget s'efface. */
-.widget.threat.off {
+/* Widget sans rien à montrer (ver au calme, aucun minuteur lancé). */
+.widget.off {
   visibility: hidden;
 }
 
 /* Mode édition : toujours visible, pour pouvoir le placer. */
-.editing .widget.threat.off {
+.editing .widget.off {
   visibility: visible;
   filter: opacity(0.55);
 }

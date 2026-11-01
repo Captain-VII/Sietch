@@ -33,7 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
     wiki: "Ctrl+Shift+W",
     map: "Ctrl+Shift+C",
   },
-  liveModules: false,
+  liveModules: true,
   liveRegion: "hagga",
   calibration: {},
   playerAlerts: { water: 25, health: 30, power: 15, volume: 90, worm: 75, heat: 70 },
@@ -92,6 +92,7 @@ function simMap(): MapData {
     bounds: { minX: -457200, minY: -457200, maxX: 355600, maxY: 355600 },
     areas: Array.from({ length: 12 }, (_, i) => ({ kind: 0, circles: [[-300000 + i * 50000, -200000 + (i % 4) * 120000, 8000 + i * 1500] as [number, number, number]] })),
     pois: Array.from({ length: 30 }, (_, i) => ({ kind: kinds[i % 5], name: `CB_Simulation_${i}`, x: -400000 + (i * 73000) % 740000, y: -400000 + (i * 151000) % 740000, z: 0 })),
+    places: Array.from({ length: 30 }, (_, i) => ({ name: `Lieu simulé ${i + 1}`, x: -400000 + (i * 73000) % 740000 + 3000, y: -400000 + (i * 151000) % 740000 })),
   };
 }
 
@@ -319,6 +320,7 @@ export function install(label = "main") {
 
   // Position simulée (même trajectoire que SIETCH_SIMULATION=1 côté Rust).
   let lastEnabled: boolean | null = null;
+  let n = 0;
   setInterval(() => {
     const on = state.settings.liveModules;
     if (on !== lastEnabled) {
@@ -326,9 +328,10 @@ export function install(label = "main") {
       void emit("live-status", liveStatus());
     }
     if (!on) return;
-    const t = Date.now() / 1000;
-    void emit("player-position", { x: Math.cos(t * 0.15) * 40000 + 10000, y: Math.sin(t * 0.15) * 40000 - 5000, z: 1200, at: Date.now() });
-    void emit("player-state", simPlayer());
-  }, 250);
+    const t = (Date.now() / 1000) * 0.15;
+    const yaw = (Math.atan2(Math.cos(t), -Math.sin(t)) * 180) / Math.PI;
+    void emit("player-position", { x: Math.cos(t) * 40000 + 10000, y: Math.sin(t) * 40000 - 5000, z: 1200, yaw, at: Date.now() });
+    if (n++ % 5 === 0) void emit("player-state", simPlayer());
+  }, 50);
   console.info("[simulation] Sietch tourne dans le navigateur avec un moteur simulé.");
 }

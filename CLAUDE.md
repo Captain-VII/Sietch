@@ -81,9 +81,13 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 `dotnet run -c Release -- export <chemin> <dossier>` écrit des PNG. Il faut `oo2core_9_win64.dll` (OodleUE, GitHub
 WorkingRobot) à côté du binaire. Les icônes de carte vont dans `%APPDATA%\com.captainvii.sietch\jeu\icones-carte`
 (`get_game_icons`) ; sans elles, Sietch garde ses pictogrammes. **Jamais d'image du jeu dans le dépôt ni les
-releases.** La carte plein écran du jeu est en 3D (pas d'image) : le fond de Hagga reste celui des captures.
+releases.** La carte plein écran du jeu est en 3D (pas d'image). Depuis le 2026-11-02, le fond de Hagga est la texture officielle
+`T_Survival_WorldMap_MiniMap_D` (4096 px, JPEG dans `cartes\hagga`, calage [0, 0, 900, 900]) : d'un seul bloc, juste
+par construction. Les captures assemblées gardaient 20 à 130 m d'écart selon les morceaux (sauvegarde : `cartes\hagga.captures`).
 `T_Survival_WorldMap_MiniMap_D` (mini-carte du jeu) couvre exactement les bornes de la carte (±457200 / 355600) :
-c'est le repère pour recaler un fond de captures (corrélation des contours ; Hagga : [30.1, 27.1, 894, 891]).
+c'est le repère pour recaler un fond de captures (corrélation des contours). Plus précis (2026-11-02) : les zones de
+sable tambour dessinées par le jeu sur les captures tombent pile sur les cercles de `DA_WorldMap_AreasData_Survival_1` ;
+Les captures de Hagga, recalées ainsi : [27.2, 37.2, 891.1, 901.1], restaient décalées par morceaux.
 
 ## Release et mises à jour
 
@@ -143,7 +147,7 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   seul), Véhicule (repères + ver) ; ajoutées une fois aux anciens réglages (`layouts_version`), placées comme la
   première disposition. Écran Overlay en trois blocs : Disposition (onglets), Éléments (Repères / Personnage), Comportement.
   **Disposition automatique** (`auto_layout`, sans BattlEye) : validée en jeu le 2026-10-28 (`m_bHasWeaponInHand`,
-  `m_CurrentSeat` ; `docs/personnage-en-direct.md`). **Diagnostic** dans Paramètres › Sans BattlEye (`live.rs::Diagnostic`) :
+  `m_CurrentSeat` ; `docs/personnage-en-direct.md`). **Diagnostic** (`live.rs::Diagnostic`, plus affiché depuis le 2026-11-01 : Paramètres sans onglet Sans BattlEye, lecture toujours active sous garde-fou) :
   structures, personnage, dernière lecture, lectures réussies/manquées, arme, véhicule, ressources.
 - Menace du ver : widget affiché seulement quand la menace dépasse 0 (sur le sable), 15 s de répit.
 - **2026-10-28** : nom de zone en français (texte du widget du HUD, `ue.rs::ftext`) dans le widget Secteur ; coups portés

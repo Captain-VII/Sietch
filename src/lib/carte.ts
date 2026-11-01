@@ -1,5 +1,5 @@
 import { api, type MapData } from "./api";
-import type { Region } from "./data";
+import type { MarkerType, Region } from "./data";
 
 /**
  * Icônes de carte du jeu, extraites en local par l'utilisateur (`tools/sietch-assets`, jamais dans le dépôt) :
@@ -27,6 +27,15 @@ export const POI_GAME_ICONS: Record<string, string> = {
   station: "MarkerEcolab", base: "MarkerBase", epave: "MarkerShipwreck", mine: "MarkerCave", autel: "MarkerPointofinterest",
   abri: "MarkerOutpost", moissonneuse: "MarkerVehicleHarvester", histoire: "Lore", evenement: "DynamicEvents",
 };
+
+/** Icône du jeu des marqueurs personnels ; le minerai n'a pas d'icône générique dans le jeu. */
+export const MARKER_GAME_ICONS: Partial<Record<MarkerType, string>> = {
+  epice: "SpiceField", eau: "MarkerWaterField", epave: "MarkerShipwreck", grotte: "MarkerCave", base: "MarkerBase", autre: "MarkerPersonal",
+};
+
+/** Flèche du joueur du jeu : elle pointe vers le nord, et la position est le centre de son anneau, à 85 % de la hauteur. */
+export const PLAYER_GAME_ICON = "MarkerPlayerFull";
+export const PLAYER_PIVOT_Y = 0.85;
 
 /** Côté de la carte, en unités de Sietch (secteurs A1–I9 de 100). */
 export const SIZE = 900;
@@ -148,6 +157,8 @@ const RESOURCE_KINDS: Record<string, { label: string; color: string; icon: keyof
   Cistanche: { label: "Cistanche", color: "#d9a35f", icon: "fibre", family: "vegetal" },
   Saguaro: { label: "Saguaro", color: "#5fae6e", icon: "cactus", family: "vegetal" },
   Ornithopter: { label: "Ornithoptère", color: "#f1d7ff", icon: "ornithoptere", family: "recup" },
+  Buggy: { label: "Buggy", color: "#f1d7ff", icon: "ferraille", family: "recup" },
+  EMFGenerator: { label: "Générateur EMF", color: "#6fd1e8", icon: "electronique", family: "recup" },
 };
 
 /** Icône du jeu de chaque ressource (par libellé). */
@@ -157,8 +168,31 @@ const RES_GAME_ICONS: Record<string, string> = {
   Magnétite: "MarkerMineralMagnetite", Dolomite: "MarkerMineralDolomite", Érythrite: "MarkerMineralErythrite",
   Ferraille: "MarkerSalvageScrap", Électronique: "MarkerSandHighTechDebris", Carburant: "MarkerSalvageFuel",
   Épice: "SpiceField", Eau: "MarkerWaterField", "Fibre végétale": "PlantFiber", Saguaro: "MarkerSaguaro",
-  Ornithoptère: "MarkerVehicleOrniLight",
+  Ornithoptère: "MarkerVehicleOrniLight", Buisson: "PlantFiber", Primevère: "PickupPlant", Cistanche: "PickupPlant",
+  Buggy: "MarkerVehicleBuggy", "Générateur EMF": "ResourceEMFGenerator",
 };
+
+/**
+ * Zones de danger du jeu (`BP_WorldMapAreasData`, type de zone) : nom, couleur et visuel du jeu. Le sable tambour et
+ * les sables mouvants ont un motif de hachures (`pattern`) qui remplit la zone ; les radiations, une icône au centre.
+ */
+export const HAZARDS: Record<number, { label: string; color: string; icon: string; pattern: boolean }> = {
+  0: { label: "Sable tambour", color: "#d9b67a", icon: "MarkerEnvDrumsandHatching", pattern: true },
+  // Radiations faibles (1) et fortes (2) : une seule zone, voir `hazardCircles`.
+  1: { label: "Radiations", color: "#e0a83a", icon: "MarkerEnvRadiation", pattern: false },
+  3: { label: "Sables mouvants", color: "#c9a861", icon: "MarkerEnvQuicksandHatching", pattern: true },
+};
+
+/**
+ * Cercles des zones de danger à dessiner (coordonnées du jeu). Radiations faibles et fortes ne forment qu'une zone,
+ * et un cercle contenu dans un autre de la même zone n'est pas dessiné : sinon les contours se chevauchent.
+ */
+export function hazardCircles(m: MapData) {
+  const all = m.areas.flatMap((a) => a.circles.map(([x, y, r]) => ({ kind: a.kind === 2 ? 1 : a.kind, x, y, r })));
+  const inside = (c: (typeof all)[number], o: (typeof all)[number]) => Math.hypot(o.x - c.x, o.y - c.y) + c.r <= o.r;
+  // À cercles identiques, on garde le premier.
+  return all.filter((c, i) => !all.some((o, j) => j !== i && o.kind === c.kind && inside(c, o) && (o.r > c.r || j < i)));
+}
 
 /** Catégories déjà calculées : la mini-carte les demande à chaque image. */
 const kindCache = new Map<string, { key: string; label: string; color: string; path: string; shape: string; game?: string; ground: boolean }>();

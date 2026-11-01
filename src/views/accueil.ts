@@ -180,7 +180,7 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
             h("div", { class: "unit" }, h("span", { class: "digits", "data-coriolis-part": p }, "--"), h("span", {}, { d: "JOURS", h: "HEURES", m: "MIN" }[p])),
           ),
         ),
-        h("button", { class: "btn", type: "button", onclick: () => ctx.go("parametres", "notifications") }, "Régler les rappels"),
+        h("button", { class: "btn", type: "button", onclick: () => ctx.go("parametres", "serveur") }, "Régler les rappels"),
       ),
     ),
 
