@@ -75,6 +75,8 @@ But : qu'une mise à jour du jeu ne casse rien, ou se répare vite.
 - 🟢 README avec captures et GIF, page d'installation.
 - 🔴 Lire le contrat d'utilisation de Funcom avant de diffuser les modules sans BattlEye.
 - 🟡 Signature du `.exe` (SmartScreen) : certificat payant, 100 à 300 € par an.
+- 🔴 Version en ligne (lecture avec BattlEye) : demander l'accord de Funcom une fois le mode hors ligne solide ;
+  l'autorisation par BattlEye demandera sans doute un `.exe` signé (voir `docs/analyse-gaming-tools-companion.md`).
 - 🔴 gaming.tools : demander l'accès à leur base (recettes, statistiques), aujourd'hui interdit sans accord.
 
 ---
