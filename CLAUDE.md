@@ -173,7 +173,9 @@ Tenir la feuille de route à jour quand une étape avance.
 ## Concurrence et contexte
 
 - Dune Companion (gaming.tools) et TH.GL lisent déjà l'état du joueur en ligne et affirment que Funcom le tolère
-  (déclaration Reddit non retrouvée). Sietch se distingue : open source, sans pub, sans compte, hors ligne.
+  (déclaration Reddit non retrouvée). Sietch se distingue : open source, sans pub, sans compte.
+  Depuis le 2026-11-01, « hors ligne » n'est plus un principe : Sietch peut utiliser des services en ligne.
+  Architecture de Dune Companion : [docs/analyse-gaming-tools-companion.md](docs/analyse-gaming-tools-companion.md).
 - Noms de processus (sources communautaires) : jeu `DuneSandbox-Win64-Shipping.exe`, BattlEye `DuneSandbox_BE.exe`,
   `BEService.exe` / `BEService_x64.exe`. Modifiables dans `position.json` si besoin.
 
