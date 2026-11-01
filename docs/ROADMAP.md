@@ -79,6 +79,18 @@ But : qu'une mise à jour du jeu ne casse rien, ou se répare vite.
   l'autorisation par BattlEye demandera sans doute un `.exe` signé (voir `docs/analyse-gaming-tools-companion.md`).
 - 🔴 gaming.tools : demander l'accès à leur base (recettes, statistiques), aujourd'hui interdit sans accord.
 
+## Lot 6 — Carte du jeu en 3D et régions (plus tard, décidé le 2026-11-02)
+
+But : un fond de Hagga au rendu de la carte plein écran du jeu, calé au mètre, et les régions nommées dessus.
+Piste et blocage détaillés dans `docs/carte-en-direct.md` (« Carte 3D et régions »).
+
+- 🟡 **Débloquer la géométrie** des modèles du jeu : CUE4Parse charge les `StaticMesh` sans `RenderData`. Piste : générer
+  un `.usmap` depuis la mémoire du jeu, en lecture seule, avec `sietch-scan` (pas d'injection dans le jeu).
+- 🟡 **Fond 3D** : exporter les maquettes `SM_…_UIMap` (`DT_UIMapTerrainMeshes`, 145 types), les poser aux positions des
+  blocs de terrain, sable uni dessous, puis calculer une image vue de dessus avec ombrage (local, jamais dans le dépôt).
+- 🟡 **Régions nommées** : contours `SM_RegionBorders` / `SM_AreaBorders` / `SM_SubregionBorders` de Hagga, noms dans
+  `ST_Localization_NPCs_World` (`WORLD_REGION_NAMES_…`, anglais) ; le français reste à trouver.
+
 ---
 
 ## Écarté

@@ -56,3 +56,20 @@ Les captures et l'image (contenu de Funcom) restent dans `%APPDATA%\com.captainv
 Le nom affiché en haut à droite du jeu (« Sud du Bassin de Hagga ») vient du widget `W_MapAreaInformationHUDWidget_C` (instance sous un `WidgetTree`, pas le modèle) : `m_MapAreaName` (`CommonTextBlock`) → `Text` (`FText`). Reste à décoder la chaîne de l'`FText` (`TextData` partagé → chaîne affichée) : la première tentative n'a pas trouvé de `FString` lisible. Autre piste : `FullscreenMapAreasComponent` du `DunePlayerController` (zones découvertes, `MapAreaData.m_AreaId`).
 
 Suite (2026-10-27) : la chaîne `m_MapAreaName` → `Text` → `TextData` → historique (`TextId` : espace `NPCS_AND_WORLD/WORLD_REGIONS…`) → chaîne partagée donne **« Hagga Basin South »** (texte source anglais), alors que le jeu affiche « Sud du Bassin de Hagga ». Les chaînes françaises existent en mémoire (`sietch-scan find-text`) mais aucun pointeur direct n'y mène : elles passent par la table de localisation. Piste suivante : la table d'affichage de `FTextLocalizationManager` (clé `TextId` → chaîne), ou se contenter du nom anglais. Outils ajoutés : `sietch-scan strings <adresse> [taille] [profondeur]` et `find-text <texte>`.
+
+## Carte 3D et régions (piste, 2026-11-02, reportée)
+
+- La carte plein écran de Hagga n'a pas de modèle 3D unique : un sable uni (matériaux `MapLevel/Materials/SeaOfSand`)
+  et, pour chaque bloc de terrain, une maquette simplifiée `SM_…_UIMap` listée dans
+  `Dune/Maps/Arrakis/MapLevel/DT_UIMapTerrainMeshes` (145 lignes : nom du bloc → maquette + décalage). Les positions
+  des blocs sont celles que Sietch lit déjà (`TerrainBlockActor`).
+- Contours de Hagga : `MapLevel/CustomRegionShapes/Survival_1/Borders/SM_RegionBorders`, `SM_AreaBorders`,
+  `SM_SubregionBorders`, et formes du brouillard de guerre `SM_FogOfWarAreaDefineSpline_C_*`.
+- Noms des régions (anglais) : `Dune/Localization/ST_Localization_NPCs_World`, clés `WORLD_REGION_NAMES_SURVIVAL1_…`.
+  Les traductions (`.locres`) n'apparaissent pas dans les archives lues par CUE4Parse.
+- Blocage : `sietch-assets json` charge les `StaticMesh` sans géométrie (`RenderData` nul) en UE 5.2 ; en 5.3 / 5.4,
+  plus rien ne se charge. Il manque sans doute les types du jeu (`.usmap`) : à générer en lecture seule depuis la
+  mémoire (`sietch-scan`), jamais en injectant du code dans le jeu.
+- Les cercles de `DA_WorldMap_AreasData_Survival_1` ne sont pas des régions : ce sont les zones de danger
+  (`EWorldMapAreaType` : sable tambour, radiations faibles, fortes, sables mouvants).
+- Lieux nommés : `DuneStaticMarkerActor.m_DisplayName` (texte affiché, en français), chargés seulement près du joueur.
