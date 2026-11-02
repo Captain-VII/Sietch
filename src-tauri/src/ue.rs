@@ -11,6 +11,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::Instant;
 
 /// Accès en lecture à la mémoire du jeu (réel sous Windows, simulé dans les tests).
 pub trait Mem {
@@ -377,20 +378,16 @@ impl<'a> Ue<'a> {
 
     /// Générateurs de ressources chargés autour du joueur (classes dérivées de `ResourceSpawner`).
     /// Le jeu ne charge que les environs : la mémoire des points déjà vus est tenue par `live.rs`.
-    /// Avance le relevé d'au plus `budget` objets ; renvoie la liste quand la table a été parcourue en entier.
-    /// Découpé pour ne pas bloquer la lecture du personnage (un passage complet coûte ~1 s en debug).
+    /// Avance le relevé jusqu'à `until` ; renvoie la liste quand la table a été parcourue en entier.
+    /// Découpé en tranches de temps (la position se lit sur le même fil : elle ne doit jamais attendre).
     /// Relève aussi, au passage, les jeux d'attributs des autres personnages (`ResourceScan::foes`).
-    pub fn resources_step(&mut self, scan: &mut ResourceScan, player: &Player, budget: u32) -> Option<Vec<Resource>> {
-        let head = read::<24>(self.m, self.table)?;
-        let num = u32_at(&head, 20);
-        let end = scan.next.saturating_add(budget).min(num);
-        for (i, o) in self.objects(scan.next, end) {
-            if let Some(r) = self.resource_at(i, o, scan, player) {
-                scan.found.push(r);
-            }
-        }
-        scan.next = end;
-        if end < num {
+    pub fn resources_step(&mut self, scan: &mut ResourceScan, player: &Player, until: Instant) -> Option<Vec<Resource>> {
+        std::mem::swap(&mut self.names, &mut scan.names);
+        std::mem::swap(&mut self.fields, &mut scan.fields);
+        let done = self.scan_until(scan, player, until);
+        std::mem::swap(&mut self.names, &mut scan.names);
+        std::mem::swap(&mut self.fields, &mut scan.fields);
+        if !done? {
             return None;
         }
         scan.next = 0;
@@ -402,6 +399,26 @@ impl<'a> Ue<'a> {
         }
         scan.places = std::mem::take(&mut scan.places_found);
         Some(std::mem::take(&mut scan.found))
+    }
+
+    /// Parcourt la table par paquets de 2 048 objets jusqu'à `until` ; vrai quand la fin est atteinte.
+    fn scan_until(&mut self, scan: &mut ResourceScan, player: &Player, until: Instant) -> Option<bool> {
+        let num = u32_at(&read::<24>(self.m, self.table)?, 20);
+        loop {
+            let end = scan.next.saturating_add(2048).min(num);
+            for (i, o) in self.objects(scan.next, end) {
+                if let Some(r) = self.resource_at(i, o, scan, player) {
+                    scan.found.push(r);
+                }
+            }
+            scan.next = end;
+            if end >= num {
+                return Some(true);
+            }
+            if Instant::now() >= until {
+                return Some(false);
+            }
+        }
     }
 
     /// Générateur de ressources (objet `o`, index `i` de la table des objets), s'il y en a un.
@@ -686,6 +703,9 @@ pub struct ResourceScan {
     pub places: Vec<Place>,
     /// Classes déjà vues : `DuneStaticMarkerActor` (lieu nommé) ou non.
     markers: HashMap<u64, bool>,
+    /// Caches de `Ue` (noms, offsets des champs) gardés d'un morceau de relevé à l'autre : `Ue` est rouvert à chaque tick.
+    names: HashMap<u32, String>,
+    fields: HashMap<(u64, &'static str), Option<u64>>,
 }
 
 /// Autre personnage suivi pour les coups portés : son jeu d'attributs, son acteur et sa dernière vie lue.

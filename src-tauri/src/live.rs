@@ -222,6 +222,8 @@ pub fn spawn(app: AppHandle) {
         let mut aim = 0.0;
         let (mut last_tables_try, mut last_player_try): (Option<Instant>, Option<Instant>) = (None, None);
         let mut gate = PoseGate::new();
+        // Relevé des ressources terminé entre deux tours complets, traité au tour complet suivant.
+        let mut pending: Option<Vec<ue::Resource>> = None;
         loop {
             let state = app.state::<AppState>();
             if state.live_reload.swap(false, std::sync::atomic::Ordering::Relaxed) {
@@ -241,6 +243,14 @@ pub fn spawn(app: AppHandle) {
                         && gate.pass([x, y, z, yaw, camera.unwrap_or(f64::NAN)])
                     {
                         let _ = app.emit("player-position", Position { x, y, z, yaw: Some(yaw), camera, at: now_ms() });
+                    }
+                    // Une tranche du relevé des ressources à chaque tick, après la position.
+                    if scanning
+                        && pending.is_none()
+                        && let (Some(r), Some(p), Some(t)) = (reader.as_ref(), player.as_ref(), tables)
+                        && let Some(mut u) = ue::Ue::open(r, t)
+                    {
+                        pending = u.resources_step(&mut resource_scan, p, Instant::now() + SCAN_SLICE);
                     }
                 }
                 tick += 1;
@@ -455,21 +465,24 @@ pub fn spawn(app: AppHandle) {
                             }
                         }
                         // Ressources et personnages autour du joueur : un passage sur la table des objets, relancé 1 s après le précédent,
-                        // découpé en morceaux (`SCAN_BUDGET` objets par tick) pour ne pas figer la lecture du personnage.
+                        // découpé en tranches de temps (`SCAN_SLICE` par tick) pour ne pas figer la lecture du personnage.
                         if player.is_none() {
                             // Personnage perdu (relance du jeu…) : les classes connues ne valent plus.
                             resource_scan = Default::default();
-                            scanning = false;
+                            (scanning, pending) = (false, None);
                         } else if !scanning && last_resources.is_none_or(|i| i.elapsed() > Duration::from_secs(1)) {
                             scanning = true;
                             scan_started = Instant::now();
                         }
                         if scanning
+                            && pending.is_none()
                             && let Some(t) = tables
                             && let Some(mut u) = ue::Ue::open(r, t)
                             && let Some(p) = player.as_ref()
-                            && let Some(found) = u.resources_step(&mut resource_scan, p, SCAN_BUDGET)
                         {
+                            pending = u.resources_step(&mut resource_scan, p, Instant::now() + SCAN_SLICE);
+                        }
+                        if let Some(found) = pending.take() {
                             scanning = false;
                             let took = scan_started.elapsed().as_secs_f32();
                             diag.last_scan_secs = Some(took);
@@ -553,9 +566,8 @@ pub fn spawn(app: AppHandle) {
     });
 }
 
-/// Objets relevés par tick (ressources, personnages) : la version installée lit bien plus vite que le debug.
-/// × 2,5 depuis la lecture par paquets (`Ue::objects`, 2 lectures par objet au lieu de 5) : même coût par tick.
-const SCAN_BUDGET: u32 = if cfg!(debug_assertions) { 50_000 } else { 100_000 };
+/// Temps de relevé des ressources par tick de 8 ms : la position, lue sur le même fil, n'attend jamais plus.
+const SCAN_SLICE: Duration = Duration::from_millis(2);
 
 /// Points gardés au plus pour le trajet (~80 km à un point tous les 20 m).
 const TRAIL_MAX: usize = 4000;
