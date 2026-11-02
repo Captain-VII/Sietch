@@ -398,6 +398,7 @@ let lastFrame = 0;
  */
 function animate(now = performance.now()) {
   const p = live.predicted(Date.now() + SMOOTH_MS);
+  let moved = false;
   if (p) {
     const k = lastFrame ? 1 - Math.exp(-(now - lastFrame) / SMOOTH_MS) : 1;
     const a = p.yaw ?? player?.yaw ?? view?.yaw ?? 0;
@@ -412,15 +413,17 @@ function animate(now = performance.now()) {
         cam: p.camera == null ? null : view!.cam! + (unwrap(view!.cam!, p.camera) - view!.cam!) * k,
       };
     // Écart invisible (moins d'un centimètre, d'un centième de degré) : pas de redessin.
-    const moved = !view || Math.abs(next.x - view.x) > 1 || Math.abs(next.y - view.y) > 1
+    moved = !view || Math.abs(next.x - view.x) > 1 || Math.abs(next.y - view.y) > 1
       || Math.abs(next.yaw - view.yaw) > 0.01 || Math.abs((next.cam ?? 0) - (view.cam ?? 0)) > 0.01;
     if (moved) {
       view = next;
       drawMinimap();
     }
   }
-  lastFrame = p ? now : 0;
-  frame = p ? requestAnimationFrame(animate) : 0;
+  // Immobile et plus de position nouvelle : on arrête ; la prochaine position relance la boucle (`live.subscribe`).
+  const idle = p && !moved && Date.now() - (live.position?.at ?? 0) > 250;
+  lastFrame = p && !idle ? now : 0;
+  frame = p && !idle ? requestAnimationFrame(animate) : 0;
 }
 
 /** Trajet de la session (coordonnées du jeu) ; `null` coupe le tracé. */
@@ -430,12 +433,14 @@ let trail: Trail = [];
 function drawTrail(g: CanvasRenderingContext2D, m: MapData, px: (x: number) => number, py: (y: number) => number, here: { x: number; y: number }) {
   g.beginPath();
   let open = false;
+  // Points loin de la vue (jusqu'à 4 000 dans le trajet) : sautés, le tracé reprend en revenant dans la vue.
+  const far = VIEW() * 1.5;
   for (const p of trail) {
-    if (!p) {
+    const q = p && worldToMap(m, p[0], p[1]);
+    if (!q || Math.abs(q.x - here.x) > far || Math.abs(q.y - here.y) > far) {
       open = false;
       continue;
     }
-    const q = worldToMap(m, p[0], p[1]);
     if (open) g.lineTo(px(q.x), py(q.y));
     else g.moveTo(px(q.x), py(q.y));
     open = true;
@@ -453,6 +458,15 @@ function drawTrail(g: CanvasRenderingContext2D, m: MapData, px: (x: number) => n
  * Joueur au centre, la carte tournée pour que la caméra regarde vers le haut (nord en haut sans caméra) ;
  * fond (si importé), zones, trajet, lieux, ressources (icônes droites) et flèche du joueur (orientation du corps).
  */
+/** Catégories masquées : la fenêtre principale les change dans le stockage partagé, l'événement `storage` prévient ici. */
+let masked = new Set(hiddenPoiKinds());
+window.addEventListener("storage", () => {
+  masked = new Set(hiddenPoiKinds());
+  drawMinimap();
+});
+/** Cercles de danger de la carte lue : calcul en O(n²), refait seulement quand la carte change. */
+let circlesOf: { map: MapData; circles: ReturnType<typeof hazardCircles> } | null = null;
+
 function drawMinimap() {
   drawMinimapName();
   const scale = config(settings)?.scale ?? 1;
@@ -508,7 +522,12 @@ function drawMinimap() {
     // posée plus bas, droite.
     const unit = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
     const radiation: [number, number, HTMLImageElement][] = [];
-    const circles = hazardCircles(mapData);
+    if (circlesOf?.map !== mapData) circlesOf = { map: mapData, circles: hazardCircles(mapData) };
+    // Seulement les cercles qui touchent la vue : le flou des radiations coûte cher à chaque image.
+    const circles = circlesOf.circles.filter((c) => {
+      const p = worldToMap(mapData!, c.x, c.y);
+      return Math.hypot(px(p.x) - R, py(p.y) - R) <= R + c.r * unit * zoom + 8;
+    });
     for (const [kind, hz] of Object.entries(HAZARDS)) {
       g.beginPath();
       for (const c of circles) {
@@ -532,7 +551,6 @@ function drawMinimap() {
       const img = hz ? gameImage(hz.icon) : undefined;
       const p = worldToMap(mapData, x, y);
       const rr = r * unit * zoom;
-      if (Math.hypot(px(p.x) - R, py(p.y) - R) > R + rr) continue;
       if (hz?.mist) {
         if (img) radiation.push([p.x, p.y, img]);
         continue;
@@ -550,13 +568,13 @@ function drawMinimap() {
       const [cx, cy] = at(x, y);
       g.drawImage(img, cx - 7, cy - 7, 14, 14);
     }
-    const masked = new Set(hiddenPoiKinds());
     // Lieux du jeu : icône officielle, à la taille de son type, détachée du fond par une ombre (comme la grande carte).
     for (const pl of gamePlaces?.places ?? []) {
       if (masked.has(`l:${pl.type}`)) continue;
       const p = worldToMap(gamePlaces!, pl.x, pl.y);
+      if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW() * 1.1) continue;
       const img = placeIcon(pl.icon, pl.type)?.canvas;
-      if (!img || Math.hypot(p.x - here.x, p.y - here.y) > VIEW() * 1.1) continue;
+      if (!img) continue;
       const [x, y] = at(p.x, p.y);
       const s = 20 * pl.scale;
       g.save();

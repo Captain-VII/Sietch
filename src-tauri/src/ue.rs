@@ -156,6 +156,27 @@ impl<'a> Ue<'a> {
         (obj != 0).then_some(obj)
     }
 
+    /// Objets d'indices `from..to` (index, adresse), lus par paquets : une lecture par bloc de la table au lieu de
+    /// trois par objet (en-tête, bloc, pointeur). Les relevés parcourent des centaines de milliers d'objets.
+    fn objects(&self, from: u32, to: u32) -> Vec<(u32, u64)> {
+        let Some(head) = read::<24>(self.m, self.table) else { return Vec::new() };
+        let to = to.min(u32_at(&head, 20));
+        let stride = self.stride as usize;
+        let mut out = Vec::with_capacity(to.saturating_sub(from) as usize);
+        let mut i = from;
+        while i < to {
+            let c = i as u64 / OBJ_PER_CHUNK;
+            let end = ((c + 1) * OBJ_PER_CHUNK).min(to as u64) as u32;
+            let chunk = ptr(self.m, u64_at(&head, 0) + c * 8);
+            let mut buf = vec![0u8; (end - i) as usize * stride];
+            if chunk != 0 && self.m.read_into(chunk + (i as u64 % OBJ_PER_CHUNK) * self.stride, &mut buf) == buf.len() {
+                out.extend((0..end - i).map(|k| (i + k, u64_at(&buf, k as usize * stride))).filter(|&(_, o)| o != 0));
+            }
+            i = end;
+        }
+        out
+    }
+
     /// Offset d'un champ dans une classe ou ses parents.
     fn field(&mut self, class: u64, wanted: &str) -> Option<u64> {
         let f = self.field_ptr(class, wanted)?;
@@ -268,8 +289,7 @@ impl<'a> Ue<'a> {
         let head = read::<24>(self.m, self.table)?;
         let mut class_names: HashMap<u64, String> = HashMap::new();
         let (mut bounds, mut areas, mut pois, mut places, mut layer_name) = (None, Vec::new(), Vec::new(), Vec::new(), String::new());
-        for i in 0..u32_at(&head, 20) {
-            let Some(o) = self.object(i) else { continue };
+        for (_, o) in self.objects(0, u32_at(&head, 20)) {
             let Some(b) = read::<0x28>(self.m, o) else { continue };
             if u32_at(&b, 0x08) & TEMPLATE != 0 {
                 continue;
@@ -364,8 +384,8 @@ impl<'a> Ue<'a> {
         let head = read::<24>(self.m, self.table)?;
         let num = u32_at(&head, 20);
         let end = scan.next.saturating_add(budget).min(num);
-        for i in scan.next..end {
-            if let Some(r) = self.resource_at(i, scan, player) {
+        for (i, o) in self.objects(scan.next, end) {
+            if let Some(r) = self.resource_at(i, o, scan, player) {
                 scan.found.push(r);
             }
         }
@@ -384,9 +404,8 @@ impl<'a> Ue<'a> {
         Some(std::mem::take(&mut scan.found))
     }
 
-    /// Générateur de ressources à l'index `i` de la table des objets, s'il y en a un.
-    fn resource_at(&mut self, i: u32, scan: &mut ResourceScan, player: &Player) -> Option<Resource> {
-        let o = self.object(i)?;
+    /// Générateur de ressources (objet `o`, index `i` de la table des objets), s'il y en a un.
+    fn resource_at(&mut self, i: u32, o: u64, scan: &mut ResourceScan, player: &Player) -> Option<Resource> {
         let b = read::<0x28>(self.m, o)?;
         if u32_at(&b, 0x08) & TEMPLATE != 0 {
             return None;
@@ -489,8 +508,7 @@ impl<'a> Ue<'a> {
         let num = u32_at(&head, 20);
         // (objet, classe, nom, outer) de chaque objet : une lecture de 0x28 octets par objet.
         let mut all = Vec::with_capacity(num as usize);
-        for i in 0..num {
-            let Some(o) = self.object(i) else { continue };
+        for (i, o) in self.objects(0, num) {
             if let Some(b) = read::<0x28>(self.m, o) {
                 all.push((o, u32_at(&b, 0x08), u64_at(&b, 0x10), u32_at(&b, 0x18), u64_at(&b, 0x20), i));
             }
@@ -1191,6 +1209,22 @@ mod tests {
         // Taille d'image différente (patch du jeu) : le cache n'est plus bon.
         assert!(Ue::open(&m, Tables { module_size: 0x200, ..t }).is_none());
     }
+    #[test]
+    fn reads_objects_in_bulk() {
+        // Table à 0x1100 : blocs à 0x1200 (un seul, à 0x1300), 3 objets ; le n° 1 est vide.
+        let mut mem = vec![0u8; 0x400];
+        put(&mut mem, 0x1100, &0x1200u64.to_le_bytes());
+        put(&mut mem, 0x1114, &3u32.to_le_bytes());
+        put(&mut mem, 0x1200, &0x1300u64.to_le_bytes());
+        put(&mut mem, 0x1300, &0x1400u64.to_le_bytes());
+        put(&mut mem, 0x1300 + 48, &0x1500u64.to_le_bytes());
+        let m = Fake(mem);
+        let ue = Ue { m: &m, blocks: 0, table: 0x1100, stride: 24, names: HashMap::new(), fields: HashMap::new(), missing: Vec::new() };
+        assert_eq!(ue.objects(0, u32::MAX), vec![(0, 0x1400), (2, 0x1500)]);
+        assert_eq!(ue.objects(1, 3), vec![(2, 0x1500)]);
+        assert_eq!(ue.objects(0, 1), ue.objects(0, 1).iter().map(|&(i, _)| (i, ue.object(i).unwrap())).collect::<Vec<_>>());
+    }
+
     #[test]
     fn ftext_rejects_garbage() {
         // FText à 0x1000 → données 0x1100 → historique 0x1200 (+0x40 → FString 0x1280) → caractères à 0x1300.

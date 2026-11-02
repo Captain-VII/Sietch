@@ -221,6 +221,7 @@ pub fn spawn(app: AppHandle) {
         let (mut last_ammo, mut last_melee, mut last_attack): (Option<i32>, u32, Option<Instant>) = (None, 0, None);
         let mut aim = 0.0;
         let (mut last_tables_try, mut last_player_try): (Option<Instant>, Option<Instant>) = (None, None);
+        let mut gate = PoseGate::new();
         loop {
             let state = app.state::<AppState>();
             if state.live_reload.swap(false, std::sync::atomic::Ordering::Relaxed) {
@@ -236,7 +237,9 @@ pub fn spawn(app: AppHandle) {
                         let rp = reader.as_ref().zip(player.as_ref());
                         (rp.and_then(|(r, p)| p.pose(r)), rp.and_then(|(r, p)| p.camera_yaw(r)))
                     };
-                    if let Some([x, y, z, yaw]) = pose {
+                    if let Some([x, y, z, yaw]) = pose
+                        && gate.pass([x, y, z, yaw, camera.unwrap_or(f64::NAN)])
+                    {
                         let _ = app.emit("player-position", Position { x, y, z, yaw: Some(yaw), camera, at: now_ms() });
                     }
                 }
@@ -523,7 +526,9 @@ pub fn spawn(app: AppHandle) {
                 }
                 if let Some((x, y, z)) = pos {
                     let camera = reader.as_ref().zip(player.as_ref()).and_then(|(r, p)| p.camera_yaw(r));
-                    let _ = app.emit("player-position", Position { x, y, z, yaw: Some(aim).filter(|a| a.is_finite()), camera, at: now_ms() });
+                    if gate.pass([x, y, z, aim, camera.unwrap_or(f64::NAN)]) {
+                        let _ = app.emit("player-position", Position { x, y, z, yaw: Some(aim).filter(|a| a.is_finite()), camera, at: now_ms() });
+                    }
                     let mut trail = state.trail.lock().unwrap();
                     if let Some(step) = trail_step(&trail, [x, y]) {
                         if trail.len() >= TRAIL_MAX {
@@ -549,10 +554,38 @@ pub fn spawn(app: AppHandle) {
 }
 
 /// Objets relevés par tick (ressources, personnages) : la version installée lit bien plus vite que le debug.
-const SCAN_BUDGET: u32 = if cfg!(debug_assertions) { 20_000 } else { 40_000 };
+/// × 2,5 depuis la lecture par paquets (`Ue::objects`, 2 lectures par objet au lieu de 5) : même coût par tick.
+const SCAN_BUDGET: u32 = if cfg!(debug_assertions) { 50_000 } else { 100_000 };
 
 /// Points gardés au plus pour le trajet (~80 km à un point tous les 20 m).
 const TRAIL_MAX: usize = 4000;
+
+/// Position envoyée aux fenêtres seulement si elle a changé : à l'arrêt, plus 120 événements par seconde pour rien.
+/// On continue 200 ms après le dernier mouvement (l'interface voit l'arrêt et cesse de prolonger), puis une fois par
+/// seconde (l'interface tient une position pour perdue au bout de 3 s).
+struct PoseGate {
+    last: [f64; 5],
+    changed: Instant,
+    sent: Instant,
+}
+
+impl PoseGate {
+    fn new() -> Self {
+        PoseGate { last: [f64::NAN; 5], changed: Instant::now(), sent: Instant::now() }
+    }
+
+    fn pass(&mut self, pose: [f64; 5]) -> bool {
+        let now = Instant::now();
+        // Comparaison bit à bit : NaN (caméra inconnue) égal à lui-même.
+        if pose.map(f64::to_bits) != self.last.map(f64::to_bits) {
+            (self.last, self.changed) = (pose, now);
+        } else if now - self.changed > Duration::from_millis(200) && now - self.sent < Duration::from_secs(1) {
+            return false;
+        }
+        self.sent = now;
+        true
+    }
+}
 
 /// Points à ajouter au trajet pour cette position : un point tous les 20 m, et une coupure (`None`)
 /// avant un saut de plus de 500 m (téléportation, réapparition après la mort).
@@ -823,6 +856,19 @@ mod memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pose_gate_skips_repeats_after_a_stop() {
+        let mut g = PoseGate::new();
+        let p = [1.0, 2.0, 3.0, 90.0, f64::NAN];
+        assert!(g.pass(p), "première position");
+        assert!(g.pass(p), "juste après l'arrêt : encore envoyée");
+        g.changed -= Duration::from_millis(300);
+        assert!(!g.pass(p), "arrêté depuis 300 ms : plus envoyée");
+        g.sent -= Duration::from_millis(1100);
+        assert!(g.pass(p), "une fois par seconde malgré tout");
+        assert!(g.pass([1.0, 2.0, 3.0, 91.0, f64::NAN]), "orientation changée");
+    }
 
     #[test]
     fn places_merge_same_name_nearby_and_keep_regions_apart() {

@@ -461,7 +461,13 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   };
   const stopMapData = on.mapData((m) => { mapData = m; followRegion(); drawGame(); drawLive(); });
   void api.resources().then((r) => { resources = r; drawGame(); });
-  const stopResources = on.resources((r) => { resources = r; drawGame(); });
+  // Relevé toutes les quelques secondes : seulement les ressources et les comptes des filtres, pas les lieux ni les zones.
+  const stopResources = on.resources((r) => {
+    resources = r;
+    if (!mapData || mapRegion(mapData) !== region) return;
+    drawResources();
+    drawPoiChips();
+  });
 
   // ---------- Trajet de la session ----------
   let trail: Trail = [];
@@ -601,7 +607,20 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     }
     void saveCalibration(pts);
   });
-  const stopLive = live.subscribe(drawLive);
+  /** Ce qui change le bandeau : à chaque position reçue (jusqu'à 120 par seconde), on ne le refait que si ça bouge. */
+  const liveKey = () => {
+    const st = live.status;
+    const pt = livePoint();
+    return [st.enabled, st.active, st.message, st.gameRunning, mapData && mapRegion(mapData), ctx.settings().liveRegion, pt && sectorOf(pt.x, pt.y)].join("|");
+  };
+  let lastLiveKey = "";
+  const stopLive = live.subscribe(() => {
+    const k = liveKey();
+    if (k !== lastLiveKey) {
+      lastLiveKey = k;
+      drawLive();
+    } else if (live.position && !frame) frame = requestAnimationFrame(animate);
+  });
 
   /** Place la flèche du joueur à sa position prolongée ; appelé à chaque image tant que la position arrive. */
   function placePlayer() {
@@ -629,7 +648,9 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   function animate() {
     placePlayer();
-    frame = live.position ? requestAnimationFrame(animate) : 0;
+    // Plus de position nouvelle depuis 250 ms (immobile) : on arrête ; la suivante relance la boucle.
+    const fresh = live.position && Date.now() - live.position.at < 250;
+    frame = fresh ? requestAnimationFrame(animate) : 0;
   }
 
   function startDraft(x: number, y: number) {
