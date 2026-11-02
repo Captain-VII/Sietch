@@ -6,16 +6,16 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api, prettyKeys, SHORTCUT_LABELS, type Diagnostic, type Settings, type UpdateInfo } from "../lib/api";
 import { builds, getNotes, markers, setNotes, timerTemplates, type Build, type Marker, type TimerTemplate } from "../lib/data";
-import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
+import { cardHead, confirmDialog, h, icon, keys, mount, toast, type Child } from "../lib/dom";
 import { durationLabel, pad } from "../lib/time";
 
 const TABS = [
-  ["general", "Général"],
-  ["serveur", "Serveur"],
-  ["notifications", "Alertes"],
-  ["raccourcis", "Raccourcis"],
-  ["donnees", "Données"],
-  ["apropos", "À propos"],
+  ["general", "Général", "gear"],
+  ["serveur", "Serveur", "sun"],
+  ["notifications", "Alertes", "bell"],
+  ["raccourcis", "Raccourcis", "bolt"],
+  ["donnees", "Données", "copy"],
+  ["apropos", "À propos", "book"],
 ] as const;
 
 /** Seuils des alertes du personnage : clé, libellé, explication. */
@@ -82,8 +82,10 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     return h("div", { class: "field" }, h("label", { class: "label", for: id }, label), el);
   }
 
+  let cardId = 0;
   function card(title: string, ...children: Child[]) {
-    return h("section", { class: "card", style: "padding: 28px" }, h("h2", { class: "section-title" }, title), ...children);
+    const id = `p-carte-${++cardId}`;
+    return h("section", { class: "card", "aria-labelledby": id }, cardHead(id, title), ...children);
   }
 
   /** Plusieurs cartes dans un même onglet. */
@@ -125,14 +127,15 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         if (Number.isFinite(hh) && Number.isFinite(mm)) update({ coriolisHour: hh, coriolisMinute: mm });
       });
       const reminders = REMINDERS.map((m) => {
-        const box = h("input", { type: "checkbox", checked: s.coriolisReminders.includes(m) });
-        box.addEventListener("change", () => {
+        const chip = h("button", { class: "chip small solid", type: "button", "aria-pressed": String(s.coriolisReminders.includes(m)), onclick: () => {
+          const on = chip.getAttribute("aria-pressed") !== "true";
+          chip.setAttribute("aria-pressed", String(on));
           const set = new Set(ctx.settings().coriolisReminders);
-          if (box.checked) set.add(m);
+          if (on) set.add(m);
           else set.delete(m);
           update({ coriolisReminders: [...set].sort((a, b) => b - a) });
-        });
-        return h("label", { class: "chip", style: "border-style: solid" }, box, durationLabel(m * 60));
+        } }, durationLabel(m * 60));
+        return chip;
       });
       return cards(
         card("Serveur",
@@ -155,7 +158,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     raccourcis: () => {
       const s = ctx.settings();
       const rows = Object.entries(SHORTCUT_LABELS).map(([action, label]) => {
-        const btn = h("button", { class: "key-btn", type: "button", "aria-label": `${label} : ${prettyKeys(s.shortcuts[action] ?? "")}, cliquer pour changer` }, prettyKeys(s.shortcuts[action] ?? ""));
+        const btn = h("button", { class: "key-btn", type: "button", "aria-label": `${label} : ${prettyKeys(s.shortcuts[action] ?? "")}, cliquer pour changer` }, keys(s.shortcuts[action]));
         btn.addEventListener("click", () => {
           stopListening?.();
           btn.classList.add("listening");
@@ -178,7 +181,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
               shortcuts[action] = accel;
               void update({ shortcuts }).then(() => draw());
             }
-            btn.textContent = prettyKeys(ctx.settings().shortcuts[action] ?? "");
+            btn.replaceChildren(keys(ctx.settings().shortcuts[action]));
           };
           window.addEventListener("keydown", onKey, true);
           stopListening = () => finish(null);
@@ -276,7 +279,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   /** Ce que Sietch arrive à lire du jeu : après un patch, dit précisément ce qui manque au lieu de valeurs vides. */
   function gameReading(d: Diagnostic | null) {
-    if (!d?.tables) return card("Lecture du jeu", note("Jeu fermé, avec BattlEye, ou pas encore lu : rien à vérifier pour l'instant."));
+    const battleye = note("Sietch ne lit le jeu que sans BattlEye : mode solo ou serveur privé. Avec BattlEye, seuls les minuteurs, la carte et les outils hors jeu fonctionnent.");
+    if (!d?.tables) return card("Lecture du jeu", battleye, note("Jeu fermé, avec BattlEye, ou pas encore lu : rien à vérifier pour l'instant."));
     const item = (label: string, ok: boolean) => h("li", { class: ok ? "check-ok" : "check-missing" }, h("span", { "aria-hidden": "true" }, ok ? "✓" : "✕"), ` ${label}`, h("span", { class: "sr-only" }, ok ? " : lu" : " : introuvable"));
     return card("Lecture du jeu",
       d.missing.length
@@ -343,7 +347,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
 
   async function draw() {
     lastTab = tab;
-    mount(tabsBox, TABS.map(([id, label]) =>
+    mount(tabsBox, TABS.map(([id, label, ico]) =>
       h("button", {
         class: "tab", type: "button", role: "tab", "aria-selected": String(id === tab),
         onclick: () => {
@@ -351,7 +355,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           tab = id;
           void draw();
         },
-      }, label)));
+      }, icon(ico, 16), label)));
     const panel = await panels[tab]();
     mount(content, panel);
   }
@@ -361,10 +365,6 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     h("header", { class: "page-head" },
       h("div", { class: "titles" }, h("span", { class: "eyebrow" }, "Préférences de l'application"), h("h1", { class: "h1" }, "Paramètres")),
       h("span", { class: "muted" }, "Enregistré automatiquement"),
-    ),
-    h("section", { class: "card hot tight", role: "note" },
-      h("strong", {}, "Sietch ne fonctionne que si BattlEye n'est pas présent."),
-      note("Lancez Dune: Awakening en mode solo ou sur un serveur privé sans BattlEye. Avec BattlEye, Sietch ne lit rien du jeu."),
     ),
     h("div", { class: "columns" }, tabsBox, content),
   );

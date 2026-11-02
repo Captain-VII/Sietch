@@ -1,7 +1,29 @@
 /* Sous-ensemble latin seul (français compris, Œ inclus) : pas de cyrillique ni de latin étendu embarqués. */
-@import "@fontsource/jost/latin-400.css";
-@import "@fontsource/jost/latin-500.css";
-@import "@fontsource/jost/latin-600.css";
+/* Jost, latin seulement, en woff2 (WebView2 n'a pas besoin du woff de secours). */
+@font-face {
+  font-family: "Jost";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/jost/files/jost-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Jost";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("@fontsource/jost/files/jost-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Jost";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/jost/files/jost-latin-600-normal.woff2") format("woff2");
+}
+
 
 /* Thème repris de l'interface du jeu : bleu nuit, laiton, texte crème, violet pour la sélection. */
 :root {

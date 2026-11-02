@@ -1,5 +1,5 @@
 import type { Ctx, ViewHandle } from "../main";
-import { h, mount, toast } from "../lib/dom";
+import { emptyState, h, mount, toast } from "../lib/dom";
 import { plan, recipesOf, WATER, type Plan } from "../lib/recipes";
 import { loadIndex, pageUrl, searchTitles, WIKI_LICENSE, WIKI_LICENSE_URL } from "../lib/wiki";
 import { openExternal } from "../lib/wiki-browser";
@@ -15,7 +15,9 @@ export function render(root: HTMLElement, _ctx: Ctx, action?: string | null): Vi
   const search = h("input", { class: "input search", id: "art-objet", type: "search", placeholder: "Objet du wiki, en anglais : Steel Ingot, Stillsuit…", autocomplete: "off", style: "flex: 1 1 260px; width: auto" });
   const qty = h("input", { class: "input", id: "art-qte", type: "number", min: "1", max: "9999", value: "1", style: "width: 96px", "aria-label": "Quantité" });
   const suggest = h("div", { class: "row wrap", style: "--gap: 6px" });
-  const result = h("div", { class: "stack", style: "--gap: 20px" });
+  const result = h("div", { class: "stack", style: "--gap: 20px" },
+    h("section", { class: "card", style: "min-height: 260px" },
+      emptyState("hammer", "Cherchez un objet du wiki (en anglais) : Sietch remonte jusqu'aux matières premières, avec chaque étape de fabrication.")));
   /** Recette choisie par objet quand il y en a plusieurs (raffinerie petite ou moyenne…). */
   const choice = new Map<string, number>();
   let item = "";

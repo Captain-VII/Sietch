@@ -3,7 +3,7 @@ import {
   BUILD_TAGS, builds as store, decodeBuild, encodeBuild, newBuild, SCHOOLS, SLOTS,
   type Build, type BuildTag,
 } from "../lib/data";
-import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
+import { confirmDialog, emptyState, h, icon, mount, toast } from "../lib/dom";
 
 export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
   let list: Build[] = [];
@@ -13,6 +13,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   const listBox = h("div", { class: "stack", style: "--gap: 8px" });
   const editor = h("div", { class: "columns", style: "flex: 4 1 700px; min-width: 0" });
   const savedHint = h("span", { class: "muted", "aria-live": "polite" });
+  const listSection = h("section", { class: "stack", style: "--gap: 8px; flex: 1 1 240px; min-width: 0", "aria-label": "Mes builds", hidden: true });
 
   /** Enregistre peu après la dernière modification. */
   function touch() {
@@ -48,9 +49,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       && (!q || fold([b.name, b.notes, ...Object.values(b.slots)].join(" ")).includes(q)));
     mount(
       listBox,
-      list.length && !shown.length ? h("div", { class: "empty" }, "Aucun build ne correspond.") : null,
-      list.length
-        ? shown.map((b) =>
+      list.length && !shown.length ? h("p", { class: "muted", style: "margin: 0; font-size: 13px" }, "Aucun build ne correspond.") : null,
+      shown.map((b) =>
             h("button", {
               class: "pick", type: "button", "aria-pressed": String(b.id === current?.id),
               onclick: () => {
@@ -64,14 +64,19 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
                 h("span", { class: "tag", style: `color: ${BUILD_TAGS[b.tag]}` }, b.tag),
                 h("span", { class: "muted", style: "font-size: 13px" }, new Date(b.updatedAt).toLocaleDateString("fr-FR"))),
             ),
-          )
-        : h("div", { class: "empty" }, "Aucun build. Créez-en un ou importez un code de partage."),
+          ),
     );
   }
 
   function drawEditor() {
+    listSection.hidden = !list.length;
     if (!current) {
-      mount(editor, h("div", { class: "empty", style: "flex: 1" }, "Choisissez un build dans la liste."));
+      mount(editor, h("section", { class: "card", style: "flex: 1; min-height: 320px" }, list.length
+        ? emptyState("shield", "Choisissez un build dans la liste.")
+        : emptyState("shield", "Aucun build. Notez votre équipement et vos écoles de compétences, puis partagez-les en un code.",
+          h("div", { class: "row wrap", style: "justify-content: center" },
+            h("button", { class: "btn btn-primary", type: "button", onclick: create }, icon("plus", 16), "Nouveau build"),
+            h("button", { class: "btn", type: "button", onclick: importCode }, "Importer un code")))));
       return;
     }
     const b = current;
@@ -250,11 +255,10 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         h("button", { class: "btn btn-primary", type: "button", onclick: create }, icon("plus", 16), "Nouveau build"),
       ),
     ),
-    h("div", { class: "columns" },
-      h("section", { class: "stack", style: "--gap: 8px; flex: 1 1 240px; min-width: 0", "aria-label": "Mes builds" }, filters, listBox),
-      editor),
+    h("div", { class: "columns" }, listSection, editor),
   );
 
+  mount(listSection, filters, listBox);
   void store.all().then((l) => {
     list = l;
     current = list.find((b) => b.id === action) ?? list[0] ?? null;

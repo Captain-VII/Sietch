@@ -1,6 +1,6 @@
 import type { Ctx, ViewHandle } from "../main";
 import { api, type RawStat } from "../lib/api";
-import { h, mount } from "../lib/dom";
+import { emptyState, h, mount } from "../lib/dom";
 import { live } from "../lib/live";
 
 /** « DuneHydrationAttributeSet » → « Hydration ». */
@@ -18,6 +18,9 @@ export function render(root: HTMLElement, _ctx: Ctx): ViewHandle {
   const status = h("span", { class: "muted" });
   const list = h("div", { class: "grid-auto", style: "--min: 360px" });
   let stats: RawStat[] = [];
+  /** Valeur affichée de chaque stat : relue chaque seconde, mise à jour sur place tant que la liste ne change pas. */
+  const cells = new Map<string, HTMLElement>();
+  let drawn = "";
 
   function draw() {
     const q = search.value.trim().toLowerCase();
@@ -28,14 +31,29 @@ export function render(root: HTMLElement, _ctx: Ctx): ViewHandle {
       : live.status.active
         ? "Lecture en cours…"
         : "Rien à lire : le jeu doit tourner sans BattlEye.";
-    mount(list, sets.map((set) =>
-      h("section", { class: "card tight" },
-        h("h2", { class: "section-title" }, setLabel(set)),
-        h("div", {}, shown.filter((s) => s.set === set).map((s) =>
-          h("div", { class: "setting-row", style: "padding: 6px 0" },
-            h("span", { class: "soft", style: "font-size: 14px; word-break: break-all" }, s.name),
-            h("span", { class: "digits" }, format(s.value))))),
-      )));
+    const keys = shown.map((s) => `${s.set}.${s.name}`).join("|");
+    if (keys === drawn && keys) {
+      for (const s of shown) {
+        const cell = cells.get(`${s.set}.${s.name}`)!;
+        const v = format(s.value);
+        if (cell.textContent !== v) cell.textContent = v;
+      }
+      return;
+    }
+    drawn = keys;
+    cells.clear();
+    mount(list, shown.length
+      ? sets.map((set) =>
+        h("section", { class: "card tight" },
+          h("h2", { class: "section-title" }, setLabel(set)),
+          h("div", {}, shown.filter((s) => s.set === set).map((s) => {
+            const cell = h("span", { class: "digits" }, format(s.value));
+            cells.set(`${s.set}.${s.name}`, cell);
+            return h("div", { class: "setting-row compact" },
+              h("span", { class: "soft", style: "word-break: break-all" }, s.name), cell);
+          }))))
+      : h("section", { class: "card", style: "grid-column: 1 / -1; min-height: 260px" },
+        emptyState("shield", stats.length ? "Aucune valeur ne correspond." : status.textContent ?? "")));
   }
 
   async function refresh() {

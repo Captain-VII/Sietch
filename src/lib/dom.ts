@@ -94,6 +94,26 @@ export function icon(name: keyof typeof ICONS | string, size = 18): SVGSVGElemen
   return svg;
 }
 
+/** En-tête de carte : titre de section, puis actions discrètes à droite (le titre ne passe jamais à la ligne). */
+export function cardHead(id: string, title: string, ...actions: Child[]): HTMLElement {
+  return h("div", { class: "card-head" }, h("h2", { class: "section-title", id }, title), ...actions);
+}
+
+/** Lien d'action d'un en-tête de carte (« Tout voir › »). */
+export function linkBtn(label: string, onclick: () => void): HTMLButtonElement {
+  return h("button", { class: "link-btn", type: "button", onclick }, label, icon("chevronRight", 14));
+}
+
+/** Combinaison de touches en pastilles (« Ctrl » « Maj » « O »), ou « aucun ». */
+export function keys(combo: string | undefined): HTMLElement {
+  return h("span", { class: "keys" }, combo ? combo.replace(/Shift/g, "Maj").split("+").map((k) => h("kbd", {}, k)) : h("span", { class: "muted" }, "aucun"));
+}
+
+/** État vide : pictogramme, phrase, action facultative. */
+export function emptyState(name: string, text: string, action?: Child): HTMLElement {
+  return h("div", { class: "empty-state" }, h("span", { class: "empty-icon", "aria-hidden": "true" }, icon(name, 20)), h("p", {}, text), action ?? null);
+}
+
 /** Le logo de Sietch : un ver des sables qui jaillit devant la lune. Décoratif.
  *  En dessous de 28 px, la version plate, plus lisible que l'illustration. */
 export function logo(size = 34): HTMLImageElement {

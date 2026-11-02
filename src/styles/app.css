@@ -141,25 +141,6 @@
   color: var(--text-muted);
 }
 
-.shortcut-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 0 14px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-}
-
-.shortcut-row:hover {
-  border-color: var(--line-selected);
-}
-
 .mini-map {
   display: grid;
   grid-template-columns: repeat(9, minmax(0, 1fr));
@@ -459,19 +440,6 @@ div.leaflet-container {
   white-space: nowrap;
 }
 
-.link-btn {
-  padding: 4px 6px;
-  border: 0;
-  background: none;
-  color: var(--spice-light);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.link-btn:hover {
-  text-decoration: underline;
-}
-
 /* ---------- Builds ---------- */
 
 .slots {
@@ -677,14 +645,23 @@ div.leaflet-container {
 .tabs {
   flex: 0 1 220px;
   min-width: 180px;
+  position: sticky;
+  top: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
 }
 
 .tab {
-  min-height: 44px;
-  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 12px;
   border-radius: var(--radius);
   border: 1px solid transparent;
   background: transparent;
@@ -710,6 +687,19 @@ div.leaflet-container {
   gap: 16px;
   padding: 12px 0;
   border-top: 1px solid var(--selected);
+}
+
+.setting-row.compact {
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+label.setting-row {
+  cursor: pointer;
+}
+
+.setting-row.compact:first-child {
+  border-top: 0;
 }
 
 /* Écran Overlay : un widget par ligne (pictogramme, nom et rôle, interrupteur). */
@@ -760,19 +750,24 @@ div.leaflet-container {
   text-align: center;
 }
 
+/* Raccourci modifiable : ses touches en pastilles ; clic pour en saisir un autre. */
 .key-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
   min-width: 150px;
-  min-height: 44px;
-  padding: 0 14px;
-  background: var(--bg);
-  border: 1px solid var(--line-2);
+  min-height: 36px;
+  padding: 0 8px;
+  background: none;
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  color: var(--spice-light);
-  font-family: var(--font-label);
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: 0.1em;
+  color: var(--text-soft);
+  font-size: 13px;
   cursor: pointer;
+}
+
+.key-btn:hover {
+  border-color: var(--line-2);
 }
 
 .key-btn.listening {
@@ -896,4 +891,47 @@ div.leaflet-container {
 
 .check-missing {
   color: var(--text-muted);
+}
+
+/* Accueil : liste « Préparer une sortie ». */
+.trip-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.trip-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.trip-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--radius);
+}
+
+.trip-item:hover {
+  background: var(--selected);
+}
+
+.trip-item .check {
+  min-height: 34px;
+  font-size: 14px;
+}
+
+.trip-item .check input:checked + span {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.trip-item .icon-btn {
+  opacity: 0;
+}
+
+.trip-item:hover .icon-btn,
+.trip-item .icon-btn:focus-visible {
+  opacity: 1;
 }

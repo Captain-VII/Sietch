@@ -2,7 +2,7 @@ import type { Ctx, ViewHandle } from "../main";
 import { api, GROUPS, prettyKeys, type Timer, type TimerGroup, type TimerInput } from "../lib/api";
 import { resourceKind } from "../lib/carte";
 import { timerTemplates, uid } from "../lib/data";
-import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
+import { cardHead, confirmDialog, emptyState, h, icon, mount, toast } from "../lib/dom";
 import { durationLabel, timerStatus } from "../lib/time";
 
 const GRIP = () => {
@@ -32,9 +32,9 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       Object.entries(GROUPS).map(([v, l]) => h("option", { value: v }, l))),
     hours: h("input", { class: "input", id: "t-h", type: "number", min: "0", max: "999", value: "0" }),
     minutes: h("input", { class: "input", id: "t-m", type: "number", min: "0", max: "59", value: "45" }),
-    alarm: h("input", { type: "checkbox", checked: true }),
-    repeat: h("input", { type: "checkbox" }),
-    inOverlay: h("input", { type: "checkbox", checked: true }),
+    alarm: h("input", { class: "switch small", type: "checkbox", role: "switch", checked: true }),
+    repeat: h("input", { class: "switch small", type: "checkbox", role: "switch" }),
+    inOverlay: h("input", { class: "switch small", type: "checkbox", role: "switch", checked: true }),
   };
   const formTitle = h("h2", { class: "section-title", id: "form-titre" }, "Nouveau minuteur");
   const submit = h("button", { class: "btn btn-primary", type: "submit" }, "Démarrer");
@@ -85,7 +85,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         }
       },
     },
-    formTitle,
+    h("div", { class: "card-head" }, formTitle),
     h("div", { class: "field" }, h("label", { class: "label", for: "t-nom" }, "Nom"), f.name),
     h("div", { class: "field" }, h("label", { class: "label", for: "t-lieu" }, "Lieu"), f.place),
     h("div", { class: "field" }, h("label", { class: "label", for: "t-groupe" }, "Groupe"), f.group),
@@ -93,14 +93,14 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       h("div", { class: "field grow" }, h("label", { class: "label", for: "t-h" }, "Heures"), f.hours),
       h("div", { class: "field grow" }, h("label", { class: "label", for: "t-m" }, "Minutes"), f.minutes),
     ),
-    h("div", { class: "stack", style: "--gap: 0" },
-      h("label", { class: "check" }, f.alarm, "Notification à la fin"),
-      h("label", { class: "check" }, f.repeat, "Répéter automatiquement"),
-      h("label", { class: "check" }, f.inOverlay, "Afficher dans l'overlay"),
+    h("div", {},
+      h("label", { class: "setting-row compact" }, "Notification à la fin", f.alarm),
+      h("label", { class: "setting-row compact" }, "Répéter automatiquement", f.repeat),
+      h("label", { class: "setting-row compact" }, "Afficher dans l'overlay", f.inOverlay),
     ),
     error,
     h("div", { class: "row" }, h("div", { class: "grow", style: "display: flex" }, submit), cancel),
-    h("button", { class: "btn", type: "button", onclick: () => void saveTemplate() }, "Enregistrer comme modèle"),
+    h("button", { class: "link-btn", type: "button", style: "align-self: center", onclick: () => void saveTemplate() }, icon("plus", 14), "Enregistrer comme modèle"),
   );
   submit.style.flex = "1";
 
@@ -134,20 +134,20 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   async function drawTemplates() {
     const list = await timerTemplates.all();
     mount(templatesBox, list.length
-      ? list.map((t) => h("div", { class: "setting-row", style: "padding: 6px 0" },
+      ? list.map((t) => h("div", { class: "setting-row compact" },
         h("div", { class: "stack grow", style: "--gap: 2px; min-width: 0" },
           h("span", {}, t.name),
           h("span", { class: "muted", style: "font-size: 13px" }, [durationLabel(t.durationSecs), t.place].filter(Boolean).join(" · "))),
-        h("button", { class: "btn btn-accent", type: "button", onclick: async () => {
+        h("button", { class: "icon-btn", type: "button", "aria-label": `Démarrer ${t.name}`, title: "Démarrer", onclick: async () => {
           const { id: _id, ...input } = t;
           await api.saveTimer(input);
           toast("Minuteur démarré", t.name);
-        } }, "Démarrer"),
+        } }, icon("play", 16)),
         h("button", { class: "icon-btn", type: "button", "aria-label": `Supprimer le modèle ${t.name}`, title: "Supprimer le modèle", onclick: async () => {
           await timerTemplates.remove(t.id);
           await drawTemplates();
         } }, icon("trash", 16))))
-      : h("p", { class: "muted", style: "margin: 0" }, "Remplissez le formulaire puis « Enregistrer comme modèle » : le minuteur se relance ensuite en un clic."));
+      : h("p", { class: "muted", style: "margin: 0; font-size: 13px" }, "Remplissez le formulaire puis « Enregistrer comme modèle » : le minuteur se relance ensuite en un clic."));
   }
   void drawTemplates();
 
@@ -167,10 +167,10 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     }
     for (const [name, secs] of KNOWN) if (![...ready.keys()].some((n) => n.startsWith(name))) ready.set(name, secs);
     mount(readyBox, [...ready].sort((a, b) => a[0].localeCompare(b[0], "fr")).map(([name, secs]) =>
-      h("button", { class: "chip", type: "button", title: `Démarrer « ${name} » (${durationLabel(secs)})`, onclick: async () => {
+      h("button", { class: "chip small", type: "button", title: `Démarrer « ${name} » (${durationLabel(secs)})`, onclick: async () => {
         await api.saveTimer({ name, place: "", group: "ressources", durationSecs: secs, repeat: false, alarm: true, inOverlay: true });
         toast("Minuteur démarré", `${name} · prêt dans ${durationLabel(secs)}`);
-      } }, `${name} · ${durationLabel(secs)}`)));
+      } }, icon("play", 12), name, h("span", { class: "muted" }, durationLabel(secs)))));
   }
   void drawReady();
 
@@ -253,7 +253,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   function drawList() {
     const all = ctx.timers();
     if (!all.length) {
-      mount(listBox, h("div", { class: "empty" }, "Aucun minuteur. Créez-en un avec le formulaire, ou depuis un marqueur de la carte."));
+      mount(listBox, h("div", { class: "card" }, emptyState("timer", "Aucun minuteur en cours. Lancez-en un prêt à l'emploi ci-dessus, un modèle, ou créez-le avec le formulaire.")));
       return;
     }
     mount(
@@ -262,7 +262,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         const items = all.filter((t) => t.group === g);
         if (!items.length) return null;
         return h("section", { class: "stack", style: "--gap: 10px", "aria-label": GROUPS[g] },
-          h("h2", { class: "section-title", style: "color: var(--text-soft)" }, GROUPS[g]),
+          h("h2", { class: "section-title", style: "color: var(--text-soft)" }, GROUPS[g], h("span", { class: "muted", style: "letter-spacing: 0" }, String(items.length))),
           items.map(row),
         );
       }),
@@ -274,26 +274,26 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     root,
     h("header", { class: "page-head" },
       h("div", { class: "titles" }, h("span", { class: "eyebrow" }, "Alarmes et notifications Windows"), h("h1", { class: "h1" }, "Minuteurs")),
-      h("span", { class: "muted" }, "Glisser-déposer pour réorganiser"),
     ),
     h("div", { class: "columns" },
-      h("div", { style: "flex: 2 1 520px; min-width: 0" }, listBox),
+      h("div", { class: "stack", style: "--gap: 24px; flex: 2 1 520px; min-width: 0" },
+        h("section", { class: "card tight", "aria-labelledby": "prets-titre" },
+          cardHead("prets-titre", "Démarrage rapide"),
+          h("p", { class: "muted", style: "margin: 0; font-size: 13px" }, "Réapparition des ressources, délais relevés dans le jeu. Depuis la carte, un clic sur une ressource lance aussi son minuteur."),
+          readyBox),
+        listBox),
       h("div", { class: "stack", style: "--gap: 20px; flex: 1 1 300px; min-width: 0" },
         h("section", { class: "card hot tight", "aria-labelledby": "cor-titre" },
-          h("h2", { class: "section-title", id: "cor-titre", style: "color: var(--spice)" }, "Tempête de Coriolis"),
+          cardHead("cor-titre", "Tempête de Coriolis"),
           h("span", { class: "digits", style: "font-size: 26px; color: var(--text-strong)", "data-coriolis": "" }),
           h("span", { class: "muted" }, `Chaque semaine · rappels à ${ctx.settings().coriolisReminders.map((m) => durationLabel(m * 60)).join(", ") || "aucun"}`),
         ),
         form,
         h("section", { class: "card tight", "aria-labelledby": "mod-titre" },
-          h("h2", { class: "section-title", id: "mod-titre" }, "Modèles"),
+          cardHead("mod-titre", "Modèles"),
           templatesBox,
           h("p", { class: "muted", style: "margin: 0; font-size: 13px" },
             `En jeu, ${prettyKeys(ctx.settings().shortcuts["timer-last"] ?? "")} relance le dernier minuteur terminé sans ouvrir Sietch.`)),
-        h("section", { class: "card tight", "aria-labelledby": "prets-titre" },
-          h("h2", { class: "section-title", id: "prets-titre" }, "Prêts à l'emploi"),
-          h("p", { class: "muted", style: "margin: 0; font-size: 13px" }, "Réapparition des ressources, avec les délais relevés dans le jeu. Un clic démarre le minuteur ; depuis la carte, un clic sur une ressource le lance avec son secteur."),
-          readyBox),
       ),
     ),
   );

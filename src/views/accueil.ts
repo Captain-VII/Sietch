@@ -1,7 +1,7 @@
 import type { Ctx, ViewHandle } from "../main";
-import { api, on, prettyKeys, SHORTCUT_LABELS, type Playtime, type Session, type Timer } from "../lib/api";
+import { api, on, type Playtime, type Session, type Timer } from "../lib/api";
 import { builds, DEFAULT_CHECKLIST, getChecklist, getNotes, markers, MARKER_TYPES, REGIONS, sectorOf, setChecklist, setNotes, type CheckItem } from "../lib/data";
-import { h, icon, mount } from "../lib/dom";
+import { cardHead, emptyState, h, icon, linkBtn, mount } from "../lib/dom";
 import { coriolisNext, now, remaining } from "../lib/time";
 
 function timerLine(t: Timer) {
@@ -23,19 +23,21 @@ function activeTimers(list: Timer[]) {
 }
 
 export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
-  const timersBox = h("div", { class: "stack", style: "--gap: 18px" });
+  const timersBox = h("div", { class: "stack grow", style: "--gap: 18px" });
   const drawTimers = () => {
     const list = activeTimers(ctx.timers()).slice(0, 4);
-    mount(timersBox, list.length ? list.map(timerLine) : h("p", { class: "muted", style: "margin: 0" }, "Aucun minuteur en cours."));
+    mount(timersBox, list.length ? list.map(timerLine)
+      : emptyState("timer", "Aucun minuteur en cours.", h("button", { class: "btn", type: "button", onclick: () => ctx.go("minuteurs") }, icon("plus", 16), "Nouveau minuteur")));
   };
   drawTimers();
 
-  const markerBox = h("div", { class: "stack" });
-  const buildsBox = h("div", { class: "row wrap" });
+  const markerBox = h("div", { class: "stack grow" });
+  const buildsBox = h("div", { class: "stack grow", style: "--gap: 8px" });
   void markers.all().then((list) => {
     const last = list.sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (!last) {
-      mount(markerBox, h("p", { class: "muted", style: "margin: 0" }, "Aucun marqueur pour l'instant."));
+      mount(markerBox, emptyState("pin", "Aucun marqueur. Posez-en un sur la carte : nœud de ressource, base, rendez-vous…",
+        h("button", { class: "btn", type: "button", onclick: () => ctx.go("carte") }, icon("map", 16), "Ouvrir la carte")));
       return;
     }
     const sector = sectorOf(last.x, last.y);
@@ -60,12 +62,12 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
       buildsBox,
       list.length
         ? list.slice(0, 3).map((b) =>
-            h("button", { class: "pick", type: "button", style: "flex: 1 1 200px; width: auto", onclick: () => ctx.go("builds", b.id) },
+            h("button", { class: "pick", type: "button", onclick: () => ctx.go("builds", b.id) },
               h("span", { class: "title" }, b.name),
               h("span", { class: "muted", style: "font-size: 13px" }, `${b.tag} · modifié le ${new Date(b.updatedAt).toLocaleDateString("fr-FR")}`),
             ),
           )
-        : h("p", { class: "muted", style: "margin: 0" }, "Aucun build enregistré."),
+        : emptyState("shield", "Aucun build enregistré.", h("button", { class: "btn", type: "button", onclick: () => ctx.go("builds") }, icon("plus", 16), "Créer un build")),
     );
   });
 
@@ -117,7 +119,7 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
   const playTick = window.setInterval(drawPlay, 30_000);
 
   // Préparer une sortie dans le Désert profond : liste à cocher et temps restant avant la tempête.
-  const tripBox = h("div", { class: "stack", style: "--gap: 10px" });
+  const tripBox = h("div", { class: "stack", style: "--gap: 12px" });
   let trip: CheckItem[] = [];
   const saveTrip = () => void setChecklist(trip).then(drawTrip);
   const drawTrip = () => {
@@ -132,28 +134,26 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     const done = trip.filter((i) => i.done).length;
     mount(tripBox,
       Number.isFinite(hours)
-        ? h("p", { class: hours < 12 ? "warn" : "soft", style: "margin: 0" },
+        ? h("p", { class: hours < 12 ? "warn" : "soft", style: "margin: 0; font-size: 13px" },
             hours < 12 ? `Attention : la tempête de Coriolis arrive dans ${Math.max(0, Math.floor(hours))} h ${String(Math.floor((left % 3_600_000) / 60_000)).padStart(2, "0")}.` : `Tempête de Coriolis dans ${Math.floor(hours / 24)} j ${Math.floor(hours % 24)} h : vous avez le temps.`)
         : null,
-      h("div", { class: "stack", style: "--gap: 4px" },
+      h("div", { class: "trip-progress" },
+        h("div", { class: "bar grow" }, h("span", { style: `width: ${trip.length ? Math.round((done / trip.length) * 100) : 0}%` })),
+        h("span", { class: "digits", style: "font-size: 13px" }, `${done}/${trip.length}`)),
+      h("div", { class: "trip-list" },
         trip.map((item, i) => {
           const box = h("input", { type: "checkbox", checked: item.done });
           box.addEventListener("change", () => { item.done = box.checked; saveTrip(); });
-          return h("div", { class: "row spread", style: "--gap: 8px" },
-            h("label", { class: "check grow" }, box, item.label),
+          return h("div", { class: "trip-item" },
+            h("label", { class: "check grow" }, box, h("span", {}, item.label)),
             h("button", { class: "icon-btn", type: "button", "aria-label": `Retirer « ${item.label} »`, title: "Retirer", onclick: () => { trip.splice(i, 1); saveTrip(); } }, icon("close", 14)));
         })),
       add,
-      h("div", { class: "row wrap spread" },
-        h("span", { class: "muted", style: "white-space: nowrap" }, `${done}/${trip.length} prêt${done > 1 ? "s" : ""}`),
-        h("div", { class: "row wrap", style: "--gap: 8px" },
-          h("button", { class: "btn", type: "button", onclick: () => { trip.forEach((i) => (i.done = false)); saveTrip(); } }, "Tout décocher"),
-          h("button", { class: "btn", type: "button", onclick: () => { trip = DEFAULT_CHECKLIST.map((label) => ({ label, done: false })); saveTrip(); } }, "Liste d'origine"))),
     );
   };
   void getChecklist().then((l) => { trip = l; drawTrip(); });
 
-  const notes = h("textarea", { class: "textarea", rows: "5", "aria-label": "Notes rapides", placeholder: "Coordonnées, rendez-vous de guilde, achats à faire…" });
+  const notes = h("textarea", { class: "textarea grow", rows: "8", "aria-label": "Notes rapides", placeholder: "Coordonnées, rendez-vous de guilde, achats à faire…" });
   void getNotes().then((t) => (notes.value = t));
   let notesTimer = 0;
   notes.addEventListener("input", () => {
@@ -161,7 +161,6 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
     notesTimer = window.setTimeout(() => void setNotes(notes.value), 400);
   });
 
-  const s = ctx.settings();
   mount(
     root,
     h("header", { class: "page-head" },
@@ -184,52 +183,37 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
       ),
     ),
 
-    h("div", { class: "grid-auto" },
+    h("div", { class: "grid-auto", style: "--min: 300px" },
       h("section", { class: "card", "aria-labelledby": "mt-titre" },
-        h("div", { class: "row spread" },
-          h("h2", { class: "section-title", id: "mt-titre" }, "Minuteurs actifs"),
-          h("button", { class: "btn", type: "button", onclick: () => ctx.go("minuteurs") }, "Tout voir"),
-        ),
+        cardHead("mt-titre", "Minuteurs actifs", linkBtn("Tout voir", () => ctx.go("minuteurs"))),
         timersBox,
       ),
-      h("section", { class: "card", "aria-labelledby": "pos-titre" },
-        h("div", { class: "row spread" },
-          h("h2", { class: "section-title", id: "pos-titre" }, "Dernier marqueur"),
-          h("button", { class: "btn", type: "button", onclick: () => ctx.go("carte") }, "Carte"),
-        ),
-        markerBox,
-      ),
       h("section", { class: "card", "aria-labelledby": "jeu-titre" },
-        h("h2", { class: "section-title", id: "jeu-titre" }, "Temps de jeu"),
+        cardHead("jeu-titre", "Temps de jeu"),
         playBox,
       ),
-      h("section", { class: "card", "aria-labelledby": "rac-titre" },
-        h("h2", { class: "section-title", id: "rac-titre" }, "Raccourcis globaux"),
-        Object.entries(SHORTCUT_LABELS).slice(0, 4).map(([action, label]) =>
-          h("div", { class: "shortcut-row" }, label, h("kbd", { class: "kbd" }, prettyKeys(s.shortcuts[action] ?? ""))),
-        ),
+      h("section", { class: "card", "aria-labelledby": "pos-titre" },
+        cardHead("pos-titre", "Dernier marqueur", linkBtn("Carte", () => ctx.go("carte"))),
+        markerBox,
       ),
     ),
 
-    h("div", { class: "grid-auto", style: "--min: 320px" },
+    h("div", { class: "grid-auto", style: "--min: 300px" },
       h("section", { class: "card", "aria-labelledby": "sortie-titre" },
-        h("h2", { class: "section-title", id: "sortie-titre" }, "Préparer une sortie"),
+        cardHead("sortie-titre", "Préparer une sortie"),
         tripBox,
+        h("div", { class: "row", style: "--gap: 4px; justify-content: flex-end; margin-top: auto" },
+          h("button", { class: "link-btn", type: "button", onclick: () => { trip.forEach((i) => (i.done = false)); saveTrip(); } }, "Tout décocher"),
+          h("button", { class: "link-btn", type: "button", onclick: () => { trip = DEFAULT_CHECKLIST.map((label) => ({ label, done: false })); saveTrip(); } }, "Liste d'origine")),
       ),
       h("section", { class: "card", "aria-labelledby": "br-titre" },
-        h("div", { class: "row spread" },
-          h("h2", { class: "section-title", id: "br-titre" }, "Builds récents"),
-          h("button", { class: "btn", type: "button", onclick: () => ctx.go("builds") }, "Gérer"),
-        ),
+        cardHead("br-titre", "Builds récents", linkBtn("Gérer", () => ctx.go("builds"))),
         buildsBox,
       ),
       h("section", { class: "card", "aria-labelledby": "notes-titre" },
-        h("h2", { class: "section-title", id: "notes-titre" }, "Notes rapides"),
+        cardHead("notes-titre", "Notes rapides"),
         notes,
-        h("div", { class: "row wrap spread" },
-          h("span", { class: "badge" }, "Compatible BattlEye · lecture du jeu seulement sans BattlEye"),
-          h("button", { class: "btn", type: "button", onclick: () => api.toggleOverlay() }, "Overlay"),
-        ),
+        h("span", { class: "muted", style: "font-size: 12px" }, "Enregistrées automatiquement, sur cet ordinateur."),
       ),
     ),
   );

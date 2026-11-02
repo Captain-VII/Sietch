@@ -1,6 +1,6 @@
 import type { Ctx, ViewHandle } from "../main";
-import { api, prettyKeys, type Layout, type Settings, type WidgetKind } from "../lib/api";
-import { confirmDialog, h, icon, mount, toast } from "../lib/dom";
+import { api, type Layout, type Settings, type WidgetKind } from "../lib/api";
+import { confirmDialog, h, icon, keys, mount, toast } from "../lib/dom";
 
 const WIDGET_LABELS: Record<WidgetKind, string> = {
   clock: "Heure du jeu",
@@ -93,8 +93,6 @@ export function render(root: HTMLElement, ctx: Ctx): ViewHandle {
   }
 
   /** Combinaison de touches, une touche par pastille. */
-  const keys = (combo: string | undefined) =>
-    h("span", { class: "keys" }, combo ? prettyKeys(combo).split("+").map((k) => h("kbd", {}, k)) : h("span", { class: "muted" }, "aucun"));
 
   function draw() {
     const s = ctx.settings();

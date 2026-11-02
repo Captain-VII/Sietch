@@ -1,4 +1,3 @@
-import "leaflet/dist/leaflet.css";
 import "./styles/theme.css";
 import "./styles/components.css";
 import "./styles/app.css";
@@ -13,7 +12,6 @@ import { DATABASE_URL, openExternal } from "./lib/wiki-browser";
 import * as accueil from "./views/accueil";
 import * as artisanat from "./views/artisanat";
 import * as builds from "./views/builds";
-import * as carte from "./views/carte";
 import * as minuteurs from "./views/minuteurs";
 import * as overlay from "./views/overlay";
 import * as parametres from "./views/parametres";
@@ -37,11 +35,13 @@ export interface ViewHandle {
 }
 
 type ViewModule = { render: (root: HTMLElement, ctx: Ctx, action?: string | null) => ViewHandle | void };
+/** Carte chargée à la première ouverture : Leaflet pèse plus que tout le reste de l'interface. */
+const loadCarte = () => import("./views/carte");
 
-const VIEWS: Record<ViewName, { label: string; icon: string; module: ViewModule }> = {
+const VIEWS: Record<ViewName, { label: string; icon: string; module: ViewModule | typeof loadCarte }> = {
   accueil: { label: "Accueil", icon: "home", module: accueil },
   overlay: { label: "Overlay", icon: "layers", module: overlay },
-  carte: { label: "Carte", icon: "map", module: carte },
+  carte: { label: "Carte", icon: "map", module: loadCarte },
   stats: { label: "Stats brutes", icon: "shield", module: stats },
   minuteurs: { label: "Minuteurs", icon: "timer", module: minuteurs },
   builds: { label: "Builds", icon: "shield", module: builds },
@@ -72,7 +72,14 @@ const ctx: Ctx = {
   },
 };
 
-function go(name: ViewName, action: string | null = null) {
+/** Dernière navigation demandée : un écran chargé trop tard ne remplace pas celui choisi depuis. */
+let navSeq = 0;
+
+async function go(name: ViewName, action: string | null = null) {
+  const seq = ++navSeq;
+  const entry = VIEWS[name].module;
+  const module = typeof entry === "function" ? await entry() : entry;
+  if (seq !== navSeq) return;
   current?.handle.dispose?.();
   for (const [n, btn] of navButtons) {
     if (n === name) btn.setAttribute("aria-current", "page");
@@ -80,7 +87,7 @@ function go(name: ViewName, action: string | null = null) {
   }
   mainEl.replaceChildren();
   mainEl.scrollTop = 0;
-  const handle = VIEWS[name].module.render(mainEl, ctx, action) ?? {};
+  const handle = module.render(mainEl, ctx, action) ?? {};
   current = { name, handle };
 }
 

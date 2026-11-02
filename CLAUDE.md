@@ -65,6 +65,8 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 - **Sécurité des fenêtres** : la fenêtre « web » (sites externes) n'a aucune permission Tauri ; seuls
   awakening.wiki et dune.gaming.tools y sont autorisés (`windows.rs`).
 - Icônes embarquées à la compilation : après un changement d'icône, `npm run icon` (touche `lib.rs`).
+- **Poids de l'interface** : la carte (Leaflet) se charge à sa première ouverture (`main.ts::loadCarte`) ; polices Jost en woff2 seul ; logos à leur taille d'affichage (84 et 36 px). Avant d'ajouter une dépendance ou une image, vérifier `npm run build`.
+- **Composants partagés** (`lib/dom.ts`) : `cardHead`, `linkBtn`, `emptyState`, `keys` ; `input.switch` pour une case en interrupteur. Les réutiliser plutôt que refaire un en-tête ou un état vide.
 - **Fenêtres** : `"create": false` dans `tauri.conf.json`, créées dans `setup` après `manage(AppState)`. Sinon, en
   release (pages embarquées), le front appelle les commandes avant `manage()` → « state not managed ». Invisible en dev.
   Toute nouvelle fenêtre de la config suit la même règle. Une commande Tauri qui crée une fenêtre doit être `async`,

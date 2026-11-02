@@ -54,7 +54,7 @@
 .section-title::after {
   content: "";
   flex: 1 1 24px;
-  min-width: 24px;
+  min-width: 0; /* le trait s'efface avant que le titre passe à la ligne */
   height: 1px;
   background: var(--line-hot);
 }
@@ -163,6 +163,67 @@
 .card.tight {
   padding: 16px;
   gap: 10px;
+}
+
+/* En-tête de carte : titre puis actions, sur une ligne. */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.card-head .section-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--spice-light);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  background: var(--selected);
+}
+
+/* État vide d'une carte : discret, centré, avec son action. */
+.empty-state {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.empty-state p {
+  margin: 0;
+  max-width: 32ch;
+  font-size: 13px;
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  color: var(--spice-light);
 }
 
 .empty {
@@ -447,26 +508,6 @@ input[type="range"] {
   border-radius: 2px;
 }
 
-.kbd {
-  font-family: var(--font-label);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  color: var(--text-soft);
-  border: 1px solid var(--line-2);
-  border-radius: 3px;
-  padding: 2px 8px;
-  white-space: nowrap;
-}
-
-.badge {
-  align-self: flex-start;
-  font-size: 13px;
-  color: var(--info);
-  border: 1px solid #2e5470;
-  border-radius: 3px;
-  padding: 4px 10px;
-}
-
 .tag {
   font-family: var(--font-label);
   font-weight: 600;
@@ -577,4 +618,32 @@ input[type="range"] {
   display: block;
   color: var(--text-strong);
   margin-bottom: 4px;
+}
+
+/* Case à cocher affichée en interrupteur (formulaires). */
+input.switch {
+  appearance: none;
+  margin: 0;
+}
+
+input.switch:checked {
+  justify-content: flex-end;
+  background: var(--spice);
+  border-color: var(--spice);
+}
+
+input.switch:checked::after {
+  background: var(--spice-ink);
+}
+
+input.switch:focus-visible {
+  outline: 2px solid var(--spice-light);
+  outline-offset: 2px;
+}
+
+.chip.small {
+  min-height: 32px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 13px;
 }
