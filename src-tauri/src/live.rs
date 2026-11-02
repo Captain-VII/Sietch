@@ -73,7 +73,7 @@ pub struct LiveStatus {
     pub message: Option<String>,
 }
 
-/// Écran de diagnostic (Paramètres › Sans BattlEye) : où en est la lecture, pour voir vite ce qui manque.
+/// Diagnostic (Paramètres › À propos) : où en est la lecture, pour voir vite ce qui manque.
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Diagnostic {
@@ -91,6 +91,14 @@ pub struct Diagnostic {
     pub in_vehicle: Option<bool>,
     pub resources_known: usize,
     pub last_scan_secs: Option<f32>,
+    /// Relevé des ressources en cours (passage découpé sur plusieurs ticks).
+    pub scanning: bool,
+    /// Personnages proches suivis pour les coups portés.
+    pub foes: usize,
+    /// Champs indispensables introuvables : le jeu a changé, le personnage ne peut pas être lu.
+    pub missing: Vec<&'static str>,
+    /// Lectures facultatives du personnage : (nom, trouvée).
+    pub optional: Vec<(&'static str, bool)>,
 }
 
 #[derive(Clone, Serialize)]
@@ -340,6 +348,8 @@ pub fn spawn(app: AppHandle) {
                             last_player_try = Some(Instant::now());
                             if let Some(mut u) = ue::Ue::open(r, t) {
                                 player = u.find_player();
+                                diag.missing = u.missing.clone();
+                                diag.optional = player.as_ref().map(|p| p.checks()).unwrap_or_default();
                                 // Personnage (re)trouvé : nouvelle région possible, on relit la carte.
                                 if player.is_some() {
                                     let mut map = u.map_data();
@@ -528,6 +538,8 @@ pub fn spawn(app: AppHandle) {
             diag.tables = tables.is_some();
             diag.character = player.is_some();
             diag.resources_known = seen.len();
+            diag.scanning = scanning;
+            diag.foes = resource_scan.foes.len();
             *state.diagnostic.lock().unwrap() = diag.clone();
 
             tick += 1;

@@ -878,3 +878,22 @@ div.leaflet-container {
 .warn {
   color: var(--violet-light);
 }
+
+/* Paramètres › Lecture du jeu : lectures facultatives trouvées ou non. */
+.check-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.check-ok > :first-child {
+  color: var(--spice-light);
+}
+
+.check-missing {
+  color: var(--text-muted);
+}

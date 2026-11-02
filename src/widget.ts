@@ -3,8 +3,8 @@ import "./styles/components.css";
 import "./styles/widget.css";
 
 import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
-import { api, on, type GamePlaces, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
-import { gameImage, HAZARD_EDGE, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, placeIcon, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_GAME_ICONS, POI_KINDS, resourceIcon, resourceKind, SIZE, worldToMap } from "./lib/carte";
+import { api, on, type GamePlaces, type GameRegions, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
+import { gameImage, HAZARD_EDGE, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, placeIcon, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_GAME_ICONS, POI_KINDS, regionAt, resourceIcon, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
@@ -302,13 +302,15 @@ const minimapName = h("div", { class: "w-minimap-name" });
 function drawMinimapName() {
   const here = view && mapData ? worldToMap(mapData, view.x, view.y) : null;
   const sector = here ? sectorOf(Math.max(0, Math.min(899, here.x)), Math.max(0, Math.min(899, here.y))) : null;
-  const text = [player?.zone, sector].filter(Boolean).join(" · ");
+  // Sans nom de zone lu (HUD masqué, patch), la région d'après la position.
+  const text = [player?.zone || (gameRegions && view ? regionAt(gameRegions, view.x, view.y) : null), sector].filter(Boolean).join(" · ");
   if (minimapName.textContent !== text) minimapName.textContent = text;
 }
 let mapData: MapData | null = null;
 let mapImg: { img: HTMLImageElement; rect: [number, number, number, number] } | null = null;
 /** Lieux de la région extraits des fichiers du jeu (null : pas d'extraction, on garde ceux lus en mémoire). */
 let gamePlaces: GamePlaces | null = null;
+let gameRegions: GameRegions | null = null;
 let player: PlayerState | null = null;
 let resources: SeenResource[] = [];
 /** Pictogrammes des lieux et ressources, préparés une fois. */
@@ -319,7 +321,7 @@ async function loadRegion() {
   mapImg = null;
   if (!mapData) return;
   const region = mapRegion(mapData);
-  gamePlaces = await api.gamePlaces(region).catch(() => null);
+  [gamePlaces, gameRegions] = await Promise.all([api.gamePlaces(region).catch(() => null), api.gameRegions(region).catch(() => null)]);
   const url = await api.mapImage(region).catch(() => null);
   if (!url) return;
   const img = new Image();

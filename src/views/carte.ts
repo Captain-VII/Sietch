@@ -16,7 +16,22 @@ const toLatLng = (x: number, y: number) => L.latLng(-y, x);
 const clamp = (v: number) => Math.min(SIZE, Math.max(0, Math.round(v)));
 
 let lastRegion: Region = "hagga";
-const hidden = new Set<MarkerType>();
+const HIDDEN_KEY = "sietch-carte-marqueurs-masques";
+/** Types de marqueurs masqués, gardés d'une session à l'autre comme les calques du jeu. */
+const hidden = new Set<MarkerType>((() => {
+  try {
+    return JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]") as MarkerType[];
+  } catch {
+    return [];
+  }
+})());
+const saveHidden = () => {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
+  } catch {
+    // Pas de mémoire possible : le filtre vaut pour cette session.
+  }
+};
 /** Catégories de points d'intérêt masquées, gardées d'une session à l'autre. */
 const hiddenPoi = new Set<string>(hiddenPoiKinds());
 /** Catégories dépliées dans le panneau des filtres : celles des lieux, pour servir de légende. */
@@ -669,6 +684,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   }
 
   function drawChips() {
+    saveHidden(); // chaque changement de filtre repasse par ici
     const types = Object.keys(MARKER_TYPES) as MarkerType[];
     const set = (list: MarkerType[], on: boolean) => {
       for (const t of list) {
@@ -933,6 +949,21 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         const m = at(hits[0]);
         map.flyTo(toLatLng(m.x, m.y), 2);
         toast(hits[0].name, `${hits[0].label} · ${sectorOf(m.x, m.y)}${hits.length > 1 ? ` · le plus proche sur ${hits.length}` : ""}`);
+        return;
+      }
+    }
+    if (!found) {
+      // Ressources présentes : par nom (« aluminium ») ; la plus proche du joueur d'abord.
+      const me = livePoint();
+      const near = resources.filter((r) => r.region === region && r.live && fold(resourceKind(r.name).label).includes(fold(q)))
+        .map((r) => ({ r, m: worldToMap(r.x, r.y) }))
+        .sort((a, b) => (me ? Math.hypot(a.m.x - me.x, a.m.y - me.y) - Math.hypot(b.m.x - me.x, b.m.y - me.y) : 0));
+      if (near.length) {
+        const k = resourceKind(near[0].r.name);
+        hiddenPoi.delete(k.key);
+        drawGame();
+        map.flyTo(toLatLng(near[0].m.x, near[0].m.y), 2.5);
+        toast(k.label, `${sectorOf(near[0].m.x, near[0].m.y)}${near.length > 1 ? ` · la plus proche sur ${near.length}` : ""}`);
         return;
       }
     }

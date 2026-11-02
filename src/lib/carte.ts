@@ -1,4 +1,4 @@
-import { api, type MapData } from "./api";
+import { api, type GameRegions, type MapData } from "./api";
 import type { MarkerType, Region } from "./data";
 
 /**
@@ -305,6 +305,22 @@ export function hiddenPoiKinds(): string[] {
   } catch {
     return [];
   }
+}
+
+/** Région du jeu qui contient ce point (coordonnées du jeu, en cm) : règle pair-impair sur tous ses contours. */
+export function regionAt(r: GameRegions, x: number, y: number): string | null {
+  for (const z of r.regions) {
+    let inside = false;
+    for (const ring of z.rings) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+    }
+    if (inside) return z.name;
+  }
+  return null;
 }
 
 /** Région de la carte lue (calque Survival_1 = Bassin de Hagga). */

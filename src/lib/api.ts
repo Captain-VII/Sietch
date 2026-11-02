@@ -175,7 +175,7 @@ export interface Hit {
   kill: boolean;
 }
 
-/** Écran de diagnostic des modules sans BattlEye (`live.rs::Diagnostic`). */
+/** Diagnostic de la lecture du jeu (`live.rs::Diagnostic`), dans Paramètres › À propos. */
 export interface Diagnostic {
   tables: boolean;
   character: boolean;
@@ -188,6 +188,12 @@ export interface Diagnostic {
   inVehicle: boolean | null;
   resourcesKnown: number;
   lastScanSecs: number | null;
+  scanning: boolean;
+  foes: number;
+  /** Champs indispensables introuvables (patch du jeu) : le personnage ne peut pas être lu. */
+  missing: string[];
+  /** Lectures facultatives : [nom, trouvée]. */
+  optional: [string, boolean][];
 }
 
 /** Un widget de l'overlay : une petite fenêtre à part. */

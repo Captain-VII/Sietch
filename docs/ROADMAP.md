@@ -30,8 +30,8 @@ But : que tout ce qui est livré marche sans surprise, en ligne comme en solo.
 - ✅ **Fond de Hagga refait** : calculé depuis les maquettes 3D du jeu (2026-11-02, voir lot 6).
 - 🎮 **Désert profond** : fond de carte, calibration, vérifier région automatique, ressources et lieux.
 - 🟢 **Coups portés** : ennemi repéré plus vite qu'au relevé complet (suivre les personnages proches à part).
-- 🟢 **Diagnostic** : ajouter l'état du relevé (passage en cours, durée) et le nombre de personnages suivis.
-- 🟢 Nettoyage : vider le cache des traductions du wiki retirées (clés `sietch-wiki-fr*` du localStorage).
+- ✅ **Diagnostic** : état du relevé et personnages suivis, dans Paramètres › À propos (2026-11-02).
+- ✅ Nettoyage : cache des traductions du wiki retirées vidé au lancement (2026-11-02).
 
 **Fini quand** : une soirée complète en ligne et une en solo avec la version installée, sans bug.
 
@@ -56,17 +56,17 @@ But : rendre Sietch utile aux joueurs en ligne, sans lire le jeu.
 - 🟡 **Minuteurs d'entretien de base et d'impôts** : durées à relever en jeu par l'utilisateur.
 - 🟢 **Notes de marqueur enrichies** : captures d'écran, liste à récolter, lien vers le minuteur.
 - 🟢 **Liens builds ↔ wiki** : un emplacement de build ouvre l'article de l'objet.
-- 🟢 **Carte** : calques à afficher / masquer mémorisés, recherche par nom de ressource en français.
+- ✅ **Carte** : calques mémorisés (marqueurs compris), recherche par nom de ressource : la plus proche des présentes (2026-11-02).
 - 🟡 **Interface en anglais** (le wiki l'est déjà) : seulement si Sietch est diffusé.
 
 ## Lot 4 — Robustesse face aux patchs
 
 But : qu'une mise à jour du jeu ne casse rien, ou se répare vite.
 
-- 🟢 **Contrôle au démarrage** : liste des champs attendus (vie, sac, arme, siège, zone…) et ceux trouvés, dans le
-  diagnostic ; un champ manquant = message clair au lieu d'une valeur vide.
-- 🟢 Mettre les **offsets internes** (FText +0x10/+0x40, sac +0x38/+0x3C, liste du sac) derrière des vérifications de
-  vraisemblance, comme pour le volume du sac.
+- ✅ **Contrôle au démarrage** (2026-11-02) : Paramètres › À propos, carte « Lecture du jeu » : champs indispensables
+  introuvables nommés (« le jeu a changé »), lectures facultatives (heure, sac, ver, arme, véhicule, zone, caméra) lues ou non.
+- ✅ **Offsets internes** vérifiés (2026-11-02) : nom de zone illisible écarté (`ftext`), volume du sac entre 0 et deux
+  fois le maximum ; liste du sac et maximum déjà contrôlés.
 - 🎮 Après chaque patch du jeu : `sietch-scan ue` puis vérification des champs, procédure dans la doc.
 
 ## Lot 5 — Diffusion (plus tard, si besoin de partager)
@@ -93,7 +93,7 @@ Piste et blocage détaillés dans `docs/carte-en-direct.md` (« Carte 3D et rég
 - ✅ **Lieux du jeu** : 652 lieux de Hagga extraits des fichiers (noms français, icônes officielles, zoom d'apparition du
   jeu), sur la carte même jeu fermé ; recherche par nom ou type.
 - ✅ Mini-carte : mêmes lieux que la carte, icônes officielles.
-- 🟢 Région où l'on se trouve d'après la position (sans lire le nom de zone), pour la mini-carte.
+- ✅ Mini-carte : région d'après la position quand le nom de zone du jeu manque (2026-11-02).
 
 ---
 

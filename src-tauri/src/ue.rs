@@ -59,6 +59,8 @@ pub struct Ue<'a> {
     stride: u64,
     names: HashMap<u32, String>,
     fields: HashMap<(u64, &'static str), Option<u64>>,
+    /// Champs indispensables introuvables au dernier `find_player` : le jeu a changé (patch), lecture du personnage impossible.
+    pub missing: Vec<&'static str>,
 }
 
 impl<'a> Ue<'a> {
@@ -68,7 +70,7 @@ impl<'a> Ue<'a> {
         if size != t.module_size {
             return None;
         }
-        let mut ue = Ue { m, blocks: base + t.blocks_rva, table: base + t.table_rva, stride: t.stride, names: HashMap::new(), fields: HashMap::new() };
+        let mut ue = Ue { m, blocks: base + t.blocks_rva, table: base + t.table_rva, stride: t.stride, names: HashMap::new(), fields: HashMap::new(), missing: Vec::new() };
         (ue.name(0).as_deref() == Some("None")).then_some(ue)
     }
 
@@ -103,7 +105,7 @@ impl<'a> Ue<'a> {
         .ok_or("table des objets introuvable")?;
         let (base, size) = m.module();
         for stride in [24u64, 16, 32] {
-            let ue = Ue { m, blocks, table, stride, names: HashMap::new(), fields: HashMap::new() };
+            let ue = Ue { m, blocks, table, stride, names: HashMap::new(), fields: HashMap::new(), missing: Vec::new() };
             let ok = (1..200u32).filter(|&i| ue.object(i).is_some_and(|o| read::<4>(m, o + 0xC).map(u32::from_le_bytes) == Some(i))).count();
             if ok > 150 {
                 let t = Tables { module_size: size, blocks_rva: blocks - base, table_rva: table - base, stride };
@@ -499,7 +501,11 @@ impl<'a> Ue<'a> {
         let hydration_class = class_named(self, "DuneHydrationAttributeSet")?;
         // Plusieurs personnages peuvent exister (aperçu du menu, perso en cours de chargement…) : on garde
         // le premier dont la vie maximale est lue (> 0).
-        let max_health = self.field(stats_class, "MaxHealth")?;
+        self.missing.clear();
+        let Some(max_health) = self.field(stats_class, "MaxHealth") else {
+            self.missing.push("MaxHealth");
+            return None;
+        };
         let owned = |character: u64, class: u64| all.iter().find(|a| a.2 == class && a.4 == character).map(|a| a.0);
         let (character, index, stats, hydration) = all
             .iter()
@@ -578,27 +584,42 @@ impl<'a> Ue<'a> {
         if cfg!(debug_assertions) {
             eprintln!("[personnage] caméra : {}", camera.map_or("introuvable".into(), |c| format!("0x{c:X}")));
         }
-        let root = ptr(self.m, character + self.field(player_class, "RootComponent")?);
-        let root_class = ptr(self.m, root + 0x10);
-        let mut f = |class: u64, n: &str| self.field(class, n);
-        let fields = Fields {
-            location: f(root_class, "RelativeLocation")?,
-            attach_parent: f(root_class, "AttachParent")?,
-            root_component: f(player_class, "RootComponent")?,
-            rotation: f(root_class, "RelativeRotation")?,
-            health: f(stats_class, "CurrentHealth")?,
-            health_max: f(stats_class, "MaxHealth")?,
-            stamina: f(stats_class, "CurrentStamina")?,
-            stamina_max: f(stats_class, "MaxStamina")?,
-            power: f(stats_class, "CurrentPower")?,
-            power_max: f(stats_class, "MaxPower")?,
-            hydration: f(hydration_class, "CurrentHydration")?,
-            hydration_max: f(hydration_class, "MaxHydration")?,
-            heat: f(hydration_class, "HeatExhaustion")?,
-            heat_max: f(hydration_class, "HeatExhaustionMax")?,
-            sun: f(hydration_class, "CurrentSunExposure")?,
-            heatstroke: f(hydration_class, "HeatstrokeThreshold")?,
+        let Some(root_component) = self.field(player_class, "RootComponent") else {
+            self.missing.push("RootComponent");
+            return None;
         };
+        let root = ptr(self.m, character + root_component);
+        let root_class = ptr(self.m, root + 0x10);
+        // Tous les champs manquants d'un coup (pas seulement le premier) : la liste dit ce qu'un patch a cassé.
+        let mut missing = Vec::new();
+        let mut f = |class: u64, n: &'static str| {
+            self.field(class, n).unwrap_or_else(|| {
+                missing.push(n);
+                0
+            })
+        };
+        let fields = Fields {
+            location: f(root_class, "RelativeLocation"),
+            attach_parent: f(root_class, "AttachParent"),
+            root_component,
+            rotation: f(root_class, "RelativeRotation"),
+            health: f(stats_class, "CurrentHealth"),
+            health_max: max_health,
+            stamina: f(stats_class, "CurrentStamina"),
+            stamina_max: f(stats_class, "MaxStamina"),
+            power: f(stats_class, "CurrentPower"),
+            power_max: f(stats_class, "MaxPower"),
+            hydration: f(hydration_class, "CurrentHydration"),
+            hydration_max: f(hydration_class, "MaxHydration"),
+            heat: f(hydration_class, "HeatExhaustion"),
+            heat_max: f(hydration_class, "HeatExhaustionMax"),
+            sun: f(hydration_class, "CurrentSunExposure"),
+            heatstroke: f(hydration_class, "HeatstrokeThreshold"),
+        };
+        if !missing.is_empty() {
+            self.missing = missing;
+            return None;
+        }
         Some(Player { character, index, class: player_class, stats, stats_class, hydration, root, time_of_day, backpack, slots, worm, armed, vehicle, zone, camera, attack, sets, fields })
     }
 }
@@ -842,7 +863,9 @@ fn ftext(m: &dyn Mem, at: u64) -> Option<String> {
     let mut buf = vec![0u8; (len - 1) * 2];
     (m.read_into(data, &mut buf) == buf.len())
         .then(|| String::from_utf16_lossy(&buf.chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>()))
-        .filter(|s| !s.trim().is_empty())
+        // Offsets internes (+0x10, +0x40) : une chaîne illisible (caractères de contrôle, UTF-16 invalide) veut dire
+        // qu'un patch les a déplacés ; mieux vaut rien qu'un nom de zone en charabia.
+        .filter(|s| !s.trim().is_empty() && !s.chars().any(|c| c.is_control() || c == char::REPLACEMENT_CHARACTER))
 }
 
 /// Indicateur lu dans un objet : booléen (octet et masque) ou pointeur (non nul = vrai).
@@ -968,6 +991,21 @@ impl PlayerState {
 }
 
 impl Player {
+    /// Lectures facultatives, trouvées ou non (Paramètres › À propos) : une absence après un patch se voit ici.
+    pub fn checks(&self) -> Vec<(&'static str, bool)> {
+        vec![
+            ("Heure du jeu", self.time_of_day.is_some()),
+            ("Volume du sac", self.backpack.is_some()),
+            ("Emplacements du sac", self.slots.is_some()),
+            ("Menace du ver", self.worm.is_some()),
+            ("Arme en main", self.armed.is_some()),
+            ("Véhicule", self.vehicle.is_some()),
+            ("Nom de la zone", self.zone.is_some()),
+            ("Caméra", self.camera.is_some()),
+            ("Munitions", self.attack.as_ref().is_some_and(|a| a.ammo.is_some())),
+        ]
+    }
+
     /// Le personnage (et le composant de l'heure) sont-ils toujours là ? Sinon, tout est à retrouver.
     fn alive(&self, m: &dyn Mem) -> bool {
         still_there(m, self.character, self.index, self.class)
@@ -1067,8 +1105,13 @@ impl Player {
                 .time_of_day
                 .and_then(|w| read::<4>(m, w.obj + w.offset).map(f32::from_le_bytes))
                 .filter(|t| (0.0..=24.0).contains(t)),
-            volume: self.backpack.and_then(|t| read::<4>(m, t + 0x3C).map(f32::from_le_bytes)),
-            volume_max: self.backpack.and_then(|t| read::<4>(m, t + 0x38).map(f32::from_le_bytes)),
+            // Champs internes du suivi : on ne les garde que vraisemblables (maximum positif, volume entre 0 et deux fois
+            // le maximum, la surcharge comprise), sinon un patch afficherait n'importe quoi.
+            volume_max: self.backpack.and_then(|t| read::<4>(m, t + 0x38).map(f32::from_le_bytes)).filter(|v| v.is_finite() && *v > 0.0),
+            volume: self.backpack.and_then(|t| {
+                let [max, v] = [0x38, 0x3C].map(|o| read::<4>(m, t + o).map(f32::from_le_bytes));
+                v.zip(max).filter(|(v, max)| v.is_finite() && (0.0..=max * 2.0).contains(v)).map(|(v, _)| v)
+            }),
             slots: self.slots.and_then(|s| read::<4>(m, s.items + 8).map(u32::from_le_bytes).filter(|n| *n <= s.max)),
             slots_max: self.slots.map(|s| s.max),
             worm_threat: self.worm.and_then(|w| {
@@ -1147,5 +1190,22 @@ mod tests {
         assert_eq!(ue.name(100), None, "entrée vide");
         // Taille d'image différente (patch du jeu) : le cache n'est plus bon.
         assert!(Ue::open(&m, Tables { module_size: 0x200, ..t }).is_none());
+    }
+    #[test]
+    fn ftext_rejects_garbage() {
+        // FText à 0x1000 → données 0x1100 → historique 0x1200 (+0x40 → FString 0x1280) → caractères à 0x1300.
+        let text = |chars: &[u16]| {
+            let mut mem = vec![0u8; 0x400];
+            put(&mut mem, 0x1000, &0x1100u64.to_le_bytes());
+            put(&mut mem, 0x1110, &0x1200u64.to_le_bytes());
+            put(&mut mem, 0x1240, &0x1280u64.to_le_bytes());
+            put(&mut mem, 0x1280, &0x1300u64.to_le_bytes());
+            put(&mut mem, 0x1288, &(chars.len() as u32 + 1).to_le_bytes());
+            put(&mut mem, 0x1300, &chars.iter().flat_map(|c| c.to_le_bytes()).collect::<Vec<_>>());
+            ftext(&Fake(mem), 0x1000)
+        };
+        assert_eq!(text(&"Le Bouclier".encode_utf16().collect::<Vec<_>>()).as_deref(), Some("Le Bouclier"));
+        assert_eq!(text(&[0x41, 0x01, 0x42]), None, "caractère de contrôle");
+        assert_eq!(text(&[0x41, 0xD800, 0x42]), None, "UTF-16 invalide");
     }
 }

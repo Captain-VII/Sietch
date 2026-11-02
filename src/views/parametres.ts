@@ -4,7 +4,7 @@ import { disable as disableAutostart, enable as enableAutostart, isEnabled as au
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api, prettyKeys, SHORTCUT_LABELS, type Settings, type UpdateInfo } from "../lib/api";
+import { api, prettyKeys, SHORTCUT_LABELS, type Diagnostic, type Settings, type UpdateInfo } from "../lib/api";
 import { builds, getNotes, markers, setNotes, timerTemplates, type Build, type Marker, type TimerTemplate } from "../lib/data";
 import { confirmDialog, h, mount, toast, type Child } from "../lib/dom";
 import { durationLabel, pad } from "../lib/time";
@@ -264,15 +264,29 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
                }
              } }, "Rechercher une mise à jour")]);
       showUpdate(await api.update().catch(() => null));
-      return card("À propos",
+      return cards(gameReading(await api.diagnostic().catch(() => null)), card("À propos",
         h("div", { class: "row", style: "align-items: baseline; --gap: 12px" },
           h("span", { class: "h2" }, "SIETCH"), h("span", { class: "muted" }, `version ${version}`)),
         updateBox,
         h("p", { class: "prose soft", style: "margin: 0" }, "Compagnon de bureau non officiel pour Dune: Awakening. Sietch ne modifie jamais le jeu : il lit seulement sa mémoire, en mode solo ou sur un serveur privé sans BattlEye."),
         h("p", { class: "muted", style: "margin: 0" }, "Logiciel libre sous licence GPL-3.0-or-later. Dune et Dune: Awakening appartiennent à leurs ayants droit ; Sietch n'y est pas affilié."),
-      );
+      ));
     },
   };
+
+  /** Ce que Sietch arrive à lire du jeu : après un patch, dit précisément ce qui manque au lieu de valeurs vides. */
+  function gameReading(d: Diagnostic | null) {
+    if (!d?.tables) return card("Lecture du jeu", note("Jeu fermé, avec BattlEye, ou pas encore lu : rien à vérifier pour l'instant."));
+    const item = (label: string, ok: boolean) => h("li", { class: ok ? "check-ok" : "check-missing" }, h("span", { "aria-hidden": "true" }, ok ? "✓" : "✕"), ` ${label}`, h("span", { class: "sr-only" }, ok ? " : lu" : " : introuvable"));
+    return card("Lecture du jeu",
+      d.missing.length
+        ? h("p", { class: "prose", role: "alert", style: "margin: 0" }, h("strong", {}, "Le jeu a changé (mise à jour ?) : "),
+          `champs introuvables, le personnage n'est plus lu : ${d.missing.join(", ")}. Une nouvelle version de Sietch est nécessaire.`)
+        : note(d.character ? "Personnage lu : vie, endurance, eau, énergie et position." : "Personnage pas encore chargé (menu du jeu, chargement…)."),
+      d.optional.length ? h("ul", { class: "check-list" }, d.optional.map(([label, ok]) => item(label, ok))) : null,
+      note(`${d.reads} lectures, ${d.failures} manquées · ressources : ${d.scanning ? "relevé en cours" : d.lastScanSecs != null ? `dernier relevé en ${d.lastScanSecs.toFixed(1)} s` : "pas encore relevées"} · ${d.foes} personnage${d.foes > 1 ? "s" : ""} suivi${d.foes > 1 ? "s" : ""}`),
+    );
+  }
 
   async function exportAll() {
     const path = await save({ defaultPath: "sietch-sauvegarde.json", filters: [{ name: "JSON", extensions: ["json"] }] });

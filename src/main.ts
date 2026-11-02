@@ -138,6 +138,8 @@ async function refreshTimers() {
 }
 
 async function start() {
+  // Traductions du wiki retirées : leurs caches restaient dans le stockage local.
+  for (const k of Object.keys(localStorage)) if (k.startsWith("sietch-wiki-fr")) localStorage.removeItem(k);
   const [s, t] = await Promise.all([api.settings(), api.timers(), syncClock()]);
   settings = s;
   timers = t;

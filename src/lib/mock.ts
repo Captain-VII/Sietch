@@ -194,7 +194,7 @@ function handle(cmd: string, args: Record<string, any>): unknown {
       return { start: Date.now() - 42 * 60_000, distance: 3_840, hits: 27, kills: 6, damage: 1_315 };
     case "get_diagnostic": {
       const on = liveStatus().active;
-      return { tables: on, character: on, reads: on ? Math.floor(Date.now() / 250) % 100000 : 0, failures: 0, lastRead: on ? Date.now() : null, lastPosition: on ? [10000, -5000, 1200] : null, source: on ? "personnage" : "", armed: null, inVehicle: null, resourcesKnown: 0, lastScanSecs: null };
+      return { tables: on, character: on, reads: on ? Math.floor(Date.now() / 250) % 100000 : 0, failures: 0, lastRead: on ? Date.now() : null, lastPosition: on ? [10000, -5000, 1200] : null, source: on ? "personnage" : "", armed: null, inVehicle: null, resourcesKnown: 0, lastScanSecs: null, scanning: false, foes: 0, missing: [], optional: on ? [["Heure du jeu", true], ["Caméra", true]] : [] };
     }
     case "get_live_status":
       return liveStatus();
