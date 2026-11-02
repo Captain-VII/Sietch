@@ -22,6 +22,60 @@ export async function loadGameIcons() {
 export const gameIcon = (id: string | undefined) => (id && gameIcons[id]) || null;
 export const gameImage = (id: string | undefined) => (id ? gameImages.get(id) : undefined);
 
+/**
+ * Couleur des lieux sur la carte du jeu, par type (ligne de `DT_Base_FullscreenMapMarkers`). Le jeu la fixe dans le code
+ * de son widget de marqueur, pas dans ses fichiers : relevée sur des captures de sa carte. Par défaut, la teinte
+ * « Normal » de ce widget (`W_MapMarkerWidget`), un sable doré.
+ */
+const PLACE_TINT = "#FEDB97";
+const PLACE_COLORS: Record<string, string> = { Cave: "#F2832F", EcoLab: "#5FA4E8", Shipwreck: "#7CC35C" };
+
+/** Catégories des lieux dans les filtres de la carte (type = ligne de `DT_Base_FullscreenMapMarkers`). */
+export const PLACE_GROUPS: [string, string[]][] = [
+  ["Exploration", ["Cave", "Shipwreck", "EcoLab"]],
+  ["Ennemis", ["EnemyOutpost", "EnemyLaborOutpost", "EnemyCamp"]],
+  ["Services", ["Vendor", "AtreidesLandsraadVendor", "TradingPost", "ControlPoint"]],
+];
+const tinted = new Map<string, { canvas: HTMLCanvasElement; url: string }>();
+
+/** Image teintée comme le fait le jeu : multipliée par la couleur, forme gardée. */
+function tint(g: CanvasRenderingContext2D, img: HTMLImageElement, color: string, x: number, y: number, s: number) {
+  const c = document.createElement("canvas");
+  c.width = c.height = s;
+  const t = c.getContext("2d")!;
+  t.drawImage(img, 0, 0, s, s);
+  t.globalCompositeOperation = "multiply";
+  t.fillStyle = color;
+  t.fillRect(0, 0, s, s);
+  t.globalCompositeOperation = "destination-in";
+  t.drawImage(img, 0, 0, s, s);
+  g.drawImage(c, x, y);
+}
+
+/**
+ * Badge d'un lieu comme sur la carte du jeu : son fond rond (`MapLocationSmallBG`, disque sombre, anneau à la couleur du
+ * type) et l'icône du type au centre, de la même couleur. Canvas pour la mini-carte, URL pour la carte.
+ */
+export function placeIcon(id: string, type: string) {
+  const color = PLACE_COLORS[type] ?? PLACE_TINT;
+  const key = `${id}|${color}`;
+  const known = tinted.get(key);
+  if (known) return known;
+  const img = gameImages.get(id);
+  if (!img?.naturalWidth) return null;
+  const S = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = S;
+  const g = canvas.getContext("2d")!;
+  const bg = gameImages.get("LocationSmallBG");
+  if (bg?.naturalWidth) tint(g, bg, color, 0, 0, S);
+  const s = bg?.naturalWidth ? Math.round(S * 0.5) : S;
+  tint(g, img, color, (S - s) / 2, (S - s) / 2, s);
+  const icon = { canvas, url: canvas.toDataURL() };
+  tinted.set(key, icon);
+  return icon;
+}
+
 /** Icône du jeu de chaque type de lieu. */
 export const POI_GAME_ICONS: Record<string, string> = {
   station: "MarkerEcolab", base: "MarkerBase", epave: "MarkerShipwreck", mine: "MarkerCave", autel: "MarkerPointofinterest",
@@ -172,16 +226,23 @@ const RES_GAME_ICONS: Record<string, string> = {
   Buggy: "MarkerVehicleBuggy", "Générateur EMF": "ResourceEMFGenerator",
 };
 
+/** Frontières des régions, couleur de la carte du jeu (`MI_3DMap_AreaBorders_Regions`, « Color »). */
+export const REGION_BORDER = "#C8B0BB";
+
 /**
- * Zones de danger du jeu (`BP_WorldMapAreasData`, type de zone) : nom, couleur et visuel du jeu. Le sable tambour et
- * les sables mouvants ont un motif de hachures (`pattern`) qui remplit la zone ; les radiations, une icône au centre.
+ * Zones de danger du jeu (`BP_WorldMapAreasData`, type de zone). `fill` et `alpha` : teinte et opacité de la carte du
+ * jeu (`MI_UIMap_DynamicAreaRender_*` : « SandArea - Color », « Radiation - Color ») ; posées en incrustation (overlay),
+ * elles donnent sur le sable l'orange du sable tambour et le jaune des radiations. Pas de hachures du jeu : dans les
+ * petits cercles, une seule tuile du motif tenait, en forme de case. Radiations : en brume, avec leur icône au centre.
  */
-export const HAZARDS: Record<number, { label: string; color: string; icon: string; pattern: boolean }> = {
-  0: { label: "Sable tambour", color: "#d9b67a", icon: "MarkerEnvDrumsandHatching", pattern: true },
+export const HAZARDS: Record<number, { label: string; color: string; icon: string; fill: string; alpha: number; mist?: boolean }> = {
+  0: { label: "Sable tambour", color: "#d9b67a", icon: "MarkerEnvDrumsandHatching", fill: "#692026", alpha: 0.4 },
   // Radiations faibles (1) et fortes (2) : une seule zone, voir `hazardCircles`.
-  1: { label: "Radiations", color: "#e0a83a", icon: "MarkerEnvRadiation", pattern: false },
-  3: { label: "Sables mouvants", color: "#c9a861", icon: "MarkerEnvQuicksandHatching", pattern: true },
+  1: { label: "Radiations", color: "#e0a83a", icon: "MarkerEnvRadiation", fill: "#EAEF6E", alpha: 0.35, mist: true },
+  3: { label: "Sables mouvants", color: "#c9a861", icon: "MarkerEnvQuicksandHatching", fill: "#7B272F", alpha: 0.5 },
 };
+/** Bord des zones de danger sur la carte du jeu (« EdgeColor »). */
+export const HAZARD_EDGE = "#893B35";
 
 /**
  * Cercles des zones de danger à dessiner (coordonnées du jeu). Radiations faibles et fortes ne forment qu'une zone,
@@ -236,7 +297,7 @@ export function hiddenPoiKinds(): string[] {
 export const mapRegion = (m: MapData): Region => (/deep|profond/i.test(m.layer) ? "profond" : "hagga");
 
 /** Coordonnées du jeu (cm) → carte (0 à 900) ; +y vers le sud, comme la carte du jeu. */
-export function worldToMap(m: MapData, x: number, y: number) {
+export function worldToMap(m: Pick<MapData, "bounds">, x: number, y: number) {
   const b = m.bounds;
   return { x: ((x - b.minX) / (b.maxX - b.minX)) * SIZE, y: ((y - b.minY) / (b.maxY - b.minY)) * SIZE };
 }

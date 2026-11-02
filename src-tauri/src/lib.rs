@@ -285,6 +285,14 @@ fn get_game_icons(state: State<AppState>) -> std::collections::BTreeMap<String, 
         .collect()
 }
 
+/// Données de la carte extraites des fichiers du jeu (`sietch-assets regions` / `lieux`, `jeu/<sorte>-<région>.json`) :
+/// contours des régions, lieux ; rien sans extraction.
+#[tauri::command]
+fn get_game_data(state: State<AppState>, kind: String, region: String) -> Option<serde_json::Value> {
+    [&kind, &region].iter().all(|s| s.chars().all(|c| c.is_ascii_alphanumeric())).then_some(())?;
+    serde_json::from_str(&std::fs::read_to_string(state.dir.join("jeu").join(format!("{kind}-{region}.json"))).ok()?).ok()
+}
+
 #[tauri::command]
 fn remove_map_image(state: State<AppState>, region: String) -> Result<(), String> {
     let _ = std::fs::remove_file(map_image_path(&state, &region)?);
@@ -490,6 +498,7 @@ pub fn run() {
             get_map_image,
             remove_map_image,
             get_game_icons,
+            get_game_data,
             show_wiki,
             show_main,
             open_site,

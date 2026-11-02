@@ -77,14 +77,19 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 
 ## Icônes du jeu (local seulement)
 
-`tools/sietch-assets` (C#, CUE4Parse 1.2.2, UE 5.2) lit les archives du jeu, non chiffrées, en lecture seule.
+`tools/sietch-assets` (C#, .NET 10, CUE4Parse 1.2.2.202611 réglé sur `GAME_DuneAwakening`) lit les archives du jeu, non
+chiffrées, en lecture seule. SDK .NET 10 local : `C:\Users\Admin\.dotnet10` (`DOTNET_ROOT` à y pointer pour lancer le binaire).
 `dotnet run -c Release -- export <chemin> <dossier>` écrit des PNG. Il faut `oo2core_9_win64.dll` (OodleUE, GitHub
 WorkingRobot) à côté du binaire. Les icônes de carte vont dans `%APPDATA%\com.captainvii.sietch\jeu\icones-carte`
 (`get_game_icons`) ; sans elles, Sietch garde ses pictogrammes. **Jamais d'image du jeu dans le dépôt ni les
 releases.** Sauvegarde personnelle de ces fichiers (icônes, fonds, captures) dans le dépôt **privé**
-`Captain-VII/Sietch-donnees-jeu` (clone `C:\Users\Admin\Claude\Sietch-donnees-jeu`, README pour restaurer) : jamais public. La carte plein écran du jeu est en 3D (pas d'image). Depuis le 2026-11-02, le fond de Hagga est la texture officielle
-`T_Survival_WorldMap_MiniMap_D` (4096 px, JPEG dans `cartes\hagga`, calage [0, 0, 900, 900]) : d'un seul bloc, juste
-par construction. Les captures assemblées gardaient 20 à 130 m d'écart selon les morceaux (sauvegarde : `cartes\hagga.captures`).
+`Captain-VII/Sietch-donnees-jeu` (clone `C:\Users\Admin\Claude\Sietch-donnees-jeu`, README pour restaurer) : jamais public. La carte plein écran du jeu est en 3D (pas d'image). Depuis le 2026-11-02, le fond de Hagga est **calculé depuis ses
+maquettes 3D** : `sietch-assets relief <fichier> 4096 <captures> 27.2 37.2 891.1 901.1` (`Relief.cs`, JPEG dans
+`cartes\hagga`, calage [0, 0, 900, 900], 2 m par pixel). Couleurs de chaque zone prises sur les captures de la carte 3D
+du jeu (`cartes\hagga.captures` et leur calage) ; sans elles, sur la carte peinte du jeu, plus rouge. Juste par construction et à jour (Sheol compris) ; la texture officielle `T_Survival_WorldMap_MiniMap_D`,
+plus ancienne (sans Sheol), est gardée dans `cartes\hagga.officiel`. Régions : `sietch-assets regions
+%APPDATA%\com.captainvii.sietch\jeu\regions-hagga.json` (contours et noms français, voir `docs/carte-en-direct.md`). Lieux : `sietch-assets lieux
+%APPDATA%\com.captainvii.sietch\jeu\lieux-hagga.json %APPDATA%\com.captainvii.sietch\jeu\icones-carte`. Les captures assemblées gardaient 20 à 130 m d'écart selon les morceaux (sauvegarde : `cartes\hagga.captures`).
 `T_Survival_WorldMap_MiniMap_D` (mini-carte du jeu) couvre exactement les bornes de la carte (±457200 / 355600) :
 c'est le repère pour recaler un fond de captures (corrélation des contours). Plus précis (2026-11-02) : les zones de
 sable tambour dessinées par le jeu sur les captures tombent pile sur les cercles de `DA_WorldMap_AreasData_Survival_1` ;

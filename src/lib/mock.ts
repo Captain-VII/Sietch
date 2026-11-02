@@ -278,6 +278,8 @@ function handle(cmd: string, args: Record<string, any>): unknown {
       return null;
     case "get_game_icons":
       return {};
+    case "get_game_data":
+      return null;
     default:
       if (cmd.startsWith("plugin:opener|")) {
         window.open(args.url, "_blank");

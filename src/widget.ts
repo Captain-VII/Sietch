@@ -3,8 +3,8 @@ import "./styles/components.css";
 import "./styles/widget.css";
 
 import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
-import { api, on, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
-import { gameImage, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_GAME_ICONS, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
+import { api, on, type GamePlaces, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
+import { gameImage, HAZARD_EDGE, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, placeIcon, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_GAME_ICONS, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
@@ -306,32 +306,25 @@ function drawMinimapName() {
 }
 let mapData: MapData | null = null;
 let mapImg: { img: HTMLImageElement; rect: [number, number, number, number] } | null = null;
+/** Lieux de la région extraits des fichiers du jeu (null : pas d'extraction, on garde ceux lus en mémoire). */
+let gamePlaces: GamePlaces | null = null;
 let player: PlayerState | null = null;
 let resources: SeenResource[] = [];
 /** Pictogrammes des lieux et ressources, préparés une fois. */
 const paths = new Map<string, Path2D>();
 
-async function loadMapImage() {
+/** Fond et lieux de la région du joueur. */
+async function loadRegion() {
   mapImg = null;
   if (!mapData) return;
   const region = mapRegion(mapData);
+  gamePlaces = await api.gamePlaces(region).catch(() => null);
   const url = await api.mapImage(region).catch(() => null);
   if (!url) return;
   const img = new Image();
   img.src = url;
   await img.decode().catch(() => undefined);
   mapImg = { img, rect: settings.mapImages[region] ?? [0, 0, SIZE, SIZE] };
-}
-
-/** Motifs de hachures du jeu, réduits pour la mini-carte (préparés une fois par icône). */
-const hatches = new Map<string, CanvasPattern | null>();
-function hatchPattern(g: CanvasRenderingContext2D, id: string, img: HTMLImageElement) {
-  if (!hatches.has(id)) {
-    const p = g.createPattern(img, "repeat");
-    p?.setTransform(new DOMMatrix().scale(0.2));
-    hatches.set(id, p);
-  }
-  return hatches.get(id)!;
 }
 
 /** Pastille ronde de diamètre `d` centrée en (x, y), avec un pictogramme (grille 24 × 24) de taille `glyph`. */
@@ -507,28 +500,46 @@ function drawMinimap() {
       g.lineTo(px(SIZE), py(i * 100));
       g.stroke();
     }
-    // Zones de danger : hachures du jeu (sable tambour, sables mouvants) ; icône des radiations posée plus bas, droite.
+    // Zones de danger comme sur la carte du jeu : sa teinte en incrustation (un seul tracé par type, pour que les cercles
+    // qui se chevauchent ne foncent pas), puis leur bord ; icône des radiations
+    // posée plus bas, droite.
     const unit = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
     const radiation: [number, number, HTMLImageElement][] = [];
-    for (const { kind, x, y, r } of hazardCircles(mapData)) {
+    const circles = hazardCircles(mapData);
+    for (const [kind, hz] of Object.entries(HAZARDS)) {
+      g.beginPath();
+      for (const c of circles) {
+        if (c.kind !== Number(kind)) continue;
+        const p = worldToMap(mapData, c.x, c.y);
+        g.moveTo(px(p.x) + c.r * unit * zoom, py(p.y));
+        g.arc(px(p.x), py(p.y), c.r * unit * zoom, 0, Math.PI * 2);
+      }
+      g.globalCompositeOperation = "overlay";
+      g.globalAlpha = hz.alpha;
+      g.fillStyle = hz.fill;
+      // Radiations en brume : bord fondu, sans contour.
+      g.filter = hz.mist ? "blur(6px)" : "none";
+      g.fill();
+    }
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1;
+    g.filter = "none";
+    for (const { kind, x, y, r } of circles) {
       const hz = HAZARDS[kind];
       const img = hz ? gameImage(hz.icon) : undefined;
-      const fill = hz?.pattern && img ? hatchPattern(g, hz.icon, img) : null;
       const p = worldToMap(mapData, x, y);
       const rr = r * unit * zoom;
       if (Math.hypot(px(p.x) - R, py(p.y) - R) > R + rr) continue;
-      g.strokeStyle = hz?.color ?? "rgba(201, 168, 97, 0.4)";
+      if (hz?.mist) {
+        if (img) radiation.push([p.x, p.y, img]);
+        continue;
+      }
+      g.strokeStyle = hz ? HAZARD_EDGE : "rgba(201, 168, 97, 0.4)";
       g.beginPath();
       g.arc(px(p.x), py(p.y), rr, 0, Math.PI * 2);
-      if (fill) {
-        g.globalAlpha = 0.6;
-        g.fillStyle = fill;
-        g.fill();
-      }
       g.globalAlpha = 0.6;
       g.stroke();
       g.globalAlpha = 1;
-      if (img && !hz!.pattern) radiation.push([p.x, p.y, img]);
     }
     drawTrail(g, mapData, px, py, here);
     g.restore();
@@ -537,7 +548,21 @@ function drawMinimap() {
       g.drawImage(img, cx - 7, cy - 7, 14, 14);
     }
     const masked = new Set(hiddenPoiKinds());
-    for (const poi of mapData.pois) {
+    // Lieux du jeu : icône officielle, à la taille de son type, détachée du fond par une ombre (comme la grande carte).
+    for (const pl of gamePlaces?.places ?? []) {
+      if (masked.has(`l:${pl.type}`)) continue;
+      const p = worldToMap(gamePlaces!, pl.x, pl.y);
+      const img = placeIcon(pl.icon, pl.type)?.canvas;
+      if (!img || Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
+      const [x, y] = at(p.x, p.y);
+      const s = 20 * pl.scale;
+      g.save();
+      g.shadowColor = "rgba(4, 5, 10, 0.95)";
+      g.shadowBlur = 3;
+      g.drawImage(img, x - s / 2, y - s / 2, s, s);
+      g.restore();
+    }
+    for (const poi of gamePlaces ? [] : mapData.pois) {
       if (masked.has(poi.kind)) continue;
       const p = worldToMap(mapData, poi.x, poi.y);
       if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
@@ -811,7 +836,7 @@ async function start() {
         resources = r;
         drawMinimap();
       });
-      await Promise.all([loadMapImage(), loadGameIcons()]);
+      await Promise.all([loadRegion(), loadGameIcons()]);
       drawMinimap();
       await on.playerState(follow);
       await startLive();
@@ -820,7 +845,7 @@ async function start() {
       });
       await on.mapData(async (m) => {
         mapData = m;
-        await loadMapImage();
+        await loadRegion();
         drawMinimap();
       });
       break;
@@ -862,7 +887,7 @@ async function start() {
     if (kind === "gauges" || kind === "gear") drawGauges(await api.playerState());
     if (kind === "minimap") {
       // Fond changé ou réaligné, échelle modifiée.
-      await loadMapImage();
+      await loadRegion();
       drawMinimap();
     }
   });

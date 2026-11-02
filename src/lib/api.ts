@@ -52,6 +52,26 @@ export interface Settings {
 
 export type WidgetKind = "clock" | "coriolis" | "sector" | "timers" | "health" | "stamina" | "hydration" | "power" | "inventory" | "minimap" | "gauges" | "gear" | "threat" | "hits" | "worm";
 
+/** Régions de la carte, extraites des fichiers du jeu (`sietch-assets regions`) : contours et noms, en cm. */
+export interface GameRegions {
+  bounds: MapData["bounds"];
+  regions: {
+    name: string;
+    subtitle: string;
+    /** Sous-titre anglais du jeu (« Slaver Territory »). */
+    territory: string;
+    label: [number, number];
+    rings: [number, number][][];
+  }[];
+}
+
+/** Lieux de la carte, extraits des fichiers du jeu (`sietch-assets lieux`) : nom français, type et icône officielle, en cm. */
+export interface GamePlaces {
+  bounds: MapData["bounds"];
+  /** `lod` : niveau de zoom de la carte du jeu à partir duquel le type s'affiche (0 toujours, 2 de près) ; `scale` : taille. */
+  places: { name: string; type: string; label: string; icon: string; lod: number; scale: number; x: number; y: number }[];
+}
+
 /** Carte de la région lue dans le jeu : limites (cm), zones (cercles x, y, rayon) et points d'intérêt. */
 export interface MapData {
   layer: string;
@@ -263,6 +283,8 @@ export const api = {
   mapImage: (region: string) => invoke<string | null>("get_map_image", { region }),
   removeMapImage: (region: string) => invoke<void>("remove_map_image", { region }),
   gameIcons: () => invoke<Record<string, string>>("get_game_icons"),
+  gameRegions: (region: string) => invoke<GameRegions | null>("get_game_data", { kind: "regions", region }),
+  gamePlaces: (region: string) => invoke<GamePlaces | null>("get_game_data", { kind: "lieux", region }),
   /** Relit position.json ; renvoie son chemin. */
   reloadLiveConfig: () => invoke<string>("reload_live_config"),
 };

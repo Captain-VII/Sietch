@@ -256,6 +256,33 @@ div.leaflet-container {
   pointer-events: none;
 }
 
+/* Nom des régions du jeu, en surimpression comme sur sa carte : lisible sur le sable comme sur la roche. */
+.region-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  color: #fff6e6;
+  text-shadow: 0 0 3px #000, 0 1px 2px #000;
+  line-height: 1.15;
+}
+.region-label > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.region-label b {
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.region-label span {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
 .leaflet-tooltip.marker-tip {
   background: var(--bg);
   border: 1px solid var(--spice-light);
@@ -649,10 +676,6 @@ div.leaflet-container {
   box-shadow: 0 0 0 4px rgba(79, 163, 217, 0.25);
 }
 
-.live-halo {
-  animation: live-pulse 1.6s ease-out infinite;
-}
-
 /* Flèche du joueur : tournée selon son orientation, en douceur. */
 .player-arrow svg,
 .player-arrow img {
@@ -662,19 +685,10 @@ div.leaflet-container {
   filter: drop-shadow(0 0 3px rgba(4, 5, 10, 0.9));
 }
 
-@keyframes live-pulse {
-  from {
-    stroke-opacity: 0.9;
-  }
-  to {
-    stroke-opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .live-halo {
-    animation: none;
-  }
+/* Lieux du jeu : icône officielle (trait clair), détachée du fond par une ombre, comme sur la carte du jeu. */
+.place-icon {
+  display: block;
+  filter: drop-shadow(0 0 1.5px rgba(4, 5, 10, 0.95)) drop-shadow(0 0 3px rgba(4, 5, 10, 0.6));
 }
 
 /* Lieux et ressources du jeu sur la carte : pastille avec pictogramme (voir lib/carte.ts). */

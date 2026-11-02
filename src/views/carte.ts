@@ -2,8 +2,8 @@ import L from "leaflet";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
-import { api, on, type MapData, type SeenResource, type Trail } from "../lib/api";
-import { gameIcon, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, MARKER_GAME_ICONS, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_HIDDEN_KEY, POI_KINDS, poiSvg, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
+import { api, on, type GamePlaces, type GameRegions, type MapData, type SeenResource, type Trail } from "../lib/api";
+import { gameIcon, HAZARD_EDGE, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, MARKER_GAME_ICONS, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_HIDDEN_KEY, POI_KINDS, PLACE_GROUPS, placeIcon, poiSvg, REGION_BORDER, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   decodeMarkers, encodeMarkers, markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -19,8 +19,8 @@ let lastRegion: Region = "hagga";
 const hidden = new Set<MarkerType>();
 /** Catégories de points d'intérêt masquées, gardées d'une session à l'autre. */
 const hiddenPoi = new Set<string>(hiddenPoiKinds());
-/** Catégories dépliées dans le panneau des filtres. */
-const openGroups = new Set<string>();
+/** Catégories dépliées dans le panneau des filtres : celles des lieux, pour servir de légende. */
+const openGroups = new Set<string>(PLACE_GROUPS.map(([label]) => label));
 
 type FilterItem = { key: string; on: boolean; content: (Node | string)[] };
 
@@ -81,7 +81,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   // Vue initiale tout de suite : les données du jeu peuvent arriver avant la fin de l'affichage.
   map.fitBounds(bounds);
 
-  // Grille des secteurs A1–I9 et quelques lignes de dunes décoratives.
+  // Grille des secteurs A1–I9.
   const lineStyle = { color: "rgba(217, 182, 122, 0.16)", weight: 1, interactive: false };
   for (let i = 0; i <= 9; i++) {
     L.polyline([toLatLng(i * 100, 0), toLatLng(i * 100, SIZE)], lineStyle).addTo(map);
@@ -96,16 +96,15 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       }).addTo(map);
     }
   }
-  for (const y of [200, 430, 670]) {
-    const pts = Array.from({ length: 19 }, (_, i) => toLatLng(i * 50, y + Math.sin(i * 0.7 + y) * 18));
-    L.polyline(pts, { color: "#5B4D2E", weight: 1.2, interactive: false, smoothFactor: 2 }).addTo(map);
-  }
   // ---------- Carte lue dans le jeu : zones et points d'intérêt de la région ----------
   const gameLayer = L.layerGroup().addTo(map);
   let mapData: MapData | null = null;
   let resources: SeenResource[] = [];
 
   const worldToMap = (x: number, y: number) => toWorldMap(mapData!, x, y);
+  /** Régions et lieux extraits des fichiers du jeu, pour la région affichée (null : pas d'extraction). */
+  let game: { region: string; regions: GameRegions | null; places: GamePlaces | null } | null = null;
+  const placesHere = () => (game?.region === region ? game.places : null);
 
   /** Catégories de lieux et de ressources présentes dans la région affichée. */
   let poiKinds: string[] = [];
@@ -116,12 +115,22 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     const looks = new Map<string, { label: string; color: string; path: string; shape: string; game?: string }>();
     /** Pictogramme de la catégorie dans son bouton, pour servir de légende. */
     const resIcon = (kind: string) => {
+      const place = placeLooks.get(kind);
+      if (place) return h("img", { src: placeIcon(place.icon, kind.slice(2))?.url ?? "", width: "20", height: "20", alt: "", class: "place-icon" });
       const k = looks.get(kind);
       const el = h("span", { style: "display: inline-flex" });
       el.innerHTML = k ? resourceSvg(k.path, k.color, 18, k.shape, k.game) : poiSvg(kind, 18);
       return el;
     };
-    if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
+    // Lieux : ceux des fichiers du jeu (tous, icône officielle) ; sinon ceux lus en direct autour du joueur.
+    const placeLooks = new Map<string, { label: string; icon: string }>();
+    const places = placesHere();
+    if (places) {
+      for (const p of places.places) {
+        counts.set(`l:${p.type}`, (counts.get(`l:${p.type}`) ?? 0) + 1);
+        placeLooks.set(`l:${p.type}`, { label: p.label, icon: p.icon });
+      }
+    } else if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
     // Ressources : une catégorie par ressource, au sol ou non.
     for (const r of resources) {
       if (r.region !== region) continue;
@@ -131,10 +140,16 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     }
     const sorted = [...counts].sort((a, b) => b[1] - a[1]);
     poiKinds = sorted.map(([kind]) => kind);
-    const items = (res: boolean) => sorted.filter(([kind]) => kind.startsWith("r:") === res).map(([kind, n]) => {
-      const k = looks.get(kind) ?? POI_KINDS[kind] ?? { label: kind, color: "#e9dfc9" };
+    const item = ([kind, n]: [string, number]) => {
+      const k = looks.get(kind) ?? placeLooks.get(kind) ?? POI_KINDS[kind] ?? { label: kind, color: "#e9dfc9" };
       return { key: kind, on: !hiddenPoi.has(kind), content: [resIcon(kind), `${k.label} (${n})`] };
-    });
+    };
+    // Lieux du jeu rangés par catégorie (dans l'ordre de `PLACE_GROUPS`) ; ressources et lieux lus en direct à part.
+    const placeGroups = PLACE_GROUPS.map(([label, types]) =>
+      [label, types.flatMap((t) => sorted.filter(([kind]) => kind === `l:${t}`)).map(item)] as const);
+    const grouped = new Set(PLACE_GROUPS.flatMap(([, types]) => types.map((t) => `l:${t}`)));
+    const others = sorted.filter(([kind]) => !kind.startsWith("r:") && !grouped.has(kind)).map(item);
+    const res = sorted.filter(([kind]) => kind.startsWith("r:")).map(item);
     const save = () => {
       try {
         localStorage.setItem(POI_HIDDEN_KEY, JSON.stringify([...hiddenPoi]));
@@ -152,9 +167,11 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       save();
     };
     const toggle = (k: string) => setAll([k], hiddenPoi.has(k));
+    const group = (label: string, list: FilterItem[]) => filterGroup(label, list, (on) => setAll(list.map((i) => i.key), on), toggle, drawPoiChips);
     mount(poiChips,
-      ...filterGroup("Lieux du jeu", items(false), (on) => setAll(items(false).map((i) => i.key), on), toggle, drawPoiChips),
-      ...filterGroup("Ressources", items(true), (on) => setAll(items(true).map((i) => i.key), on), toggle, drawPoiChips));
+      ...placeGroups.flatMap(([label, list]) => group(label, list)),
+      ...group(places ? "Autres lieux" : "Lieux du jeu", others),
+      ...group("Ressources", res));
   }
 
   /** Minuteur de réapparition d'une ressource récoltée ; relancé s'il existe déjà pour ce secteur. */
@@ -170,23 +187,41 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     toast("Minuteur lancé", `${name} · ${place} : prêt dans ${Math.round(r.respawn / 60)} min.`);
   }
 
-  /** Remplit un cercle du motif de hachures du jeu (motif SVG défini une fois dans le calque de la carte). */
-  function hatch(c: L.Circle, kind: number, img: string) {
+  /**
+   * Calque d'un type de zone de danger, fondu en incrustation à l'opacité du jeu : les cercles qui se chevauchent y
+   * forment une seule tache, sans foncer.
+   */
+  function hazardPane(kind: number) {
+    const name = `danger-${kind}`;
+    if (!map.getPane(name)) {
+      const el = map.createPane(name);
+      el.style.opacity = String(HAZARDS[kind].alpha);
+      el.style.mixBlendMode = "overlay";
+      el.style.zIndex = "405";
+      el.style.pointerEvents = "none";
+    }
+    return name;
+  }
+
+  /**
+   * Brume (radiations) : le cercle est déformé par un bruit, flouté, puis découpé en nappes ; plus de bord net.
+   * Filtre SVG défini une fois dans le calque de la carte, comme les hachures.
+   */
+  function mist(c: L.Circle) {
     const el = c.getElement();
     const svg = el instanceof SVGElement ? el.ownerSVGElement : null;
     if (!el || !svg) return;
-    const id = `sietch-hatch-${kind}`;
-    if (!svg.getElementById(id)) {
-      const ns = "http://www.w3.org/2000/svg";
-      const defs = svg.querySelector("defs") ?? svg.insertBefore(document.createElementNS(ns, "defs"), svg.firstChild);
-      const pattern = document.createElementNS(ns, "pattern");
-      const image = document.createElementNS(ns, "image");
-      Object.entries({ id, patternUnits: "userSpaceOnUse", width: "32", height: "20" }).forEach(([k, v]) => pattern.setAttribute(k, v));
-      Object.entries({ href: img, width: "32", height: "20" }).forEach(([k, v]) => image.setAttribute(k, v));
-      pattern.appendChild(image);
-      defs.appendChild(pattern);
+    if (!svg.getElementById("sietch-brume")) {
+      const defs = svg.querySelector("defs") ?? svg.insertBefore(document.createElementNS("http://www.w3.org/2000/svg", "defs"), svg.firstChild);
+      defs.insertAdjacentHTML("beforeend", `<filter id="sietch-brume" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="3" result="bruit"/>
+        <feDisplacementMap in="SourceGraphic" in2="bruit" scale="70" xChannelSelector="R" yChannelSelector="G" result="bord"/>
+        <feGaussianBlur in="bord" stdDeviation="14" result="flou"/>
+        <feColorMatrix in="bruit" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 2.4 -0.5" result="nappes"/>
+        <feComposite in="flou" in2="nappes" operator="in"/>
+      </filter>`);
     }
-    el.setAttribute("fill", `url(#${id})`);
+    el.setAttribute("filter", "url(#sietch-brume)");
   }
 
   /** Nom du lieu nommé du jeu le plus proche (à moins de 200 m), pour donner à chaque icône son vrai nom. */
@@ -199,26 +234,90 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     return best?.name ?? null;
   }
 
+  /**
+   * Régions du jeu, toujours affichées (comme gravées sur le fond) : frontière discrète de la couleur du jeu, nom et
+   * sous-titre au milieu. Pas de remplissage : le fond porte déjà les couleurs de chaque zone, comme la carte du jeu.
+   */
+  function drawZones() {
+    const b = game?.region === region ? game.regions : null;
+    if (!b) return;
+    const ll = ([x, y]: [number, number]) => {
+      const p = toWorldMap(b, x, y);
+      return toLatLng(p.x, p.y);
+    };
+    for (const z of b.regions) {
+      L.polygon(z.rings.map((ring) => ring.map(ll)), { color: REGION_BORDER, weight: 1.2, opacity: 0.55, fill: false, interactive: false }).addTo(gameLayer);
+      L.marker(ll(z.label), {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({ className: "region-label", html: h("div", {}, h("b", {}, z.name), h("span", {}, z.subtitle)), iconSize: [180, 34], iconAnchor: [90, 17] }),
+      }).addTo(gameLayer);
+    }
+  }
+
+  /**
+   * Lieux du jeu : icône officielle de leur type, à sa taille, nom français au survol. Comme la carte du jeu, chaque type
+   * n'apparaît qu'à partir de son niveau de zoom (les camps, très nombreux, de près).
+   */
+  // Vue d'ensemble : les lieux principaux seuls ; en zoomant, le détail (camps, ressources).
+  const placeLods = [L.layerGroup(), L.layerGroup(), L.layerGroup()];
+  const PLACE_LOD_ZOOM = [-Infinity, -Infinity, 0.75];
+  const detailLayer = placeLods[2];
+  const showPlaceLods = () => placeLods.forEach((g, i) => (map.getZoom() >= PLACE_LOD_ZOOM[i] ? g.addTo(gameLayer) : gameLayer.removeLayer(g)));
+  map.on("zoomend", showPlaceLods);
+
+  function drawPlaces(places: GamePlaces) {
+    for (const p of places.places) {
+      if (hiddenPoi.has(`l:${p.type}`)) continue;
+      const m = toWorldMap(places, p.x, p.y);
+      const img = placeIcon(p.icon, p.type)?.url;
+      const size = Math.round(26 * p.scale);
+      L.marker(toLatLng(m.x, m.y), {
+        icon: L.divIcon({ className: "map-pin", html: img ? `<img class="place-icon" src="${img}" width="${size}" height="${size}" alt="">` : poiSvg("", size), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
+        keyboard: false,
+      })
+        .bindTooltip([p.name, p.name === p.label ? null : p.label, sectorOf(m.x, m.y)].filter(Boolean).join(" · "), { className: "marker-tip", direction: "top", offset: [0, -6] })
+        .addTo(placeLods[Math.min(2, Math.max(0, p.lod))]);
+    }
+  }
+
   function drawGame() {
     gameLayer.clearLayers();
+    placeLods.forEach((g) => g.clearLayers());
+    // Régions et lieux des fichiers du jeu : chargés une fois par région, puis redessinés.
+    if (game?.region !== region) {
+      const r = region;
+      game = { region: r, regions: null, places: null };
+      void Promise.all([api.gameRegions(r).catch(() => null), api.gamePlaces(r).catch(() => null)]).then(([regions, places]) => {
+        if (game?.region !== r) return;
+        game = { region: r, regions, places };
+        drawGame();
+      });
+    }
+    drawZones();
     drawPoiChips();
     drawTrail();
+    const places = placesHere();
+    if (places) drawPlaces(places);
+    showPlaceLods();
     if (!mapData || mapRegion(mapData) !== region) return;
     const scale = SIZE / (mapData.bounds.maxX - mapData.bounds.minX);
-    // Zones de danger : hachures du jeu (sable tambour, sables mouvants) ou icône au centre (radiations).
+    // Zones de danger comme sur la carte du jeu : sa teinte en incrustation et son bord ; radiations en brume, avec
+    // leur icône au centre.
     for (const { kind, x, y, r } of hazardCircles(mapData)) {
       const hz = HAZARDS[kind];
       const img = hz ? gameIcon(hz.icon) : null;
-      const color = hz?.color ?? "#c9a861";
       const p = worldToMap(x, y);
       const ll = toLatLng(p.x, p.y);
-      const c = L.circle(ll, { radius: r * scale, color, weight: 1, opacity: 0.6, fillColor: color, fillOpacity: hz?.pattern && img ? 0.6 : 0.08, interactive: false }).addTo(gameLayer);
-      if (hz?.pattern && img) hatch(c, kind, img);
-      else if (img) {
+      const radius = r * scale;
+      if (hz?.mist) mist(L.circle(ll, { pane: hazardPane(kind), radius, stroke: false, fillColor: hz.fill, fillOpacity: 1, interactive: false }).addTo(gameLayer));
+      else if (hz) L.circle(ll, { pane: hazardPane(kind), radius, color: HAZARD_EDGE, weight: 1.5, fillColor: hz.fill, fillOpacity: 1, interactive: false }).addTo(gameLayer);
+      else L.circle(ll, { radius, color: "#c9a861", weight: 1, opacity: 0.6, fillOpacity: 0.08, interactive: false }).addTo(gameLayer);
+      if (img && hz?.mist) {
         L.marker(ll, { interactive: false, keyboard: false, icon: L.divIcon({ className: "", iconSize: [18, 18], html: `<img src="${img}" width="18" height="18" alt="">` }) }).addTo(gameLayer);
       }
     }
-    for (const poi of mapData.pois) {
+    for (const poi of places ? [] : mapData.pois) {
       if (hiddenPoi.has(poi.kind)) continue;
       const p = worldToMap(poi.x, poi.y);
       const kind = POI_KINDS[poi.kind] ?? { label: poi.kind, color: "#e9dfc9" };
@@ -244,7 +343,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       })
         .bindTooltip(`${k.label}${k.ground ? " (au sol)" : ""} · ${sectorOf(p.x, p.y)}${respawn}${r.live ? "" : " · déjà vue"}${r.respawn > 0 ? "<br>Clic : lancer le minuteur" : ""}`, { className: "marker-tip", direction: "top", offset: [0, -4] })
         .on("click", () => void resourceTimer(r))
-        .addTo(gameLayer);
+        .addTo(detailLayer);
     }
   }
 
@@ -367,7 +466,6 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   /** Animation de la flèche en cours (requestAnimationFrame). */
   let frame = 0;
   map.on("moveend", () => (panning = false));
-  const liveHalo = L.circleMarker([0, 0], { radius: 18, color: "#4FA3D9", weight: 2, fill: false, className: "live-halo", interactive: false });
   const liveBar = h("div", { class: "live-bar", role: "status", "aria-live": "polite" });
   let follow = true;
   // Déplacer la carte à la main arrête le suivi ; le bouton « Suivre » le reprend.
@@ -465,9 +563,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       return null;
     }
     const ll = toLatLng(Math.max(0, Math.min(SIZE, pt.x)), Math.max(0, Math.min(SIZE, pt.y)));
-    liveHalo.setLatLng(ll);
     liveDot.setLatLng(ll);
-    if (!liveLayer.hasLayer(liveDot)) liveLayer.addLayer(liveHalo).addLayer(liveDot);
+    if (!liveLayer.hasLayer(liveDot)) liveLayer.addLayer(liveDot);
     const a = live.position?.yaw ?? yaw;
     const arrow = liveDot.getElement()?.querySelector<HTMLElement | SVGElement>("svg, img");
     if (arrow && a !== null) {
@@ -791,6 +888,22 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
     const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     const found = all.find((m) => m.region === region && fold(m.name).includes(fold(q)))
       ?? all.find((m) => fold(m.name).includes(fold(q)));
+    // Lieux des fichiers du jeu : par nom (« Gardefaille ») ou par type (« grotte ») ; le plus proche du joueur d'abord.
+    const places = placesHere();
+    if (!found && places) {
+      const me = livePoint();
+      const at = (p: { x: number; y: number }) => toWorldMap(places, p.x, p.y);
+      const hits = places.places.filter((p) => fold(p.name).includes(fold(q)) || fold(p.label).includes(fold(q)))
+        .sort((a, b) => (me ? Math.hypot(at(a).x - me.x, at(a).y - me.y) - Math.hypot(at(b).x - me.x, at(b).y - me.y) : 0));
+      if (hits.length) {
+        hiddenPoi.delete(`l:${hits[0].type}`);
+        drawGame();
+        const m = at(hits[0]);
+        map.flyTo(toLatLng(m.x, m.y), 2);
+        toast(hits[0].name, `${hits[0].label} · ${sectorOf(m.x, m.y)}${hits.length > 1 ? ` · le plus proche sur ${hits.length}` : ""}`);
+        return;
+      }
+    }
     if (!found) {
       // Points d'intérêt du jeu : par type (« épave ») ou par nom ; le plus proche du joueur d'abord.
       const pois = (mapData && mapRegion(mapData) === region ? mapData.pois : [])
@@ -849,6 +962,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
           ),
           chipsBox,
           poiChips,
+          h("p", { class: "muted", style: "font-size: 12px; margin: 0" }, "Vue d'ensemble : les lieux principaux. Zoomez pour voir les camps et les ressources."),
         ),
         panel,
       ),

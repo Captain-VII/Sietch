@@ -4,14 +4,18 @@
 //   sietch-assets version              version d'Unreal Engine du jeu
 //   sietch-assets list <filtre>        chemins des fichiers dont le nom contient <filtre>
 //   sietch-assets export <chemin> <dossier>   textures du paquet (ou de tous ceux qui commencent par <chemin>) en PNG
+//   sietch-assets relief <fichier> [pixels] [couleurs.jpg x0 y0 x1 y1]   fond de Hagga depuis les maquettes 3D du jeu (Relief.cs)
+//   sietch-assets regions <fichier.json>       régions de Hagga : contours et noms en français (Regions.cs)
+//   sietch-assets lieux <fichier.json> <dossier icônes>   lieux de Hagga, noms français et icônes officielles (Places.cs)
 using System.Text;
 using System.Text.RegularExpressions;
 using CUE4Parse.Compression;
 using CUE4Parse.FileProvider;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Versions;
+using CUE4Parse_Conversion.Options;
 using CUE4Parse_Conversion.Textures;
-using CUE4Parse.MappingsProvider;
+using CUE4Parse.MappingsProvider.Usmap;
 
 const string Game = @"D:\SteamLibrary\steamapps\common\DuneAwakening";
 var paks = Path.Combine(Game, @"DuneSandbox\Content\Paks");
@@ -29,7 +33,7 @@ if (args[0] == "version")
     return 0;
 }
 
-var version = Environment.GetEnvironmentVariable("SIETCH_UE") is { } ue ? Enum.Parse<EGame>(ue) : EGame.GAME_UE5_2;
+var version = Environment.GetEnvironmentVariable("SIETCH_UE") is { } ue ? Enum.Parse<EGame>(ue) : EGame.GAME_DuneAwakening;
 var provider = new DefaultFileProvider(paks, SearchOption.TopDirectoryOnly, new VersionContainer(version));
 var oodle = Path.Combine(AppContext.BaseDirectory, "oo2core_9_win64.dll");
 if (File.Exists(oodle)) OodleHelper.Initialize(oodle);
@@ -60,8 +64,8 @@ switch (args[0])
                 {
                     var bmp = tex.Decode();
                     if (bmp is null) continue;
-                    using var data = bmp.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
-                    File.WriteAllBytes(Path.Combine(args[2], tex.Name + ".png"), data.ToArray());
+                    var data = bmp.Encode(ETextureFormat.Png, false, out _);
+                    File.WriteAllBytes(Path.Combine(args[2], tex.Name + ".png"), data);
                     n++;
                 }
             }
@@ -72,5 +76,13 @@ switch (args[0])
         }
         Console.Error.WriteLine($"{n} textures écrites dans {args[2]}");
         return 0;
+    case "relief":
+        // Couleurs facultatives : image de la carte du jeu et son calage Sietch (x0 y0 x1 y1, unités 0–900).
+        return Relief.Run(provider, args[1], args.Length > 2 ? int.Parse(args[2]) : 4096,
+            args.Length > 7 ? (args[3], args[4..8].Select(a => double.Parse(a, System.Globalization.CultureInfo.InvariantCulture)).ToArray()) : null);
+    case "lieux":
+        return Places.Run(provider, args[1], args[2]);
+    case "regions":
+        return Regions.Run(provider, args[1]);
 }
 return 1;

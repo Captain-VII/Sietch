@@ -1,6 +1,6 @@
 # Feuille de route de Sietch
 
-État au 2026-10-28 : v0.1.4 publiée, mises à jour automatiques vérifiées. On avance par lots courts, validés en
+État au 2026-11-02 : v0.1.5 publiée, mises à jour automatiques vérifiées. On avance par lots courts, validés en
 dev par l'utilisateur, puis une release quand il le demande (voir `CLAUDE.md`).
 
 Légende : 🟢 prêt à faire · 🎮 demande le jeu sans BattlEye (l'utilisateur en jeu) · 🟡 dépend d'une info ou d'un choix ·
@@ -27,8 +27,7 @@ Légende : 🟢 prêt à faire · 🎮 demande le jeu sans BattlEye (l'utilisate
 But : que tout ce qui est livré marche sans surprise, en ligne comme en solo.
 
 - ✅ Premier vrai test de la **mise à jour automatique** : 0.1.2 → 0.1.3 réussi (2026-10-28).
-- 🎮 **Fond de Hagga refait** une fois la carte découverte : `tools/capture-carte.ps1` puis `tools/assembler-carte.py`,
-  calé sur l'ancien fond (même cadrage, rien à réaligner).
+- ✅ **Fond de Hagga refait** : calculé depuis les maquettes 3D du jeu (2026-11-02, voir lot 6).
 - 🎮 **Désert profond** : fond de carte, calibration, vérifier région automatique, ressources et lieux.
 - 🟢 **Coups portés** : ennemi repéré plus vite qu'au relevé complet (suivre les personnages proches à part).
 - 🟢 **Diagnostic** : ajouter l'état du relevé (passage en cours, durée) et le nombre de personnages suivis.
@@ -79,17 +78,22 @@ But : qu'une mise à jour du jeu ne casse rien, ou se répare vite.
   l'autorisation par BattlEye demandera sans doute un `.exe` signé (voir `docs/analyse-gaming-tools-companion.md`).
 - 🔴 gaming.tools : demander l'accès à leur base (recettes, statistiques), aujourd'hui interdit sans accord.
 
-## Lot 6 — Carte du jeu en 3D et régions (plus tard, décidé le 2026-11-02)
+## Lot 6 — Carte du jeu en 3D et régions (fond fait le 2026-11-02)
 
 But : un fond de Hagga au rendu de la carte plein écran du jeu, calé au mètre, et les régions nommées dessus.
 Piste et blocage détaillés dans `docs/carte-en-direct.md` (« Carte 3D et régions »).
 
-- 🟡 **Débloquer la géométrie** des modèles du jeu : CUE4Parse charge les `StaticMesh` sans `RenderData`. Piste : générer
-  un `.usmap` depuis la mémoire du jeu, en lecture seule, avec `sietch-scan` (pas d'injection dans le jeu).
-- 🟡 **Fond 3D** : exporter les maquettes `SM_…_UIMap` (`DT_UIMapTerrainMeshes`, 145 types), les poser aux positions des
-  blocs de terrain, sable uni dessous, puis calculer une image vue de dessus avec ombrage (local, jamais dans le dépôt).
-- 🟡 **Régions nommées** : contours `SM_RegionBorders` / `SM_AreaBorders` / `SM_SubregionBorders` de Hagga, noms dans
-  `ST_Localization_NPCs_World` (`WORLD_REGION_NAMES_…`, anglais) ; le français reste à trouver.
+- ✅ **Géométrie débloquée** : CUE4Parse récent réglé sur `GAME_DuneAwakening` (.NET 10), sans `.usmap`.
+- ✅ **Fond 3D de Hagga** : `sietch-assets relief`, maquettes `SM_…_UIMap` posées aux blocs des sous-niveaux, ombrées,
+  2 m par pixel (local, jamais dans le dépôt). Plus à jour que la texture officielle (Sheol).
+- ✅ Dunes du sable (tuiles `SOS-MinorErg`) et couleurs de la vraie carte 3D, zone par zone.
+- 🟢 Fond du **Désert profond** par la même méthode.
+- ✅ **Régions nommées** : 12 régions de Hagga, noms et territoires en français, colorées par territoire, toujours
+  affichées (`sietch-assets regions`). Zones de danger aux couleurs de la carte du jeu, radiations en brume.
+- ✅ **Lieux du jeu** : 652 lieux de Hagga extraits des fichiers (noms français, icônes officielles, zoom d'apparition du
+  jeu), sur la carte même jeu fermé ; recherche par nom ou type.
+- ✅ Mini-carte : mêmes lieux que la carte, icônes officielles.
+- 🟢 Région où l'on se trouve d'après la position (sans lire le nom de zone), pour la mini-carte.
 
 ---
 
