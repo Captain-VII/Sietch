@@ -3,7 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Ctx, ViewHandle } from "../main";
 import { api, on, type GamePlaces, type GameRegions, type MapData, type SeenResource, type Trail } from "../lib/api";
-import { gameIcon, HAZARD_EDGE, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, MARKER_GAME_ICONS, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_HIDDEN_KEY, POI_KINDS, PLACE_GROUPS, placeIcon, poiSvg, REGION_BORDER, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
+import { gameIcon, HAZARD_EDGE, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, MARKER_GAME_ICONS, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_HIDDEN_KEY, POI_KINDS, PLACE_GROUPS, placeIcon, poiSvg, REGION_BORDER, resourceIcon, resourceKind, resourceSvg, SIZE, worldToMap as toWorldMap } from "../lib/carte";
 import {
   decodeMarkers, encodeMarkers, markers as store, MARKER_TYPES, parseSector, REGIONS, sectorOf, uid,
   type Marker, type MarkerType, type Region,
@@ -22,32 +22,35 @@ const hiddenPoi = new Set<string>(hiddenPoiKinds());
 /** Catégories dépliées dans le panneau des filtres : celles des lieux, pour servir de légende. */
 const openGroups = new Set<string>(PLACE_GROUPS.map(([label]) => label));
 
-type FilterItem = { key: string; on: boolean; content: (Node | string)[] };
+type FilterItem = { key: string; on: boolean; icon: Node; label: string; count?: number };
 
 /**
- * Une catégorie du panneau des filtres : une ligne (clic = tout afficher ou masquer, avec le compte), et son détail
- * dépliable, un bouton par élément.
+ * Un calque du panneau des filtres : en-tête (chevron pour déplier, nom, nombre affiché, interrupteur tout / rien,
+ * mixte si une partie seulement), puis une ligne par élément (pictogramme, nom, nombre), cliquable.
  */
 function filterGroup(label: string, items: FilterItem[], setAll: (on: boolean) => void, toggle: (key: string) => void, redraw: () => void): HTMLElement[] {
   if (!items.length) return [];
   const on = items.filter((i) => i.on).length;
-  const all = on === items.length;
   const opened = openGroups.has(label);
-  const row = h("div", { class: "filter-row" },
-    h("button", { class: "chip filter-group", type: "button", "aria-pressed": String(on > 0), title: all ? "Tout masquer" : "Tout afficher", onclick: () => setAll(!all) },
-      label, h("span", { class: "muted" }, `${on}/${items.length}`)),
+  const head = h("div", { class: "layer-head" },
     h("button", {
-      class: "chip", type: "button", "aria-expanded": String(opened), "aria-label": `Détail : ${label}`,
+      class: "layer-open", type: "button", "aria-expanded": String(opened),
       onclick: () => {
         if (opened) openGroups.delete(label);
         else openGroups.add(label);
         redraw();
       },
-    }, opened ? "▴" : "▾"),
-  );
-  if (!opened) return [row];
-  return [row, h("div", { class: "filter-detail", role: "group", "aria-label": `Détail : ${label}` },
-    ...items.map((i) => h("button", { class: "chip", type: "button", "aria-pressed": String(i.on), onclick: () => toggle(i.key) }, ...i.content)))];
+    }, h("span", { class: "layer-chevron", "aria-hidden": "true" }, "›"), label, h("span", { class: "layer-count" }, `${on}/${items.length}`)),
+    h("button", {
+      class: "switch small", type: "button", role: "switch", "aria-label": `${label} : tout afficher ou masquer`,
+      "aria-checked": on === items.length ? "true" : on ? "mixed" : "false",
+      onclick: () => setAll(on < items.length),
+    }));
+  if (!opened) return [h("div", { class: "layer" }, head)];
+  return [h("div", { class: "layer" }, head,
+    h("div", { class: "layer-items", role: "group", "aria-label": label },
+      ...items.map((i) => h("button", { class: "layer-item", type: "button", "aria-pressed": String(i.on), onclick: () => toggle(i.key) },
+        i.icon, h("span", { class: "layer-item-label" }, i.label), i.count != null ? h("span", { class: "layer-count" }, String(i.count)) : null))))];
 }
 
 export function render(root: HTMLElement, ctx: Ctx, action?: string | null): ViewHandle {
@@ -118,6 +121,8 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       const place = placeLooks.get(kind);
       if (place) return h("img", { src: placeIcon(place.icon, kind.slice(2))?.url ?? "", width: "20", height: "20", alt: "", class: "place-icon" });
       const k = looks.get(kind);
+      const badge = k && resourceIcon(k);
+      if (badge) return h("img", { src: badge.url, width: "20", height: "20", alt: "", class: "place-icon" });
       const el = h("span", { style: "display: inline-flex" });
       el.innerHTML = k ? resourceSvg(k.path, k.color, 18, k.shape, k.game) : poiSvg(kind, 18);
       return el;
@@ -131,18 +136,18 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         placeLooks.set(`l:${p.type}`, { label: p.label, icon: p.icon });
       }
     } else if (mapData && mapRegion(mapData) === region) for (const p of mapData.pois) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
-    // Ressources : une catégorie par ressource, au sol ou non.
+    // Ressources : une catégorie par ressource déjà vue, au sol ou non ; le nombre compte celles présentes.
     for (const r of resources) {
       if (r.region !== region) continue;
       const k = resourceKind(r.name);
-      counts.set(k.key, (counts.get(k.key) ?? 0) + 1);
+      counts.set(k.key, (counts.get(k.key) ?? 0) + (r.live ? 1 : 0));
       looks.set(k.key, k);
     }
     const sorted = [...counts].sort((a, b) => b[1] - a[1]);
     poiKinds = sorted.map(([kind]) => kind);
     const item = ([kind, n]: [string, number]) => {
       const k = looks.get(kind) ?? placeLooks.get(kind) ?? POI_KINDS[kind] ?? { label: kind, color: "#e9dfc9" };
-      return { key: kind, on: !hiddenPoi.has(kind), content: [resIcon(kind), `${k.label} (${n})`] };
+      return { key: kind, on: !hiddenPoi.has(kind), icon: resIcon(kind), label: k.label, count: n };
     };
     // Lieux du jeu rangés par catégorie (dans l'ordre de `PLACE_GROUPS`) ; ressources et lieux lus en direct à part.
     const placeGroups = PLACE_GROUPS.map(([label, types]) =>
@@ -328,24 +333,51 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
         .bindTooltip([placeName(poi.x, poi.y), kind.label, sectorOf(p.x, p.y)].filter(Boolean).join(" · "), { className: "marker-tip", direction: "top", offset: [0, -6] })
         .addTo(gameLayer);
     }
-    // Ressources : petits points sans contour ; pâles quand elles ne sont plus chargées (déjà vues).
+    drawResources();
+  }
+
+  /**
+   * Ressources présentes seulement (lues à l'instant dans le jeu ; ni les déjà vues ni les récoltées), icônes du jeu.
+   * Celles d'un même type à moins de 26 px l'une de l'autre à l'écran ne font qu'une icône, avec leur nombre :
+   * redessinées à chaque zoom.
+   */
+  const resourceLayer = L.layerGroup();
+  function drawResources() {
+    resourceLayer.clearLayers().addTo(detailLayer);
+    const groups = new Map<string, SeenResource[]>();
+    const zoom = map.getZoom();
     for (const r of resources) {
-      if (r.region !== region) continue;
+      if (r.region !== region || !r.live) continue;
       const k = resourceKind(r.name);
       if (hiddenPoi.has(k.key)) continue;
       const p = worldToMap(r.x, r.y);
+      const px = map.project(toLatLng(p.x, p.y), zoom);
+      const cell = `${k.key}|${Math.round(px.x / 26)}|${Math.round(px.y / 26)}`;
+      groups.set(cell, [...(groups.get(cell) ?? []), r]);
+    }
+    for (const group of groups.values()) {
+      const r = group[0];
+      const k = resourceKind(r.name);
+      const pts = group.map((g) => worldToMap(g.x, g.y));
+      const p = { x: pts.reduce((s, q) => s + q.x, 0) / pts.length, y: pts.reduce((s, q) => s + q.y, 0) / pts.length };
       const respawn = r.respawn > 0 ? ` · réapparaît en ${Math.round(r.respawn / 60)} min` : "";
-      const size = k.ground ? 14 : 20;
+      const badge = resourceIcon(k);
+      const size = (k.ground ? 14 : 20) + (badge ? 4 : 0);
+      const count = group.length > 1 ? `<span class="res-count">${group.length}</span>` : "";
       L.marker(toLatLng(p.x, p.y), {
-        icon: L.divIcon({ className: "map-pin", html: resourceSvg(k.path, k.color, size, k.shape, k.game), iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
-        opacity: r.live ? 1 : 0.45,
+        icon: L.divIcon({ className: "map-pin", html: (badge ? `<img class="place-icon" src="${badge.url}" width="${size}" height="${size}" alt="">` : resourceSvg(k.path, k.color, size, k.shape, k.game)) + count, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }),
         keyboard: false,
       })
-        .bindTooltip(`${k.label}${k.ground ? " (au sol)" : ""} · ${sectorOf(p.x, p.y)}${respawn}${r.live ? "" : " · déjà vue"}${r.respawn > 0 ? "<br>Clic : lancer le minuteur" : ""}`, { className: "marker-tip", direction: "top", offset: [0, -4] })
-        .on("click", () => void resourceTimer(r))
-        .addTo(detailLayer);
+        .bindTooltip(group.length > 1
+          ? `${group.length} × ${k.label}${k.ground ? " (au sol)" : ""} · ${sectorOf(p.x, p.y)}<br>Clic : zoomer`
+          : `${k.label}${k.ground ? " (au sol)" : ""} · ${sectorOf(p.x, p.y)}${respawn}${r.respawn > 0 ? "<br>Clic : lancer le minuteur" : ""}`, { className: "marker-tip", direction: "top", offset: [0, -4] })
+        .on("click", () => group.length > 1
+          ? map.fitBounds(L.latLngBounds(pts.map((q) => toLatLng(q.x, q.y))).pad(0.5), { maxZoom: zoom + 2 })
+          : void resourceTimer(r))
+        .addTo(resourceLayer);
     }
   }
+  map.on("zoomend", drawResources);
 
   // ---------- Fond : capture de la carte du jeu (facultative), alignée en 2 clics ----------
   let bg: L.ImageOverlay | null = null;
@@ -652,7 +684,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       "Mes marqueurs",
       types.map((t) => ({
         key: t, on: !hidden.has(t),
-        content: [h("span", { class: "dot", style: `color: ${MARKER_TYPES[t].color}; background: ${hidden.has(t) ? "transparent" : MARKER_TYPES[t].color}` }), MARKER_TYPES[t].label],
+        icon: h("span", { class: "dot", style: `color: ${MARKER_TYPES[t].color}; background: ${MARKER_TYPES[t].color}` }), label: MARKER_TYPES[t].label,
       })),
       (on) => set(types, on),
       (k) => set([k as MarkerType], hidden.has(k as MarkerType)),
@@ -954,15 +986,16 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
       h("div", { class: "side-col" },
         h("aside", { class: "card filters-card stack", style: "--gap: 10px" },
           h("div", { class: "row spread" },
-            h("span", { class: "label" }, "Affichage"),
-            h("div", { class: "row", style: "--gap: 6px" },
-              h("button", { class: "btn", type: "button", onclick: () => showAll(true) }, "Tout"),
-              h("button", { class: "btn", type: "button", onclick: () => showAll(false) }, "Aucun"),
+            h("h2", { class: "section-title", style: "flex: 1" }, "Calques"),
+            h("div", { class: "row", style: "--gap: 2px" },
+              h("button", { class: "link-btn", type: "button", onclick: () => showAll(true) }, "Tout"),
+              h("span", { class: "muted", "aria-hidden": "true" }, "·"),
+              h("button", { class: "link-btn", type: "button", onclick: () => showAll(false) }, "Aucun"),
             ),
           ),
           chipsBox,
           poiChips,
-          h("p", { class: "muted", style: "font-size: 12px; margin: 0" }, "Vue d'ensemble : les lieux principaux. Zoomez pour voir les camps et les ressources."),
+          h("p", { class: "muted", style: "font-size: 12px; margin: 0" }, "Vue d'ensemble : les lieux principaux. En zoomant : camps et ressources présentes."),
         ),
         panel,
       ),

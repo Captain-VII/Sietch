@@ -424,7 +424,11 @@ impl<'a> Ue<'a> {
                 k
             }
         };
-        let name = kind?;
+        let (name, instanced) = kind?;
+        if instanced {
+            self.instances(o, class, &name, &mut scan.found);
+            return None;
+        }
         let [x, y, z] = self.location(o, class)?;
         // Délai de réapparition par défaut, en secondes.
         let respawn = self
@@ -436,16 +440,41 @@ impl<'a> Ue<'a> {
         Some(Resource { name, x, y, z, respawn })
     }
 
-    /// Nom de ressource d'une classe de générateur, ou `None` si la classe n'hérite pas de `ResourceSpawner`.
-    fn resource_class(&mut self, class: u64) -> Option<String> {
+    /// Gisements fixes (minerai, basalte, buissons) : un `HarvestableInstancedMeshComponent` par type et par acteur, une
+    /// instance par rocher. Position = celle de l'acteur porteur + translation de l'instance (FMatrix en f64, 128 octets ;
+    /// rotation de l'acteur ignorée, nulle sur ceux relevés). Pas de délai de réapparition connu.
+    /// shortcut: un rocher miné reste listé (instance, échelle et `m_ReplicatedReapedState` de l'acteur inchangés, relevé du
+    /// 2026-11-02) ; à reprendre si le jeu expose où il garde cet état. `m_CustomDataReapedIndex` concerne la rosée.
+    fn instances(&mut self, comp: u64, class: u64, name: &str, out: &mut Vec<Resource>) -> Option<()> {
+        let owner = read::<0x28>(self.m, comp).map(|b| u64_at(&b, 0x20))?;
+        let owner_class = read::<0x28>(self.m, owner).map(|b| u64_at(&b, 0x10))?;
+        let [ox, oy, oz] = self.location(owner, owner_class)?;
+        let arr = read::<16>(self.m, comp + self.field_cached(class, "PerInstanceSMData")?)?;
+        let (data, num) = (u64_at(&arr, 0), u32_at(&arr, 8).min(4096) as usize);
+        let mut buf = vec![0u8; num * 128];
+        if self.m.read_into(data, &mut buf) != buf.len() {
+            return None;
+        }
+        for m in buf.as_chunks::<128>().0 {
+            let f = |k: usize| f64::from_le_bytes(m[k..k + 8].try_into().unwrap());
+            out.push(Resource { name: name.to_string(), x: ox + f(96), y: oy + f(104), z: oz + f(112), respawn: 0.0 });
+        }
+        Some(())
+    }
+
+    /// Nom de ressource d'une classe de générateur (`ResourceSpawner`) ou de gisement fixe
+    /// (`HarvestableInstancedMeshComponent`, vrai en second) ; `None` pour toute autre classe.
+    fn resource_class(&mut self, class: u64) -> Option<(String, bool)> {
         let name = self.name_at(class + 0x18)?;
         let mut c = ptr(self.m, class + 0x40);
         for _ in 0..8 {
             if c == 0 {
                 break;
             }
-            if self.name_at(c + 0x18).as_deref() == Some("ResourceSpawner") {
-                return Some(resource_name(&name));
+            match self.name_at(c + 0x18).as_deref() {
+                Some("ResourceSpawner") => return Some((resource_name(&name), false)),
+                Some("HarvestableInstancedMeshComponent") => return Some((resource_name(&name), true)),
+                _ => {}
             }
             c = ptr(self.m, c + 0x40);
         }
@@ -598,7 +627,7 @@ pub fn poi_kind(asset: &str) -> Option<&'static str> {
 /// Nom de ressource d'après la classe du générateur : `BP_AzuriteOre_A_Spawner_C` → `AzuriteOre`,
 /// `BP_Azurite_Pickup_B_Spawner_C` → `Azurite_Pickup` (ramassable au sol).
 pub fn resource_name(class: &str) -> String {
-    let core = class.trim_start_matches("BP_").trim_end_matches("_C").trim_end_matches("_Spawner");
+    let core = class.trim_start_matches("BP_").trim_end_matches("_C").trim_end_matches("_Spawner").trim_end_matches("_Component");
     core.split('_').filter(|p| !(p.len() == 1 && p.chars().all(|c| c.is_ascii_uppercase()))).collect::<Vec<_>>().join("_")
 }
 
@@ -607,7 +636,8 @@ pub fn resource_name(class: &str) -> String {
 pub struct ResourceScan {
     next: u32,
     found: Vec<Resource>,
-    kinds: HashMap<u64, Option<String>>,
+    /// Classe → nom de ressource, et si c'est un composant de rochers instanciés plutôt qu'un générateur.
+    kinds: HashMap<u64, Option<(String, bool)>>,
     /// Jeux d'attributs des autres personnages (PNJ, créatures) croisés pendant le passage en cours.
     foes_found: Vec<Foe>,
     /// Ceux du dernier passage complet, avec leur dernière vie lue (coups portés).
@@ -1096,6 +1126,8 @@ mod tests {
         assert_eq!(resource_name("BP_AzuriteOre_A_Spawner_C"), "AzuriteOre");
         assert_eq!(resource_name("BP_Azurite_Pickup_B_Spawner_C"), "Azurite_Pickup");
         assert_eq!(resource_name("BP_ImpureFuel_Spawner_C"), "ImpureFuel");
+        assert_eq!(resource_name("BP_Bauxite_Static_D_Component_C"), "Bauxite_Static");
+        assert_eq!(resource_name("BP_BurroBush_Component_C"), "BurroBush");
     }
 
     #[test]

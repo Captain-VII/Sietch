@@ -315,6 +315,7 @@ body {
 
 .widget.threat .w-big {
   font-size: 30px;
+  white-space: nowrap;
   color: #ffd9b3;
 }
 

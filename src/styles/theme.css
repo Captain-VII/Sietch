@@ -1,6 +1,7 @@
-@import "@fontsource/jost/400.css";
-@import "@fontsource/jost/500.css";
-@import "@fontsource/jost/600.css";
+/* Sous-ensemble latin seul (français compris, Œ inclus) : pas de cyrillique ni de latin étendu embarqués. */
+@import "@fontsource/jost/latin-400.css";
+@import "@fontsource/jost/latin-500.css";
+@import "@fontsource/jost/latin-600.css";
 
 /* Thème repris de l'interface du jeu : bleu nuit, laiton, texte crème, violet pour la sélection. */
 :root {

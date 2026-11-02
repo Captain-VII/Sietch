@@ -31,6 +31,22 @@ pub fn show_main(app: &AppHandle, view: Option<&str>, action: Option<&str>) {
     }
 }
 
+/// Fenêtre principale du mode dev, affichée au lancement sur l'écran secondaire, agrandie, sans demander le focus
+/// (le jeu peut être au premier plan ; Windows refuse de toute façon le premier plan à un processus lancé en fond). Un `ShowWindow` direct la laisse vide : la
+/// vue web ne se dessine que si Tauri la sait visible.
+pub fn show_main_quiet(app: &AppHandle) {
+    let Some(w) = app.get_webview_window("main") else {
+        return;
+    };
+    // Sur l'écran secondaire, en grand : le principal reste au jeu.
+    let primary = app.primary_monitor().ok().flatten().map(|m| *m.position());
+    if let Some(m) = app.available_monitors().ok().and_then(|ms| ms.into_iter().find(|m| Some(*m.position()) != primary)) {
+        let _ = w.set_position(*m.position());
+    }
+    let _ = w.show();
+    let _ = w.maximize();
+}
+
 pub fn show_wiki(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("wiki") {
         let _ = w.show();
@@ -106,7 +122,7 @@ fn widget_size(kind: &str) -> (f64, f64) {
         "minimap" => (200.0, 228.0),
         "gauges" => (110.0, 200.0),
         "gear" => (200.0, 72.0),
-        "threat" => (170.0, 70.0),
+        "threat" => (190.0, 70.0),
         "hits" => (240.0, 160.0),
         "health" | "stamina" | "hydration" | "power" | "inventory" => (230.0, 52.0),
         _ => (180.0, 64.0),

@@ -43,6 +43,8 @@ export interface Settings {
   mapImages: Record<string, [number, number, number, number]>;
   /** Anneaux du widget Jauges, dans l'ordre. */
   gaugeRings: WidgetKind[];
+  /** Zoom de la mini-carte : demi-largeur visible, en unités de carte (60 ≈ 1 km de large). */
+  minimapView: number;
   /** Seuils des alertes du personnage, en % (0 = désactivée) ; volume : sac rempli au-delà. */
   playerAlerts: { water: number; health: number; power: number; volume: number; worm: number; heat: number };
   /** Dispositions de widgets de l'overlay (au moins une). */

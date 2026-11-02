@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS: Settings = {
   playerAlerts: { water: 25, health: 30, power: 15, volume: 90, worm: 75, heat: 70 },
   mapImages: {},
   gaugeRings: ["health", "stamina", "hydration", "power", "inventory"],
+  minimapView: 60,
   // Mêmes dispositions préfaites que `settings.rs` (PRESETS).
   layouts: ([
     ["exploration", "Exploration", ["clock", "coriolis", "sector", "timers", "minimap", "gauges", "gear", "threat", "hits"]],

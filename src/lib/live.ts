@@ -25,7 +25,7 @@ const PREDICT_MAX_MS = 150;
  * Position prolongée à l'instant `now` selon la vitesse entre les deux dernières lectures.
  * Le joueur s'affiche là où il est probablement, au lieu de là où il était il y a une lecture.
  */
-export function predict(p: PlayerPosition, prev: PlayerPosition | null, now: number): PlayerPosition {
+function predict(p: PlayerPosition, prev: PlayerPosition | null, now: number): PlayerPosition {
   const dt = prev ? p.at - prev.at : 0;
   const ahead = now - p.at;
   if (!prev || dt <= 0 || dt > 500 || ahead <= 0 || ahead > PREDICT_MAX_MS) return p;

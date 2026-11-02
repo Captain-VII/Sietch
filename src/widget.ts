@@ -4,7 +4,7 @@ import "./styles/widget.css";
 
 import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
 import { api, on, type GamePlaces, type Hit, type MapData, type PlayerState, type GameFocus, type SeenResource, type Settings, type Timer, type Trail, type Widget, type WidgetKind } from "./lib/api";
-import { gameImage, HAZARD_EDGE, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, placeIcon, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_GAME_ICONS, POI_KINDS, resourceKind, SIZE, worldToMap } from "./lib/carte";
+import { gameImage, HAZARD_EDGE, HAZARDS, hazardCircles, hiddenPoiKinds, loadGameIcons, mapRegion, placeIcon, PLAYER_GAME_ICON, PLAYER_PIVOT_Y, POI_GAME_ICONS, POI_KINDS, resourceIcon, resourceKind, SIZE, worldToMap } from "./lib/carte";
 import { markers, sectorOf } from "./lib/data";
 import { h, icon, mount } from "./lib/dom";
 import { live, solveAffine, startLive, toMap } from "./lib/live";
@@ -203,7 +203,8 @@ function drawThreat(s: PlayerState | null) {
   const v = s?.wormThreat;
   const pct = v == null ? 0 : Math.max(0, Math.min(1, v / 100));
   card.querySelector<SVGCircleElement>(".fill")!.style.strokeDashoffset = String(RING * (1 - pct));
-  card.querySelector(".w-big")!.textContent = v == null ? "—" : `${Math.round(v)} %`;
+  // Au-delà de 100 %, le ver attaque : le chiffre s'arrête là (sinon il déborde du cadre).
+  card.querySelector(".w-big")!.textContent = v == null ? "—" : `${Math.round(Math.min(100, v))} %`;
   const warn = settings.playerAlerts.worm || 75;
   if (v) threatSeen = Date.now();
   const onSand = Date.now() - threatSeen < THREAT_LINGER;
@@ -290,10 +291,10 @@ function svgRing() {
 
 // ---------- Mini-carte ----------
 
-/** Demi-largeur visible, en unités de carte (1 unité ≈ 9 m dans le Bassin de Hagga) : environ 1 km de large. */
-const VIEW = 60;
 /** Rayon du disque, en pixels CSS (fenêtre de 200 × 200 avant l'échelle). */
 const R = 100;
+/** Demi-largeur visible, en unités de carte (1 unité ≈ 9 m dans le Bassin de Hagga), réglée dans l'écran Overlay. */
+const VIEW = () => settings.minimapView || 60;
 const canvas = h("canvas", { class: "w-minimap" }) as HTMLCanvasElement;
 /** Sous la mini-carte : nom de la zone affiché par le jeu et secteur (« Est du Bouclier · F6 »). */
 const minimapName = h("div", { class: "w-minimap-name" });
@@ -470,7 +471,7 @@ function drawMinimap() {
   const turn = view?.cam == null ? 0 : (-(view.cam + 90) * Math.PI) / 180;
   const [cos, sin] = [Math.cos(turn), Math.sin(turn)];
   if (here && mapData) {
-    const zoom = R / VIEW;
+    const zoom = R / VIEW();
     const px = (x: number) => R + (x - here.x) * zoom;
     const py = (y: number) => R + (y - here.y) * zoom;
     /** Point de la carte tourné autour du joueur : pour placer les icônes, qui restent droites. */
@@ -553,7 +554,7 @@ function drawMinimap() {
       if (masked.has(`l:${pl.type}`)) continue;
       const p = worldToMap(gamePlaces!, pl.x, pl.y);
       const img = placeIcon(pl.icon, pl.type)?.canvas;
-      if (!img || Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
+      if (!img || Math.hypot(p.x - here.x, p.y - here.y) > VIEW() * 1.1) continue;
       const [x, y] = at(p.x, p.y);
       const s = 20 * pl.scale;
       g.save();
@@ -565,7 +566,7 @@ function drawMinimap() {
     for (const poi of gamePlaces ? [] : mapData.pois) {
       if (masked.has(poi.kind)) continue;
       const p = worldToMap(mapData, poi.x, poi.y);
-      if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
+      if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW() * 1.1) continue;
       // Pastille de sa couleur, pictogramme sombre (comme sur la grande carte).
       const look = POI_KINDS[poi.kind];
       const img = gameImage(POI_GAME_ICONS[poi.kind]);
@@ -574,18 +575,29 @@ function drawMinimap() {
       if (img) pin(g, x, y, 16, "#11131F", look?.color ?? "#e9dfc9", undefined, "", 0, undefined, img);
       else pin(g, x, y, 16, look?.color ?? "#e9dfc9", "#11131F", look?.path, "#11131F", 11);
     }
-    // Ressources : pastille sombre, pictogramme de couleur ; pâles si elles ne sont plus chargées.
+    // Ressources présentes seulement (lues à l'instant, pas les déjà vues ni les récoltées) : icône du jeu cernée d'ombre.
+    // Une seule icône par ressource à moins de 10 px d'une autre du même type : les filons groupés restent lisibles.
     const region = mapRegion(mapData);
+    const drawn: [string, number, number][] = [];
     for (const r of resources) {
-      if (r.region !== region) continue;
+      if (r.region !== region || !r.live) continue;
       const look = resourceKind(r.name);
       if (masked.has(look.key)) continue;
       const p = worldToMap(mapData, r.x, r.y);
-      if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW * 1.1) continue;
-      const size = look.ground ? 9 : 13;
-      g.globalAlpha = r.live ? 1 : 0.45;
+      if (Math.hypot(p.x - here.x, p.y - here.y) > VIEW() * 1.1) continue;
+      const badge = resourceIcon(look);
+      const size = (look.ground ? 9 : 13) + (badge ? 5 : 0);
       const [x, y] = at(p.x, p.y);
-      pin(g, x, y, size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.6, look.shape, gameImage(look.game));
+      if (drawn.some(([k, dx, dy]) => k === look.key && Math.hypot(dx - x, dy - y) < 10)) continue;
+      drawn.push([look.key, x, y]);
+      if (badge) {
+        g.save();
+        g.shadowColor = "rgba(4, 5, 10, 0.95)";
+        g.shadowBlur = 3;
+        g.drawImage(badge.canvas, x - size / 2, y - size / 2, size, size);
+        g.drawImage(badge.canvas, x - size / 2, y - size / 2, size, size);
+        g.restore();
+      } else pin(g, x, y, size, "rgba(17, 19, 31, 0.85)", look.color, look.path, look.color, size * 0.6, look.shape, gameImage(look.game));
     }
     g.globalAlpha = 1;
     // Flèche du joueur : orientation du corps (0 = est), dans le repère tourné de la carte.

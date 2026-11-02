@@ -570,7 +570,6 @@ pub struct SeenResource {
     pub live: bool,
 }
 
-/// Mémoire des ressources croisées, une entrée par générateur (région, nom, position au mètre).
 /// Lieux nommés déjà vus, par région (fichier local `lieux-vus.json`).
 #[derive(Default, Serialize, Deserialize)]
 struct Places(std::collections::BTreeMap<String, Vec<ue::Place>>);
@@ -602,6 +601,8 @@ impl Places {
     }
 }
 
+/// Ressources croisées, une entrée par point (région, nom, position au mètre). Seules celles qui réapparaissent
+/// (délai connu) restent en mémoire hors de portée, pour leurs minuteurs ; les gisements fixes ne comptent que chargés.
 #[derive(Default)]
 struct Seen(std::collections::BTreeMap<String, SeenResource>);
 
@@ -609,7 +610,7 @@ impl Seen {
     fn load(path: &std::path::Path) -> Self {
         let list: Vec<SeenResource> = fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
         let mut s = Self::default();
-        for mut r in list {
+        for mut r in list.into_iter().filter(|r| r.res.respawn > 0.0) {
             r.live = false;
             s.0.insert(Self::key(&r), r);
         }
@@ -632,6 +633,7 @@ impl Seen {
             let r = SeenResource { region: region.into(), res, live: true };
             added |= self.0.insert(Self::key(&r), r).is_none();
         }
+        self.0.retain(|_, r| r.live || r.res.respawn > 0.0);
         let after = self.0.iter().filter(|(_, r)| r.live).map(|(k, _)| k);
         (added, added || !after.eq(before.iter()))
     }
@@ -842,6 +844,12 @@ mod tests {
         assert_eq!(seen.update("hagga", vec![res(0.0)]), (false, true));
         assert_eq!(seen.len(), 2);
         assert_eq!(seen.list().iter().filter(|r| r.live).count(), 1);
+        // Gisement fixe (sans délai) : oublié dès qu'il n'est plus chargé.
+        let rock = ue::Resource { name: "Bauxite_Static".into(), x: 50_000.0, y: 0.0, z: 0.0, respawn: 0.0 };
+        seen.update("hagga", vec![res(0.0), rock]);
+        assert_eq!(seen.len(), 3);
+        seen.update("hagga", vec![res(0.0)]);
+        assert_eq!(seen.len(), 2);
     }
 
     #[test]

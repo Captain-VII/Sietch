@@ -52,13 +52,17 @@ function tint(g: CanvasRenderingContext2D, img: HTMLImageElement, color: string,
   g.drawImage(c, x, y);
 }
 
+/** Badge d'un lieu, à la couleur de son type. */
+export const placeIcon = (id: string, type: string) => badgeIcon(id, PLACE_COLORS[type] ?? PLACE_TINT);
+
 /**
- * Badge d'un lieu comme sur la carte du jeu : son fond rond (`MapLocationSmallBG`, disque sombre, anneau à la couleur du
- * type) et l'icône du type au centre, de la même couleur. Canvas pour la mini-carte, URL pour la carte.
+ * Badge comme sur la carte du jeu : fond rond (`MapLocationSmallBG`, disque sombre, anneau à la couleur donnée) et
+ * l'icône au centre, de la même couleur. Sans fond (`disc` faux) : l'icône seule, teintée. Canvas pour la mini-carte,
+ * URL pour la carte ; null sans l'icône du jeu.
  */
-export function placeIcon(id: string, type: string) {
-  const color = PLACE_COLORS[type] ?? PLACE_TINT;
-  const key = `${id}|${color}`;
+function badgeIcon(id: string | undefined, color: string, disc = true) {
+  if (!id) return null;
+  const key = `${id}|${color}|${disc}`;
   const known = tinted.get(key);
   if (known) return known;
   const img = gameImages.get(id);
@@ -67,7 +71,7 @@ export function placeIcon(id: string, type: string) {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = S;
   const g = canvas.getContext("2d")!;
-  const bg = gameImages.get("LocationSmallBG");
+  const bg = disc ? gameImages.get("LocationSmallBG") : undefined;
   if (bg?.naturalWidth) tint(g, bg, color, 0, 0, S);
   const s = bg?.naturalWidth ? Math.round(S * 0.5) : S;
   tint(g, img, color, (S - s) / 2, (S - s) / 2, s);
@@ -75,6 +79,12 @@ export function placeIcon(id: string, type: string) {
   tinted.set(key, icon);
   return icon;
 }
+
+/**
+ * Icône d'une ressource comme sur la carte du jeu : l'icône seule (son contour sombre est dans l'image), teintée du sable
+ * doré des marqueurs, l'eau en bleu (relevé sur une capture de la carte).
+ */
+export const resourceIcon = (k: { game?: string; label: string }) => badgeIcon(k.game, k.label === "Eau" ? "#4F86C6" : PLACE_TINT, false);
 
 /** Icône du jeu de chaque type de lieu. */
 export const POI_GAME_ICONS: Record<string, string> = {
@@ -173,7 +183,7 @@ const RES_ICONS = {
  * Pastille de chaque famille (même repère que les pictogrammes, centre (12, 12), rayon 16,5) : la forme dit la famille
  * même en tout petit sur la mini-carte.
  */
-export const FAMILY_SHAPES = {
+const FAMILY_SHAPES = {
   roche: "M12 -4.5l14.3 8.25v16.5L12 28.5-2.3 20.25V3.75z",
   vegetal: "M12 -4.5a16.5 16.5 0 1 1 0 33 16.5 16.5 0 0 1 0-33z",
   recup: "M-1.5 -3.5h27a2 2 0 0 1 2 2v27a2 2 0 0 1-2 2h-27a2 2 0 0 1-2-2v-27a2 2 0 0 1 2-2z",
@@ -183,33 +193,37 @@ export const FAMILY_SHAPES = {
 type Family = keyof typeof FAMILY_SHAPES;
 
 /**
- * Ressources lues dans le jeu (générateurs), d'après leur nom interne. Les noms français du jeu peuvent différer.
+ * Ressources lues dans le jeu (générateurs), d'après leur nom interne. Noms français des minerais : marqueurs de la carte
+ * du jeu (`DT_Base_FullscreenMapMarkers`, ex. AzuriteOre = « Minerai de cuivre », `sietch-assets textes`).
  * Titane, stravidium, fibre, épice et eau : noms internes supposés, pas encore vus en jeu.
  */
 const RESOURCE_KINDS: Record<string, { label: string; color: string; icon: keyof typeof RES_ICONS; family: Family }> = {
-  AzuriteOre: { label: "Azurite", color: "#4f8fe0", icon: "minerai", family: "roche" },
-  Azurite: { label: "Azurite", color: "#4f8fe0", icon: "minerai", family: "roche" },
-  RhyoliteStone: { label: "Rhyolite", color: "#c7b7a0", icon: "pierre", family: "roche" },
-  Titanium: { label: "Titane", color: "#b8c4d6", icon: "titane", family: "roche" },
-  Stravidium: { label: "Stravidium", color: "#a58cf0", icon: "stravidium", family: "roche" },
+  AzuriteOre: { label: "Minerai de cuivre", color: "#4f8fe0", icon: "minerai", family: "roche" },
+  Azurite: { label: "Minerai de cuivre", color: "#4f8fe0", icon: "minerai", family: "roche" },
+  RhyoliteStone: { label: "Granit", color: "#c7b7a0", icon: "pierre", family: "roche" },
+  Rhyolite: { label: "Granit", color: "#c7b7a0", icon: "pierre", family: "roche" },
+  Titanium: { label: "Minerai de titane", color: "#b8c4d6", icon: "titane", family: "roche" },
+  Stravidium: { label: "Masse de stravidium", color: "#a58cf0", icon: "stravidium", family: "roche" },
   Basalt: { label: "Basalte", color: "#8d8a96", icon: "basalte", family: "roche" },
-  BauxiteOre: { label: "Bauxite", color: "#d07a4a", icon: "pierre", family: "roche" },
-  Bauxite: { label: "Bauxite", color: "#d07a4a", icon: "pierre", family: "roche" },
-  MagnetiteOre: { label: "Magnétite", color: "#7d8796", icon: "minerai", family: "roche" },
-  Magnetite: { label: "Magnétite", color: "#7d8796", icon: "minerai", family: "roche" },
-  DolomiteOre: { label: "Dolomite", color: "#e3dccd", icon: "pierre", family: "roche" },
-  Dolomite: { label: "Dolomite", color: "#e3dccd", icon: "pierre", family: "roche" },
-  Erythrite: { label: "Érythrite", color: "#d8679a", icon: "minerai", family: "roche" },
-  ScrapMetal: { label: "Ferraille", color: "#aab4be", icon: "ferraille", family: "recup" },
+  BauxiteOre: { label: "Minerai d'aluminium", color: "#d07a4a", icon: "pierre", family: "roche" },
+  Bauxite: { label: "Minerai d'aluminium", color: "#d07a4a", icon: "pierre", family: "roche" },
+  MagnetiteOre: { label: "Minerai de fer", color: "#7d8796", icon: "minerai", family: "roche" },
+  Magnetite: { label: "Minerai de fer", color: "#7d8796", icon: "minerai", family: "roche" },
+  DolomiteOre: { label: "Minerai de carbone", color: "#e3dccd", icon: "pierre", family: "roche" },
+  Dolomite: { label: "Minerai de carbone", color: "#e3dccd", icon: "pierre", family: "roche" },
+  JasmiumOre: { label: "Cristal de jasmium", color: "#e0c45a", icon: "minerai", family: "roche" },
+  Jasmium: { label: "Cristal de jasmium", color: "#e0c45a", icon: "minerai", family: "roche" },
+  Erythrite: { label: "Cristal d'érythrite", color: "#d8679a", icon: "minerai", family: "roche" },
+  ScrapMetal: { label: "Métal récupéré", color: "#aab4be", icon: "ferraille", family: "recup" },
   ScrapElectronics: { label: "Électronique", color: "#6fd1e8", icon: "electronique", family: "recup" },
   ImpureFuel: { label: "Carburant", color: "#e8823a", icon: "carburant", family: "liquide" },
   Spice: { label: "Épice", color: "#f0b13c", icon: "epice", family: "liquide" },
   Water: { label: "Eau", color: "#5fb8e8", icon: "eau", family: "liquide" },
-  BurroBush: { label: "Buisson", color: "#8fbf5a", icon: "plante", family: "vegetal" },
+  BurroBush: { label: "Buisson cassant", color: "#8fbf5a", icon: "plante", family: "vegetal" },
   Primrose: { label: "Primevère", color: "#e6a6d0", icon: "fleur", family: "vegetal" },
   PlantFiber: { label: "Fibre végétale", color: "#c5d97a", icon: "fibre", family: "vegetal" },
   Cistanche: { label: "Cistanche", color: "#d9a35f", icon: "fibre", family: "vegetal" },
-  Saguaro: { label: "Saguaro", color: "#5fae6e", icon: "cactus", family: "vegetal" },
+  Saguaro: { label: "Graines d'agave", color: "#5fae6e", icon: "cactus", family: "vegetal" },
   Ornithopter: { label: "Ornithoptère", color: "#f1d7ff", icon: "ornithoptere", family: "recup" },
   Buggy: { label: "Buggy", color: "#f1d7ff", icon: "ferraille", family: "recup" },
   EMFGenerator: { label: "Générateur EMF", color: "#6fd1e8", icon: "electronique", family: "recup" },
@@ -217,12 +231,12 @@ const RESOURCE_KINDS: Record<string, { label: string; color: string; icon: keyof
 
 /** Icône du jeu de chaque ressource (par libellé). */
 const RES_GAME_ICONS: Record<string, string> = {
-  Azurite: "MarkerMineralAzurite", Rhyolite: "MarkerMineralRhyolite", Titane: "MarkerMineralTitaniumOre",
-  Stravidium: "MarkerMineralStravidiumOre", Basalte: "MarkerMineralBasalt", Bauxite: "MarkerMineralBauxite",
-  Magnétite: "MarkerMineralMagnetite", Dolomite: "MarkerMineralDolomite", Érythrite: "MarkerMineralErythrite",
-  Ferraille: "MarkerSalvageScrap", Électronique: "MarkerSandHighTechDebris", Carburant: "MarkerSalvageFuel",
-  Épice: "SpiceField", Eau: "MarkerWaterField", "Fibre végétale": "PlantFiber", Saguaro: "MarkerSaguaro",
-  Ornithoptère: "MarkerVehicleOrniLight", Buisson: "PlantFiber", Primevère: "PickupPlant", Cistanche: "PickupPlant",
+  "Minerai de cuivre": "MarkerMineralAzurite", "Granit": "MarkerMineralRhyolite", "Minerai de titane": "MarkerMineralTitaniumOre",
+  "Masse de stravidium": "MarkerMineralStravidiumOre", Basalte: "MarkerMineralBasalt", "Cristal de jasmium": "MarkerMineralJasmium", "Minerai d'aluminium": "MarkerMineralBauxite",
+  "Minerai de fer": "MarkerMineralMagnetite", "Minerai de carbone": "MarkerMineralDolomite", "Cristal d'érythrite": "MarkerMineralErythrite",
+  "Métal récupéré": "MarkerSalvageScrap", Électronique: "MarkerSandHighTechDebris", Carburant: "MarkerSalvageFuel",
+  Épice: "SpiceField", Eau: "MarkerWaterField", "Fibre végétale": "PlantFiber", "Graines d'agave": "MarkerSaguaro",
+  Ornithoptère: "MarkerVehicleOrniLight", "Buisson cassant": "PlantFiber", Primevère: "PickupPlant", Cistanche: "PickupPlant",
   Buggy: "MarkerVehicleBuggy", "Générateur EMF": "ResourceEMFGenerator",
 };
 

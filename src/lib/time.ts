@@ -12,7 +12,7 @@ export async function syncClock() {
 export const now = () => Date.now() + skew;
 
 /** Heure serveur "HH:MM". */
-export function serverTime(): string {
+function serverTime(): string {
   const offset = (clock?.serverOffsetMin ?? 0) * 60_000;
   const d = new Date(now() + offset);
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
@@ -27,18 +27,18 @@ export function pad(n: number) {
 }
 
 /** 754000 → "00:12:34". */
-export function hms(ms: number): string {
+function hms(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 }
 
-export function parts(ms: number) {
+function parts(ms: number) {
   const m = Math.max(0, Math.floor(ms / 60_000));
   return { d: Math.floor(m / 1440), h: Math.floor((m % 1440) / 60), m: m % 60 };
 }
 
 /** "2 j 14 h 07" */
-export function shortCountdown(ms: number): string {
+function shortCountdown(ms: number): string {
   const p = parts(ms);
   if (p.d > 0) return `${p.d} j ${p.h} h ${pad(p.m)}`;
   if (p.h > 0) return `${p.h} h ${pad(p.m)}`;
@@ -61,7 +61,7 @@ export function remaining(t: Timer): number {
 }
 
 /** Part écoulée, de 0 à 1. */
-export function progress(t: Timer): number {
+function progress(t: Timer): number {
   if (t.fired) return 1;
   return 1 - remaining(t) / (t.durationSecs * 1000);
 }

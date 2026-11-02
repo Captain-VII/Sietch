@@ -40,6 +40,8 @@ pub struct Settings {
     pub player_alerts: crate::alerts::AlertSettings,
     /// Anneaux affichés par le widget Jauges (vie, endurance…), dans l'ordre.
     pub gauge_rings: Vec<String>,
+    /// Zoom de la mini-carte : demi-largeur visible, en unités de carte (60 ≈ 1 km de large).
+    pub minimap_view: f64,
     /// Version de la liste des anneaux : les anneaux ajoutés ensuite (le ver en 1) sont cochés une fois.
     /// Absente d'un ancien fichier : 0 (et non la valeur par défaut des réglages neufs).
     #[serde(default)]
@@ -156,6 +158,7 @@ impl Settings {
         self.rings_version = 2;
         let mut rings = std::collections::BTreeSet::new();
         self.gauge_rings.retain(|k| GAUGE_RINGS.contains(&k.as_str()) && rings.insert(k.clone()));
+        self.minimap_view = if self.minimap_view.is_finite() { self.minimap_view.clamp(15.0, 450.0) } else { 60.0 };
         let mut seen = std::collections::BTreeSet::new();
         self.layouts.retain_mut(|l| {
             if l.id.trim().is_empty() || !seen.insert(l.id.clone()) {
@@ -284,6 +287,7 @@ impl Default for Settings {
             player_alerts: Default::default(),
             map_images: BTreeMap::new(),
             gauge_rings: GAUGE_RINGS.iter().map(|s| s.to_string()).collect(),
+            minimap_view: 60.0,
             rings_version: 2,
             layouts_version: 4,
             layouts: PRESETS.iter().map(|p| Layout::preset(p.0)).collect(),
@@ -417,6 +421,16 @@ mod tests {
         s.layouts.clear();
         s.normalize();
         assert_eq!(s.layouts, vec![Layout::default()]);
+    }
+
+    #[test]
+    fn minimap_zoom_defaults_and_is_bounded() {
+        let mut s: Settings = serde_json::from_str("{}").unwrap();
+        s.normalize();
+        assert_eq!(s.minimap_view, 60.0);
+        s.minimap_view = 5000.0;
+        s.normalize();
+        assert_eq!(s.minimap_view, 450.0);
     }
 
     #[test]

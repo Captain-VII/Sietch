@@ -155,7 +155,7 @@ export function render(root: HTMLElement, ctx: Ctx, action?: string | null): Vie
   const readyBox = h("div", { class: "row wrap", style: "--gap: 8px" });
   /** Délais relevés en jeu le 2026-10-27 (m_DefaultRespawnTime), si Sietch n'a encore rien vu lui-même. */
   const KNOWN: [string, number][] = [
-    ["Azurite", 1500], ["Rhyolite", 1500], ["Ferraille", 1500], ["Électronique", 1500], ["Carburant", 1500], ["Primevère", 1500], ["Buisson", 180],
+    ["Minerai de cuivre", 1500], ["Granit", 1500], ["Métal récupéré", 1500], ["Électronique", 1500], ["Carburant", 1500], ["Primevère", 1500], ["Buisson cassant", 180],
   ];
   async function drawReady() {
     const seen = await api.resources().catch(() => []);

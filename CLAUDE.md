@@ -73,7 +73,9 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 - **Widgets de l'overlay** (`windows.rs`) : une fenêtre par élément, créée depuis une tâche de fond (`refresh_widgets`),
   transparente, toujours devant, avec `WS_EX_NOACTIVATE` (un clic ne doit jamais prendre le focus au jeu ;
   `focusable(false)` ne suffit pas). Positions enregistrées en sortant du mode édition. En dev, la fenêtre principale
-  reste cachée au démarrage (l'appli redémarre à chaque modification du Rust).
+  s'ouvre au démarrage sans demander le focus (`show_main_quiet` ; un `ShowWindow` direct la laisse vide).
+  **Dev hors du bac à sable de Claude** : lancer `npm run tauri dev` par un processus WMI, sinon AppData est redirigé
+  vers une copie privée et dev n'a pas les données de l'appli installée.
 
 ## Icônes du jeu (local seulement)
 
@@ -89,7 +91,7 @@ maquettes 3D** : `sietch-assets relief <fichier> 4096 <captures> 27.2 37.2 891.1
 du jeu (`cartes\hagga.captures` et leur calage) ; sans elles, sur la carte peinte du jeu, plus rouge. Juste par construction et à jour (Sheol compris) ; la texture officielle `T_Survival_WorldMap_MiniMap_D`,
 plus ancienne (sans Sheol), est gardée dans `cartes\hagga.officiel`. Régions : `sietch-assets regions
 %APPDATA%\com.captainvii.sietch\jeu\regions-hagga.json` (contours et noms français, voir `docs/carte-en-direct.md`). Lieux : `sietch-assets lieux
-%APPDATA%\com.captainvii.sietch\jeu\lieux-hagga.json %APPDATA%\com.captainvii.sietch\jeu\icones-carte`. Les captures assemblées gardaient 20 à 130 m d'écart selon les morceaux (sauvegarde : `cartes\hagga.captures`).
+%APPDATA%\com.captainvii.sietch\jeu\lieux-hagga.json %APPDATA%\com.captainvii.sietch\jeu\icones-carte`. Textes du jeu : `sietch-assets textes <regex sur l'anglais>` (clé, anglais, français) ; noms des ressources = marqueurs `WORLD_MAP_MARKER_RESOURCE_*` reliés aux icônes par `DT_Base_FullscreenMapMarkers` (AzuriteOre = cuivre, Magnetite = fer, Bauxite = aluminium, Dolomite = carbone, Rhyolite = granit). Les captures assemblées gardaient 20 à 130 m d'écart selon les morceaux (sauvegarde : `cartes\hagga.captures`).
 `T_Survival_WorldMap_MiniMap_D` (mini-carte du jeu) couvre exactement les bornes de la carte (±457200 / 355600) :
 c'est le repère pour recaler un fond de captures (corrélation des contours). Plus précis (2026-11-02) : les zones de
 sable tambour dessinées par le jeu sur les captures tombent pile sur les cercles de `DA_WorldMap_AreasData_Survival_1` ;
@@ -127,8 +129,11 @@ Toujours en **mode dev** (`npm run tauri dev`) : l'utilisateur ne veut pas encor
   Disposition par défaut réglée en jeu sur 2560 × 1440, rapportée à l'écran (`windows.rs::default_pos`).
   L'overlay s'affiche au lancement.
 - **Carte** : sans défilement (pleine hauteur), suivi du joueur arrêté dès qu'on déplace la carte, région automatique
-  (calque de carte lu dans le jeu), lieux et ressources avec pictogrammes. Les pictogrammes restent jugés « vagues » : à reprendre.
-- **Ressources en direct** : générateurs dérivés de `ResourceSpawner`, relus toutes les 15 s ; mémoire des ressources
+  (calque de carte lu dans le jeu), lieux et ressources avec les icônes du jeu ; filtres en calques repliables.
+- **Ressources en direct** : générateurs dérivés de `ResourceSpawner`, et gisements fixes
+  (`HarvestableInstancedMeshComponent`, une instance par rocher, position = acteur porteur + instance ; limite : un
+  rocher miné encore listé : état introuvable, voir `ue.rs::instances`). Carte et mini-carte n'affichent que les ressources présentes,
+  regroupées par type à l'écran. Relevé toutes les quelques secondes ; mémoire des générateurs
   vues dans `%APPDATA%\com.captainvii.sietch\ressources-vues.json` (local). Clic sur une ressource = minuteur de réapparition.
 - **Fond de carte** (local, jamais dans le dépôt) : captures de l'utilisateur assemblées puis retouchées zone par zone
   (`captures-carte\hagga\retouche-*.webp`). Pour capturer : masquer l'overlay (Ctrl+Maj+O) et les filtres

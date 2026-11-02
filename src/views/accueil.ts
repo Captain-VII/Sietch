@@ -4,7 +4,7 @@ import { builds, DEFAULT_CHECKLIST, getChecklist, getNotes, markers, MARKER_TYPE
 import { h, icon, mount } from "../lib/dom";
 import { coriolisNext, now, remaining } from "../lib/time";
 
-export function timerLine(t: Timer) {
+function timerLine(t: Timer) {
   return h(
     "div",
     { class: "stack", style: "--gap: 8px" },
@@ -18,7 +18,7 @@ export function timerLine(t: Timer) {
 }
 
 /** Minuteurs en cours, du plus proche au plus lointain. */
-export function activeTimers(list: Timer[]) {
+function activeTimers(list: Timer[]) {
   return list.filter((t) => !t.fired && t.endsAt !== null).sort((a, b) => remaining(a) - remaining(b));
 }
 

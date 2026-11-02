@@ -54,7 +54,7 @@ function parseTime(td: Element): number {
 }
 
 /** Recettes qui produisent l'article (section « Crafted By ») ; vide pour une matière première. */
-export function parseRecipes(html: string): Recipe[] {
+function parseRecipes(html: string): Recipe[] {
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
   const head = doc.getElementById("Crafted_By");
   if (!head) return [];
@@ -79,7 +79,7 @@ export function parseRecipes(html: string): Recipe[] {
 }
 
 /** Page d'un ensemble (« Kirab Stillsuit ») : ses pièces, chacune avec sa recette. Recette fictive « Ensemble ». */
-export function parseSet(html: string, item: string): Recipe | null {
+function parseSet(html: string, item: string): Recipe | null {
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
   const head = doc.getElementById("Armor_Set");
   if (!head) return null;

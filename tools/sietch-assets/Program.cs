@@ -84,5 +84,14 @@ switch (args[0])
         return Places.Run(provider, args[1], args[2]);
     case "regions":
         return Regions.Run(provider, args[1]);
+    case "textes":
+        // Textes du jeu dont l'anglais correspond au filtre (regex) : clé, anglais, français.
+        Dictionary<string, string> Texts(string lang) => new CUE4Parse.UE4.Localization.FTextLocalizationResource(provider.Files[$"DuneSandbox/Content/Localization/Game/{lang}/Game.locres"].CreateReader()).Entries
+            .SelectMany(ns => ns.Value).GroupBy(e => e.Key.Str).ToDictionary(g => g.Key, g => g.First().Value.LocalizedString);
+        var (en, fr) = (Texts("en"), Texts("fr"));
+        var filter = new Regex(args[1]);
+        foreach (var (key, text) in en.Where(e => filter.IsMatch(e.Value)).OrderBy(e => e.Value))
+            Console.WriteLine($"{key}\t{text}\t{fr.GetValueOrDefault(key)}");
+        return 0;
 }
 return 1;

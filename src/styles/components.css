@@ -410,6 +410,28 @@ input[type="range"] {
   background: var(--spice-ink);
 }
 
+/* Une partie seulement (calque dont certains éléments sont masqués). */
+.switch[aria-checked="mixed"] {
+  justify-content: center;
+  border-color: var(--spice);
+}
+
+.switch[aria-checked="mixed"]::after {
+  background: var(--spice);
+}
+
+.switch.small {
+  width: 38px;
+  height: 22px;
+  padding: 2px;
+  border-radius: 11px;
+}
+
+.switch.small::after {
+  width: 16px;
+  height: 16px;
+}
+
 .bar {
   height: 4px;
   background: var(--selected);

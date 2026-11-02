@@ -8,7 +8,7 @@
 
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 
-export const WIKI_BASE = "https://awakening.wiki";
+const WIKI_BASE = "https://awakening.wiki";
 export const WIKI_LICENSE = "CC BY-NC-SA 4.0";
 export const WIKI_LICENSE_URL = "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.fr";
 const SITEMAP = "/sitemaps/sitemap-awakening.wiki-NS_0-0.xml";
@@ -53,7 +53,7 @@ export class WikiError extends Error {
 let index: string[] | null = null;
 
 /** "Coriolis Storm" ↔ "Coriolis_Storm" dans les adresses. */
-export const toPath = (title: string) => "/" + encodeURIComponent(title.replace(/ /g, "_")).replace(/%2F/g, "/");
+const toPath = (title: string) => "/" + encodeURIComponent(title.replace(/ /g, "_")).replace(/%2F/g, "/");
 export const pageUrl = (title: string) => WIKI_BASE + toPath(title);
 
 function titleFromHref(href: string): string | null {
