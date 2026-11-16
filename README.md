@@ -1,7 +1,7 @@
 # Sietch
 
 Compagnon de bureau non officiel pour **Dune: Awakening** : carte à marqueurs, minuteurs avec alarmes, builds, wiki et overlay toujours au premier plan.
-Sietch ne modifie jamais le jeu. Il ne lit sa mémoire (en lecture seule) qu'en mode solo ou sur un serveur privé sans BattlEye, et seulement si vous l'activez.
+Sietch ne modifie jamais le jeu. Il ne lit sa mémoire (en lecture seule) qu'en mode solo ou sur un serveur privé sans BattlEye. Cette lecture se fait automatiquement et s'arrête dès que BattlEye est détecté.
 
 ## Installation
 
@@ -19,7 +19,7 @@ Sietch vérifie ensuite lui-même les nouvelles versions et les installe depuis 
 - **Wiki** : les articles du [Dune: Awakening Community Wiki](https://awakening.wiki/) (soutenu par Funcom), chargés à la demande et affichés dans Sietch ; recherche dans les titres, fenêtre dédiée avec historique. Contenu sous licence CC BY-NC-SA 4.0, source citée sous chaque article.
 - **Base de données** : [dune.gaming.tools](https://dune.gaming.tools/) s'ouvre dans une fenêtre de Sietch. Ses conditions interdisent de copier sa base sans autorisation : Sietch ne la récupère donc pas.
 - **Overlay** : un widget par élément (heure, Coriolis, secteur, minuteurs, mini-carte, jauges), dispositions, échelle, opacité, clic traversant ; bandeau d'alerte en haut de l'écran.
-- **Modules sans BattlEye** (à activer) : en mode solo ou sur un serveur privé lancé sans BattlEye, Sietch lit le personnage en lecture seule : position et trajet sur la carte et la mini-carte, vie, endurance, eau, énergie, sac, menace du ver, ressources alentour avec minuteur de réapparition, et alertes (eau, vie, chaleur, ver…). Tout est coupé dès que BattlEye est détecté. Test sans le jeu : `SIETCH_SIMULATION=1 npm run tauri dev`.
+- **Modules sans BattlEye** (automatiques) : en mode solo ou sur un serveur privé lancé sans BattlEye, Sietch lit le personnage en lecture seule : position et trajet sur la carte et la mini-carte, vie, endurance, eau, énergie, sac, menace du ver, ressources alentour avec minuteur de réapparition, et alertes (eau, vie, chaleur, ver…). Tout est coupé dès que BattlEye est détecté. Test sans le jeu : `SIETCH_SIMULATION=1 npm run tauri dev`.
 - **Zone de notification**, **raccourcis globaux** réglables, lancement au démarrage, sauvegarde complète.
 
 ## Développement
