@@ -58,7 +58,8 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
 - **dune.gaming.tools** : seulement ouvert dans la fenêtre « web ». Leurs CGU interdisent de copier leur base sans
   autorisation, et le site bloque les accès automatiques. Ne pas scraper.
 - **Modules sans BattlEye** (`live.rs`) : la lecture de la mémoire du jeu n'a lieu que si le jeu tourne **sans**
-  BattlEye (mode solo ou serveur privé ; option officielle depuis la 1.5) **et** que l'utilisateur l'a activée.
+  BattlEye (mode solo ou serveur privé ; option officielle depuis la 1.5). Plus d'option à cocher depuis la v0.1.5 :
+  `live_modules` vaut `true` par défaut, le garde-fou BattlEye suffit.
   Lecture seule (`PROCESS_VM_READ`), poignée fermée dès que BattlEye apparaît, état incertain = BattlEye supposé actif.
   Le jeu n'est ouvert qu'après 3 vérifications d'affilée sans BattlEye (6 s), pour ne jamais le lire au lancement.
   Ne jamais écrire dans la mémoire du jeu ni ajouter de triche. Ce garde-fou reste tant que Funcom n'a rien dit d'officiel.
