@@ -65,6 +65,9 @@ Les requêtes du wiki y passent par le relais Vite `/__wiki`.
   Ne jamais écrire dans la mémoire du jeu ni ajouter de triche. Ce garde-fou reste tant que Funcom n'a rien dit d'officiel.
 - **Sécurité des fenêtres** : la fenêtre « web » (sites externes) n'a aucune permission Tauri ; seuls
   awakening.wiki et dune.gaming.tools y sont autorisés (`windows.rs`).
+- **Version de Rust figée** dans `rust-toolchain.toml` (2026-11-17) : une nouvelle version stable change la clé du
+  cache de la CI et force une compilation complète (16 min au lieu de 7). Monter la version exprès, après `cargo clippy`
+  et `cargo test`. Le cache de la CI expire aussi après 7 jours sans push.
 - Icônes embarquées à la compilation : après un changement d'icône, `npm run icon` (touche `lib.rs`).
 - **Poids de l'interface** : la carte (Leaflet) se charge à sa première ouverture (`main.ts::loadCarte`) ; polices Jost en woff2 seul ; logos à leur taille d'affichage (84 et 36 px). Avant d'ajouter une dépendance ou une image, vérifier `npm run build`.
 - **Composants partagés** (`lib/dom.ts`) : `cardHead`, `linkBtn`, `emptyState`, `keys` ; `input.switch` pour une case en interrupteur. Les réutiliser plutôt que refaire un en-tête ou un état vide.

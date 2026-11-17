@@ -1,0 +1,7 @@
+[toolchain]
+# Version figée : une nouvelle version stable de Rust change la clé du cache de la CI
+# (toute la compilation repart de zéro) et peut ajouter des avertissements clippy.
+# Pour monter : changer la version, lancer cargo clippy et cargo test, corriger, commiter.
+channel = "1.100.0"
+components = ["clippy"]
+profile = "minimal"
